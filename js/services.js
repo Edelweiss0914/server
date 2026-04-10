@@ -137,7 +137,7 @@ const SERVICES = [
     color: '#8b5a2b',
     bgColor: '#f6ecdf',
     bgColorDark: '#2a1c10',
-    icon: '🗃️',
+    icon: 'AB',
     iconType: 'emoji',
     keywords: [
       'archivebox', 'archive', 'web archive', 'bookmark', 'bookmarks',
