@@ -138,12 +138,12 @@ const SERVICES = [
     bgColor: '#f6ecdf',
     bgColorDark: '#2a1c10',
     icon: `<svg viewBox="0 0 100 75" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M8 20C8 14.4772 12.4772 10 18 10H82C87.5228 10 92 14.4772 92 20V29H8V20Z" fill="#8b5a2b"/>
-      <path d="M12 28H88V61C88 66.5228 83.5228 71 78 71H22C16.4772 71 12 66.5228 12 61V28Z" fill="#c48743"/>
-      <rect x="39" y="29" width="22" height="12" rx="4" fill="#f6ecdf"/>
-      <rect x="21" y="41" width="58" height="20" rx="6" fill="#fff7ed" opacity="0.95"/>
-      <rect x="30" y="47" width="22" height="4" rx="2" fill="#c48743"/>
-      <rect x="30" y="55" width="32" height="4" rx="2" fill="#c48743"/>
+      <rect x="10" y="16" width="80" height="16" rx="8" fill="#8b5a2b"/>
+      <rect x="14" y="28" width="72" height="40" rx="8" fill="#c48743"/>
+      <rect x="36" y="22" width="28" height="9" rx="4.5" fill="#f6ecdf"/>
+      <rect x="24" y="40" width="52" height="18" rx="5" fill="#fff7ed"/>
+      <rect x="32" y="46" width="18" height="4" rx="2" fill="#c48743"/>
+      <rect x="32" y="53" width="28" height="4" rx="2" fill="#c48743"/>
     </svg>`,
     keywords: [
       'archivebox', 'archive', 'web archive', 'bookmark', 'bookmarks',
