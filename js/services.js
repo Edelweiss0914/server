@@ -138,12 +138,12 @@ const SERVICES = [
     bgColor: '#f6ecdf',
     bgColorDark: '#2a1c10',
     icon: `<svg viewBox="0 0 100 75" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="12" y="18" width="76" height="14" rx="6" fill="#8b5a2b"/>
-      <rect x="16" y="30" width="68" height="32" rx="6" fill="#c48743"/>
-      <rect x="39" y="22" width="22" height="8" rx="4" fill="#f6ecdf"/>
-      <rect x="26" y="40" width="48" height="14" rx="4" fill="#fff7ed"/>
-      <rect x="34" y="45" width="14" height="3" rx="1.5" fill="#c48743"/>
-      <rect x="34" y="51" width="24" height="3" rx="1.5" fill="#c48743"/>
+      <rect x="16" y="12" width="68" height="14" rx="6" fill="#8b5a2b"/>
+      <rect x="18" y="24" width="64" height="40" rx="6" fill="#c48743"/>
+      <rect x="39" y="16" width="22" height="8" rx="4" fill="#f6ecdf"/>
+      <rect x="28" y="35" width="44" height="18" rx="4" fill="#fff7ed"/>
+      <rect x="35" y="41" width="14" height="3" rx="1.5" fill="#c48743"/>
+      <rect x="35" y="47" width="24" height="3" rx="1.5" fill="#c48743"/>
     </svg>`,
     keywords: [
       'archivebox', 'archive', 'web archive', 'bookmark', 'bookmarks',
