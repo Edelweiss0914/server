@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OMC 내부 상태 (버전관리 불필요)
+.omc/
+
+# 로그
+*.log
