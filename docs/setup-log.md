@@ -136,6 +136,70 @@ ingress:
 
 ---
 
+## GatewayVM → LXC 마이그레이션 (2026-04-11)
+
+### 목적
+GatewayVM(Rocky Linux 9.7, VMID 100)의 역할을 LXC 컨테이너(CTID 200)로 이전하여 리소스 절약.
+
+### 최종 구성
+
+| 항목 | 값 |
+|------|-----|
+| LXC CTID | 200 |
+| 호스트명 | gateway-lxc |
+| OS 템플릿 | rockylinux-9-default_20240912_amd64.tar.xz |
+| IP | 192.168.50.196/24 (static, NetworkManager) |
+| MAC | BC:24:11:83:AB:07 |
+| vmbr0 (외부) | eth0 → 192.168.50.196 |
+| vmbr1 (내부) | eth1 → 10.0.0.1 |
+| Privileged | Yes (NAT masquerade 필요) |
+
+### 마이그레이션 작업 순서
+
+1. Proxmox에서 LXC 생성 (storage: Main, privileged)
+2. LXC 시작 후 nginx, firewalld, cloudflared 설치 및 설정
+3. 공유기(TX-AX6000)에서 MAC → IP 예약 (Manual Assignment: Yes)
+4. NetworkManager로 static IP 설정
+5. cloudflared 바이너리 설치 및 서비스 등록
+
+### 발생한 문제 및 해결
+
+| 문제 | 원인 | 해결 |
+|------|------|------|
+| `storage 'local-lvm' does not exist` | PVE storage 이름 다름 | `Main:10`으로 변경 |
+| 템플릿 와일드카드 미작동 | 정확한 파일명 필요 | `rockylinux-9-default_20240912_amd64.tar.xz` 직접 지정 |
+| heredoc EOF 인식 실패 | 앞에 공백 | `printf` 또는 Python one-liner 사용 |
+| `lxc.cap.keep` 충돌 | features와 충돌 | `sed -i '/lxc.cap.keep/d'`로 제거 |
+| DHCP 리스 갱신 안 됨 | 공유기 Manual Assignment가 No | Yes로 변경 후 static IP로 전환 |
+| cloudflared 설치 실패 | GitHub redirect 9바이트 반환 | 특정 버전 URL 직접 지정 |
+| config.yml YAML 오류 | 멀티라인 입력 시 들여쓰기 깨짐 | LXC 내부 접속 후 vi로 직접 작성 |
+
+### 최종 LXC 설정 파일
+
+#### `/etc/cloudflared/config.yml`
+```yaml
+tunnel: nextcloud-tunnel
+credentials-file: /root/.cloudflared/136c8b02-a570-42af-8753-6738ba99718c.json
+
+ingress:
+  - hostname: edelweiss0297.cloud
+    service: http://localhost:80
+  - hostname: cloud.edelweiss0297.cloud
+    service: http://localhost:80
+  - service: http_status:404
+```
+
+#### NetworkManager static IP (`nmcli`)
+```bash
+nmcli connection modify "System eth0" \
+  ipv4.method manual \
+  ipv4.addresses 192.168.50.196/24 \
+  ipv4.gateway 192.168.50.1 \
+  ipv4.dns "1.1.1.1 8.8.8.8"
+```
+
+---
+
 ## 현재 상태
 
 | 항목 | 상태 |
@@ -144,8 +208,9 @@ ingress:
 | `https://cloud.edelweiss0297.cloud` | Nextcloud 정상 접속 |
 | 홈페이지 클라우드 아이콘 클릭 | Nextcloud로 정상 이동 |
 | GitHub 레포지토리 | `Edelweiss0914/server` (main 브랜치) |
-| 서버 배포 경로 | `/var/www/home` |
-| SELinux 컨텍스트 | `httpd_sys_content_t` (영구 설정 완료) |
+| 서버 배포 경로 | `/var/www/home` (LXC 내부) |
+| GatewayVM (VMID 100) | stopped (삭제 가능) |
+| gateway-lxc (CTID 200) | running |
 
 ---
 
@@ -157,7 +222,7 @@ git add .
 git commit -m "변경 내용"
 git push origin main
 
-# GatewayVM
+# gateway-lxc (CTID 200)
 cd /var/www/home && git pull
 ```
 
