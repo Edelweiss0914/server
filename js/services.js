@@ -104,7 +104,7 @@ const SERVICES = [
   {
     id: 'paperless',
     name: 'Paperless ngx',
-    nameKo: 'Paperless',
+    nameKo: '페이퍼리스',
     description: '검색 가능한 문서 아카이브로, 스캔 파일, PDF, 영수증 및 각종 사무용 파일을 효율적으로 관리할 수 있습니다',
     url: 'https://paperless.edelweiss0297.cloud',
     color: '#175c4c',
@@ -125,6 +125,33 @@ const SERVICES = [
     ],
     category: 'Documents',
     categoryIcon: 'DOC',
+    featured: true,
+    status: 'planned',
+  },
+  {
+    id: 'archivebox',
+    name: 'ArchiveBox',
+    nameKo: '아카이브 박스',
+    description: '웹 페이지, 기사, 동영상 및 기타 링크를 장기적으로 보관할 수 있는 개인용 웹 아카이브입니다.',
+    url: 'https://archive.edelweiss0297.cloud',
+    color: '#8b5a2b',
+    bgColor: '#f6ecdf',
+    bgColorDark: '#2a1c10',
+    icon: `<svg viewBox="0 0 100 75" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 20C8 14.4772 12.4772 10 18 10H82C87.5228 10 92 14.4772 92 20V29H8V20Z" fill="#8b5a2b"/>
+      <path d="M12 28H88V61C88 66.5228 83.5228 71 78 71H22C16.4772 71 12 66.5228 12 61V28Z" fill="#c48743"/>
+      <rect x="39" y="29" width="22" height="12" rx="4" fill="#f6ecdf"/>
+      <rect x="21" y="41" width="58" height="20" rx="6" fill="#fff7ed" opacity="0.95"/>
+      <rect x="30" y="47" width="22" height="4" rx="2" fill="#c48743"/>
+      <rect x="30" y="55" width="32" height="4" rx="2" fill="#c48743"/>
+    </svg>`,
+    keywords: [
+      'archivebox', 'archive', 'web archive', 'bookmark', 'bookmarks',
+      'save page', 'article', 'snapshot', 'url', 'web', 'capture',
+      'youtube', 'video', 'link', 'read later'
+    ],
+    category: 'Archive',
+    categoryIcon: 'ARC',
     featured: true,
     status: 'planned',
   },
