@@ -106,7 +106,7 @@ function renderResultCard(service) {
             ${service.nameKo ? `<span class="result-name-ko">${service.nameKo}</span>` : ''}
             ${service.categoryIcon ? `<span class="result-category">${service.categoryIcon} ${service.category}</span>` : ''}
           </div>
-          <div class="result-desc">${service.description}</div>
+          <div class="result-desc"><span class="result-desc-text">${service.description}</span></div>
           <div class="result-url">${urlDisplay}</div>
         </div>
         <div class="result-arrow" aria-hidden="true">
@@ -166,6 +166,22 @@ const els = {
 
 let currentResults = [];
 
+function syncResultDescOverflow() {
+  document.querySelectorAll('.result-desc').forEach(desc => {
+    const text = desc.querySelector('.result-desc-text');
+    if (!text) return;
+
+    desc.classList.remove('is-overflowing');
+    desc.style.removeProperty('--marquee-distance');
+
+    const overflow = text.scrollWidth - desc.clientWidth;
+    if (overflow > 4) {
+      desc.classList.add('is-overflowing');
+      desc.style.setProperty('--marquee-distance', `${-overflow}px`);
+    }
+  });
+}
+
 function showResults(query) {
   const results = searchServices(query);
   currentResults = results;
@@ -188,6 +204,7 @@ function showResults(query) {
 
   els.resultsCount().textContent = `${results.length}개의 서비스`;
   els.resultsGrid().innerHTML = results.map(renderResultCard).join('');
+  requestAnimationFrame(syncResultDescOverflow);
 }
 
 // ─── 초기화 ───────────────────────────────────────────

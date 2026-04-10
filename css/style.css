@@ -443,9 +443,20 @@ kbd {
   color: var(--text-muted);
   margin-bottom: 5px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.5;
+  position: relative;
+}
+
+.result-desc-text {
+  display: inline-block;
+  min-width: 100%;
+  will-change: transform;
+}
+
+.result-card:hover .result-desc.is-overflowing .result-desc-text {
+  animation: resultDescMarquee 6s linear infinite alternate;
+  animation-delay: 0.35s;
 }
 
 .result-url {
@@ -522,6 +533,11 @@ kbd {
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes resultDescMarquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(var(--marquee-distance, 0)); }
 }
 
 /* ─── 반응형 ─────────────────────────────────────────── */
