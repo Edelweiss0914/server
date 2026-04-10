@@ -101,4 +101,31 @@ const SERVICES = [
   //   categoryIcon: '⚙️',
   //   featured: false,
   // },
+  {
+    id: 'paperless',
+    name: 'Paperless ngx',
+    nameKo: 'Paperless',
+    description: '검색 가능한 문서 아카이브로, 스캔 파일, PDF, 영수증 및 각종 사무용 파일을 효율적으로 관리할 수 있습니다',
+    url: 'https://paperless.edelweiss0297.cloud',
+    color: '#175c4c',
+    bgColor: '#e6f4ef',
+    bgColorDark: '#0d241d',
+    icon: `<svg viewBox="0 0 100 75" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="60" height="67" rx="12" fill="#175c4c"/>
+      <rect x="24" y="7" width="60" height="67" rx="12" fill="#2f8c76"/>
+      <rect x="45" y="16" width="54" height="56" rx="9" fill="white"/>
+      <rect x="55" y="30" width="23" height="5" rx="2" fill="#2f8c76"/>
+      <rect x="55" y="42" width="33" height="5" rx="2" fill="#2f8c76"/>
+      <rect x="55" y="54" width="27" height="5" rx="2" fill="#2f8c76"/>
+    </svg>`,
+    keywords: [
+      'paperless', 'paperless-ngx', 'document', 'documents', 'archive',
+      'ocr', 'scan', 'scanner', 'pdf', 'receipt', 'invoice', 'tika',
+      'gotenberg', 'office', 'docs'
+    ],
+    category: 'Documents',
+    categoryIcon: 'DOC',
+    featured: true,
+    status: 'planned',
+  },
 ];

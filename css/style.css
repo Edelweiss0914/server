@@ -309,7 +309,7 @@ kbd {
   border: 1.5px solid var(--border);
   color: var(--text);
   cursor: pointer;
-  min-width: 100px;
+  width: 110px;
   transition:
     transform    var(--t-normal),
     box-shadow   var(--t-normal),
