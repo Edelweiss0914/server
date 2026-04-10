@@ -166,8 +166,8 @@ const els = {
 
 let currentResults = [];
 
-function syncResultDescOverflow() {
-  document.querySelectorAll('.result-desc').forEach(desc => {
+function syncResultDescOverflow(root = document) {
+  root.querySelectorAll('.result-desc').forEach(desc => {
     const text = desc.querySelector('.result-desc-text');
     if (!text) return;
 
@@ -222,6 +222,11 @@ function initEventListeners() {
   // 검색 입력
   els.input().addEventListener('input', e => showResults(e.target.value));
 
+  els.resultsGrid().addEventListener('mouseover', e => {
+    const card = e.target.closest('.result-card');
+    if (card) syncResultDescOverflow(card);
+  });
+
   // 키보드
   els.input().addEventListener('keydown', e => {
     if (e.key === 'Enter') {
@@ -261,6 +266,13 @@ function initEventListeners() {
       applyTheme(e.matches ? 'dark' : 'light');
     }
   });
+
+  window.addEventListener('resize', () => syncResultDescOverflow());
+  window.addEventListener('load', () => syncResultDescOverflow());
+
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => syncResultDescOverflow());
+  }
 }
 
 // ─── 진입점 ───────────────────────────────────────────

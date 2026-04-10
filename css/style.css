@@ -456,8 +456,7 @@ kbd {
 }
 
 .result-card:hover .result-desc.is-overflowing .result-desc-text {
-  animation: resultDescMarquee 6s linear infinite alternate;
-  animation-delay: 0.35s;
+  animation: resultDescMarquee 4.5s linear infinite alternate;
 }
 
 .result-url {
