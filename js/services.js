@@ -137,14 +137,8 @@ const SERVICES = [
     color: '#8b5a2b',
     bgColor: '#f6ecdf',
     bgColorDark: '#2a1c10',
-    icon: `<svg viewBox="0 0 100 75" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="10" y="16" width="80" height="16" rx="8" fill="#8b5a2b"/>
-      <rect x="14" y="28" width="72" height="40" rx="8" fill="#c48743"/>
-      <rect x="36" y="22" width="28" height="9" rx="4.5" fill="#f6ecdf"/>
-      <rect x="24" y="40" width="52" height="18" rx="5" fill="#fff7ed"/>
-      <rect x="32" y="46" width="18" height="4" rx="2" fill="#c48743"/>
-      <rect x="32" y="53" width="28" height="4" rx="2" fill="#c48743"/>
-    </svg>`,
+    icon: '🗃️',
+    iconType: 'emoji',
     keywords: [
       'archivebox', 'archive', 'web archive', 'bookmark', 'bookmarks',
       'save page', 'article', 'snapshot', 'url', 'web', 'capture',
