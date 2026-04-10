@@ -15,8 +15,7 @@ const SERVICES = [
     name: 'Nextcloud',
     nameKo: '클라우드',
     description: '개인 클라우드 스토리지 · 파일 공유 · 캘린더 · 협업',
-    url: 'https://edelweiss0297.cloud',
-    // Nextcloud 서브도메인 이전 시: 'https://cloud.edelweiss0297.cloud'
+    url: 'https://cloud.edelweiss0297.cloud',
     color: '#0082c9',
     bgColor: '#e6f3fa',
     bgColorDark: '#0a2a40',
