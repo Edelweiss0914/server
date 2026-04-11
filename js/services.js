@@ -156,3 +156,12 @@ const SERVICES = [
     status: 'planned',
   },
 ];
+
+window.APP_CONFIG = {
+  ai: {
+    enabled: true,
+    endpoint: '/ai',
+    model: 'huihui_ai/qwen3-vl-abliterated:8b-instruct',
+    timeoutMs: 90000,
+  },
+};
