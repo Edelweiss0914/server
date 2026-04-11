@@ -4,14 +4,21 @@ set -euo pipefail
 APP_ROOT="/opt/cheeze-bot"
 SRC_ROOT="/var/www/home/deploy/discord-bot"
 SERVICE_FILE="/etc/systemd/system/cheeze-discord-bot.service"
+ENV_DIR="/etc/cheeze-bot"
+ENV_FILE="$ENV_DIR/cheeze-discord-bot.env"
 
 mkdir -p "$APP_ROOT"
+mkdir -p "$ENV_DIR"
 cp "$SRC_ROOT/cheeze-discord-bot.py" "$APP_ROOT/cheeze-discord-bot.py"
 cp "$SRC_ROOT/requirements.txt" "$APP_ROOT/requirements.txt"
 chmod +x "$APP_ROOT/cheeze-discord-bot.py"
 python3 -m pip install --upgrade pip
 python3 -m pip install -r "$APP_ROOT/requirements.txt"
 cp "$SRC_ROOT/cheeze-discord-bot.service.example" "$SERVICE_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  cp "$SRC_ROOT/cheeze-discord-bot.env.example" "$ENV_FILE"
+fi
+chmod 600 "$ENV_FILE"
 
 systemctl daemon-reload
 systemctl enable --now cheeze-discord-bot

@@ -1,0 +1,90 @@
+$ErrorActionPreference = "Stop"
+
+$ControlRoot = "D:\Servers\Control\minecraft-cobbleverse"
+$ServerPidFile = Join-Path $ControlRoot "minecraft.pid"
+$WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
+$StopFlag = Join-Path $ControlRoot "stop.flag"
+
+function Get-TrackedProcessId {
+    param(
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $trackedPid = Get-Content $Path | Select-Object -First 1
+    if (-not $trackedPid) {
+        Remove-Item $Path -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+
+    $trackedProcess = Get-Process -Id $trackedPid -ErrorAction SilentlyContinue
+    if (-not $trackedProcess) {
+        Remove-Item $Path -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+
+    return [int]$trackedPid
+}
+
+$ServerPid = Get-TrackedProcessId -Path $ServerPidFile
+$WrapperPid = Get-TrackedProcessId -Path $WrapperPidFile
+
+if (-not $ServerPid -and -not $WrapperPid) {
+    Write-Host "No active tracked process found. Cobbleverse may already be stopped."
+    exit 0
+}
+
+New-Item -ItemType File -Path $StopFlag -Force | Out-Null
+
+$GraceSeconds = 120
+$Stopped = $false
+
+for ($i = 0; $i -lt $GraceSeconds; $i += 2) {
+    $serverProcess = $null
+    $wrapperProcess = $null
+
+    if ($ServerPid) {
+        $serverProcess = Get-Process -Id $ServerPid -ErrorAction SilentlyContinue
+    }
+
+    if ($WrapperPid) {
+        $wrapperProcess = Get-Process -Id $WrapperPid -ErrorAction SilentlyContinue
+    }
+
+    if (-not $serverProcess -and -not $wrapperProcess) {
+        $Stopped = $true
+        break
+    }
+
+    Start-Sleep -Seconds 2
+}
+
+if ($Stopped) {
+    Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+    Write-Host "Cobbleverse stopped gracefully."
+    exit 0
+}
+
+if ($ServerPid) {
+    $serverProcess = Get-Process -Id $ServerPid -ErrorAction SilentlyContinue
+    if ($serverProcess) {
+        Stop-Process -Id $ServerPid -Force
+    }
+}
+
+if ($WrapperPid) {
+    $wrapperProcess = Get-Process -Id $WrapperPid -ErrorAction SilentlyContinue
+    if ($wrapperProcess) {
+        Stop-Process -Id $WrapperPid -Force
+    }
+}
+
+Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
+Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+Write-Host "Cobbleverse force-stopped after graceful timeout."

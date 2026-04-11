@@ -23,6 +23,7 @@
   - 현재 관리 서비스:
     - `ollama`
     - `minecraft-vanilla`
+    - `minecraft-cobbleverse`
 
 ## 2. 현재 배포된 구성
 
@@ -131,6 +132,27 @@
 - gateway에서 stop 호출 성공
 - graceful stop 후 `offline` 상태 복귀 확인
 
+### Cobbleverse
+
+- working dir: `D:\Servers\Minecraft\Modpacks\cobbleverse_server_1.7.3`
+- control dir: `D:\Servers\Control\minecraft-cobbleverse`
+- start command:
+  - `powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-cobbleverse\start.ps1`
+- stop command:
+  - `powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-cobbleverse\stop.ps1`
+- java:
+  - `C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe`
+- public port:
+  - `25566`
+
+검증 완료:
+
+- backend agent에 서비스 등록 완료
+- start 호출 수락 확인
+- `25566/tcp` listening 확인
+- backend agent에서 `running` 상태 확인
+- `latest.log` 에서 `Done (...)!` 확인
+
 ## 5. Minecraft wrapper 현재 상태
 
 구성:
@@ -193,6 +215,8 @@
 6. idle 감지 후 `hibernate`
 7. 친구용 인가 API
 8. `minecraft-modpacks`
+   - 저장소에 `minecraft-cobbleverse` 전용 스캐폴드 추가
+   - 다음 실제 작업은 homepc 에 Cobbleverse 1.7.3 서버팩 생성 후 jar/메모리/포트 확정
 9. `garrysmod`
 
 ## 8. 운영 주의
@@ -227,6 +251,9 @@ Backend:
 
 - `deploy/backend/cheeze-backend-agent.py`
 - `deploy/backend/cheeze-backend-agent-config.example.json`
+- `deploy/backend/minecraft-cobbleverse/run.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/start.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/stop.ps1.example`
 - `deploy/backend/minecraft-vanilla/run.ps1.example`
 - `deploy/backend/minecraft-vanilla/start.ps1.example`
 - `deploy/backend/minecraft-vanilla/stop.ps1.example`
@@ -277,6 +304,25 @@ minecraft-vanilla:
   - 탭/포커스 복귀 시 즉시 갱신
 - backend sleep/hibernate 상태 status 조회 fallback 코드 반영 완료
 - start 요청 중 background polling 충돌 완화 반영 완료
+
+2026-04-12 UI/WOL 반영:
+
+- 홈페이지 제어 카드 템플릿에 `minecraft-cobbleverse` 추가
+- `minecraft-vanilla` 와 동일하게 `portal facade -> internal control API -> backend agent` 경로 사용
+- 따라서 `Cobbleverse` 시작 버튼도 동일하게 WOL-aware start 흐름을 사용
+  - `homepc` 절전/최대 절전 상태 감지
+  - gateway에서 WOL 송신
+  - backend agent 복귀 대기
+  - 서비스 시작 명령 전달
+
+2026-04-12 Cobbleverse 현재 상태:
+
+- `mods` 는 CurseForge 실제 클라이언트 인스턴스 기준으로 서버용 선별 동기화 완료
+- `LumyMon`, `LegendaryMonuments-Cobbleverse`, `zamega`, `mega_showdown 1.7.3` 반영 완료
+- `COBBLEVERSE-DP-v19-CF` 와 `Z-A-Mega-DP` 는 zip 대신 서버용 폴더 데이터팩으로 패치 반영
+- 실제 접속 로그가 `latest.log` 에 남아 있음
+- 사용자가 종료 요청을 해서 **현재는 서버를 내려 둔 상태**
+- 내일의 핵심은 **웹페이지 실배포 + WOL-aware start end-to-end 검증**
 
 다음 단계:
 - gateway-lxc 에 수정 파일 실제 배포

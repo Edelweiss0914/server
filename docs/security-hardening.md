@@ -687,3 +687,18 @@ job 모델:
 - 사용자 요청 작업은 `docs/agent-work-log.md` 에 기록한다.
 - 오류가 발생하면 원인, 증상, 해결을 함께 기록한다.
 - 보안 구조가 바뀌면 이 문서를 갱신한다.
+
+## 8. Discord 봇 비밀값 취급 규칙
+
+2026-04-11 보안 조치:
+
+- `DISCORD_BOT_TOKEN` 과 `CHEEZE_BOT_CONTROL_TOKEN` 은 systemd unit 파일 본문에 직접 두지 않는다.
+- 비밀값은 `/etc/cheeze-bot/cheeze-discord-bot.env` 로 분리한다.
+- 권한은 `root:root`, `chmod 600` 을 기본으로 한다.
+- 배포 예시는 `EnvironmentFile=/etc/cheeze-bot/cheeze-discord-bot.env` 방식으로 유지한다.
+
+운영 규칙:
+
+- 봇 토큰이 문서, 채팅, 로컬 로그, 커밋 diff 에 평문으로 남으면 즉시 마스킹 또는 삭제한다.
+- 실제 토큰 회전이 가능하면 회전이 최선이지만, 회전 전까지는 저장소와 작업 로그에 남은 평문을 우선 제거한다.
+- 이미 배포된 봇은 service 파일에서 비밀값을 제거하고 env 파일로 이동한 뒤 `daemon-reload` 와 재시작을 수행한다.

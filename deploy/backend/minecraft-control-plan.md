@@ -46,6 +46,9 @@ D:\Servers\Control\minecraft-<modpack-name>\stop.ps1
 
 - `deploy/backend/minecraft-vanilla/start.ps1.example`
 - `deploy/backend/minecraft-vanilla/stop.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/start.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/run.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/stop.ps1.example`
 - `deploy/backend/minecraft-modpack/start.ps1.example`
 - `deploy/backend/minecraft-modpack/stop.ps1.example`
 
@@ -72,3 +75,21 @@ D:\Servers\Control\minecraft-<modpack-name>\stop.ps1
 3. `120초` 내 종료되지 않을 때만 강제 종료
 4. 이후 필요하면 `RCON stop` 으로도 업그레이드 가능
 4. 모드팩은 템플릿 복제 후 modpack별로 개별 제어
+
+## Cobbleverse 시작점
+
+저장소에 바로 쓸 수 있는 Cobbleverse 전용 스캐폴드도 추가한다.
+
+기본 기준:
+
+- 서비스 ID: `minecraft-cobbleverse`
+- 서버 루트: `D:\Servers\Minecraft\Modpacks\cobbleverse_server_1.7.3`
+- 제어 루트: `D:\Servers\Control\minecraft-cobbleverse`
+- 기본 포트: `25566`
+- 초기 메모리 예시: `-Xms6G -Xmx6G`
+- 실행 jar: `fabric-server-launch.jar`
+
+주의:
+
+- `run.ps1.example` 의 `JavaExe`, `JarName`, 메모리 값은 실제 Cobbleverse 서버팩 기준으로 마지막 확인 후 적용해야 한다.
+- 배포 전 `server.properties` 의 포트와 backend/orchestrator 예시 파일의 포트가 일치해야 한다.

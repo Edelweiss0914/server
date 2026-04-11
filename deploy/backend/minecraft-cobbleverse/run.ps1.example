@@ -1,0 +1,87 @@
+$ErrorActionPreference = "Stop"
+
+$ServerRoot = "D:\Servers\Minecraft\Modpacks\cobbleverse_server_1.7.3"
+$ControlRoot = "D:\Servers\Control\minecraft-cobbleverse"
+$JavaExe = "C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe"
+$MinRam = "6G"
+$MaxRam = "6G"
+$JarName = "fabric-server-launch.jar"
+
+$ServerPidFile = Join-Path $ControlRoot "minecraft.pid"
+$WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
+$StopFlag = Join-Path $ControlRoot "stop.flag"
+$StdOutLog = Join-Path $ControlRoot "server.out.log"
+$StdErrLog = Join-Path $ControlRoot "server.err.log"
+
+if (-not (Test-Path $ServerRoot)) {
+    throw "Server root not found: $ServerRoot"
+}
+
+New-Item -ItemType Directory -Path $ControlRoot -Force | Out-Null
+Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $JavaExe
+$psi.WorkingDirectory = $ServerRoot
+$psi.Arguments = "-Xms$MinRam -Xmx$MaxRam -jar $JarName nogui"
+$psi.UseShellExecute = $false
+$psi.RedirectStandardInput = $true
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.CreateNoWindow = $true
+
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = $psi
+
+$stdoutWriter = New-Object System.IO.StreamWriter($StdOutLog, $true)
+$stderrWriter = New-Object System.IO.StreamWriter($StdErrLog, $true)
+
+$outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) {
+        $stdoutWriter.WriteLine($eventArgs.Data)
+        $stdoutWriter.Flush()
+    }
+}
+
+$errorHandler = [System.Diagnostics.DataReceivedEventHandler]{
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) {
+        $stderrWriter.WriteLine($eventArgs.Data)
+        $stderrWriter.Flush()
+    }
+}
+
+try {
+    $null = $process.Start()
+    Set-Content -Path $ServerPidFile -Value $process.Id
+    Set-Content -Path $WrapperPidFile -Value $PID
+
+    $process.add_OutputDataReceived($outputHandler)
+    $process.add_ErrorDataReceived($errorHandler)
+
+    $process.BeginOutputReadLine()
+    $process.BeginErrorReadLine()
+
+    while (-not $process.HasExited) {
+        if (Test-Path $StopFlag) {
+            Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+            $process.StandardInput.WriteLine("stop")
+            $process.StandardInput.Flush()
+
+            if (-not $process.WaitForExit(120000)) {
+                $process.Kill()
+            }
+            break
+        }
+
+        Start-Sleep -Seconds 2
+    }
+}
+finally {
+    $stdoutWriter.Dispose()
+    $stderrWriter.Dispose()
+    Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+}

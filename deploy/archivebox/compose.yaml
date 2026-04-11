@@ -1,0 +1,17 @@
+services:
+  archivebox:
+    image: archivebox/archivebox:latest
+    container_name: archivebox
+    restart: unless-stopped
+    ports:
+      - "8020:8000"
+    volumes:
+      - /home/data/archivebox:/data
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
+      PUBLIC_INDEX: ${PUBLIC_INDEX}
+      PUBLIC_SNAPSHOTS: ${PUBLIC_SNAPSHOTS}
+      PUBLIC_ADD_VIEW: ${PUBLIC_ADD_VIEW}

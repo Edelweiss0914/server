@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Edelweiss 개인 서버 홈페이지">
-  <title>CHEEZE — Home</title>
+  <title>CHEEZE — On-Demand 서버</title>
 
   <!-- 폰트 (서버 환경에 따라 오프라인 폴백 자동 적용) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,100 +47,44 @@
     </button>
   </div>
 
+  <!-- ── 브랜드 헤더 ────────────────────────────── -->
+  <header class="brand">
+    <div class="brand-logo-wrap">
+      <div class="brand-logo-bg"></div>
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
+           aria-label="Edelweiss 로고" role="img">
+        <!-- 에델바이스 꽃 형태 로고 -->
+        <!-- 중앙 원 -->
+        <circle cx="50" cy="50" r="11" fill="#4f7fff"/>
+        <!-- 6개 꽃잎 -->
+        <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"/>
+        <ellipse cx="50"    cy="76"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(180 50 50)"/>
+        <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(60 50 50)"/>
+        <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(120 50 50)"/>
+        <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(240 50 50)"/>
+        <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(300 50 50)"/>
+        <!-- 중앙 원 (위에 다시 그려서 꽃잎 위에 표시) -->
+        <circle cx="50" cy="50" r="13" fill="#4f7fff"/>
+        <circle cx="50" cy="50" r="7"  fill="white" opacity="0.9"/>
+      </svg>
+    </div>
+    <div class="brand-wordmark">
+      <h1 class="brand-name">CHEEZE</h1>
+      <p class="brand-sub">개인 서버 홈</p>
+    </div>
+  </header>
+
   <!-- ── 메인 ───────────────────────────────────── -->
   <main class="container">
-
-    <!-- 브랜드 / 로고 -->
-    <header class="brand">
-      <div class="brand-logo-wrap">
-        <div class="brand-logo-bg"></div>
-        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
-             aria-label="Edelweiss 로고" role="img">
-          <!-- 에델바이스 꽃 형태 로고 -->
-          <!-- 중앙 원 -->
-          <circle cx="50" cy="50" r="11" fill="#4f7fff"/>
-          <!-- 6개 꽃잎 -->
-          <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"/>
-          <ellipse cx="50"    cy="76"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
-                   transform="rotate(180 50 50)"/>
-          <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
-                   transform="rotate(60 50 50)"/>
-          <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
-                   transform="rotate(120 50 50)"/>
-          <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
-                   transform="rotate(240 50 50)"/>
-          <ellipse cx="50"    cy="24"    rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
-                   transform="rotate(300 50 50)"/>
-          <!-- 중앙 원 (위에 다시 그려서 꽃잎 위에 표시) -->
-          <circle cx="50" cy="50" r="13" fill="#4f7fff"/>
-          <circle cx="50" cy="50" r="7"  fill="white" opacity="0.9"/>
-        </svg>
-      </div>
-      <div class="brand-wordmark">
-        <h1 class="brand-name">CHEEZE</h1>
-        <p class="brand-sub">개인 서버 홈</p>
-      </div>
-    </header>
-
-    <!-- 검색창 -->
-    <div class="search-section">
-      <div class="search-bar" id="searchBar" role="search">
-        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-             viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-             aria-hidden="true">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-
-        <input
-          type="search"
-          id="searchInput"
-          class="search-input"
-          placeholder="서비스 검색...  (예: 클라우드, nextcloud)"
-          autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
-          aria-label="서비스 검색"
-        >
-
-        <button class="clear-btn" id="clearBtn" aria-label="검색어 지우기" tabindex="-1">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
-               viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-               aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6"  y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-
-      <p class="search-hint" id="searchHint">
-        <kbd>Enter</kbd> 첫 번째 결과로 이동 &nbsp;·&nbsp;
-        <kbd>/</kbd> 검색창 포커스 &nbsp;·&nbsp;
-        <kbd>Esc</kbd> 초기화
-      </p>
-    </div>
-
-    <!-- 빠른 접근 -->
-    <section class="quick-access" id="quickAccess" aria-label="빠른 접근">
-      <p class="section-label">서비스</p>
-      <div class="quick-grid" id="quickGrid">
-        <!-- app.js 에서 동적 생성 -->
-      </div>
-    </section>
-
-    <!-- 검색 결과 -->
-    <section class="results-section" id="resultsSection"
-             style="display:none" aria-label="검색 결과" aria-live="polite">
-      <div class="results-header">
-        <span id="resultsCount"></span>
-      </div>
-      <div class="results-grid" id="resultsGrid">
-        <!-- app.js 에서 동적 생성 -->
-      </div>
-    </section>
-
+    <a href="/" class="server-back-link">← 메인으로</a>
+    <h2 class="server-page-title">On-Demand 서버</h2>
+    <p class="server-page-sub">필요할 때만 켜지는 게임 서버</p>
+    <div class="server-grid" id="serverGrid"></div>
   </main>
 
   <!-- ── 푸터 ────────────────────────────────────── -->
@@ -152,7 +96,7 @@
 
   <!-- 스크립트 -->
   <script src="js/services.js?v=20260412-servers"></script>
-  <script src="js/app.js?v=20260412-servers"></script>
+  <script src="js/servers.js?v=20260412-servers"></script>
 
   <!-- ── 토큰 입력 모달 ────────────────────────────────── -->
   <dialog class="token-dialog" id="tokenDialog" aria-modal="true" aria-labelledby="tokenDialogTitle">

@@ -69,6 +69,35 @@ def is_process_running(process_name):
   return process_name.lower() in result.stdout.lower()
 
 
+def tracked_pid_running(pid_path):
+  if not pid_path.exists():
+    return False
+
+  try:
+    tracked_pid = pid_path.read_text(encoding="utf-8").strip().splitlines()[0]
+  except Exception:
+    return False
+
+  if not tracked_pid:
+    return False
+
+  result = subprocess.run(
+    ["tasklist", "/FI", f"PID eq {tracked_pid}"],
+    text=True,
+    capture_output=True,
+    check=False,
+  )
+  return tracked_pid in result.stdout
+
+
+def control_dir_process_running(control_dir):
+  pid_candidates = [
+    Path(control_dir, "minecraft.pid"),
+    Path(control_dir, "wrapper.pid"),
+  ]
+  return any(tracked_pid_running(pid_path) for pid_path in pid_candidates)
+
+
 def http_ready(url):
   try:
     with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as response:
@@ -105,7 +134,10 @@ def service_status(service):
   elif ready_type == "tcp":
     ready = tcp_ready(ready_check["host"], int(ready_check["port"]))
 
-  process_running = is_process_running(service.get("process_name"))
+  if control_dir:
+    process_running = control_dir_process_running(control_dir)
+  else:
+    process_running = is_process_running(service.get("process_name"))
 
   if stop_flag_exists:
     state = "stopping"

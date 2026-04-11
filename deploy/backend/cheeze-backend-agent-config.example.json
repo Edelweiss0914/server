@@ -53,6 +53,27 @@
       }
     },
     {
+      "id": "minecraft-cobbleverse",
+      "display_name": "Cobbleverse",
+      "enabled": false,
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\cobbleverse_server_1.7.3",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25566
+      },
+      "idle_policy": {
+        "stop_when_empty_minutes": 20,
+        "forced_stop_at": "01:00"
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-cobbleverse"
+      }
+    },
+    {
       "id": "minecraft-modpack-template",
       "display_name": "Minecraft Modpack Template",
       "enabled": false,

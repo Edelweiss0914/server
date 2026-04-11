@@ -286,6 +286,7 @@ function renderQuickCard(service) {
        title="${escapeHtml(service.description)}"
        style="${bgVar}; --service-color: ${service.color}">
       ${renderIcon(service, 'lg')}
+      ${service.onDemand ? '<span class="quick-card-ondemand" aria-label="온디맨드">ON</span>' : ''}
       <span class="quick-name">${escapeHtml(service.nameKo || service.name)}</span>
       <span class="quick-sub">${escapeHtml(service.name)}</span>
     </a>
@@ -848,8 +849,6 @@ function initEventListeners() {
   const aiPromptCard = els.aiPromptCard();
   const followupForm = els.followupForm();
   const followupInput = els.followupInput();
-  const controlGrid = els.controlGrid();
-
   if (input) {
     input.addEventListener('input', (event) => {
       resetAiResponse();
@@ -927,42 +926,12 @@ function initEventListeners() {
     });
   }
 
-  if (controlGrid) {
-    controlGrid.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-action]');
-      if (!button) return;
-
-      const card = button.closest('[data-service-id]');
-      if (!card) return;
-
-      const serviceId = card.getAttribute('data-service-id');
-      const action = button.getAttribute('data-action');
-      if (!serviceId || !action) return;
-
-      invokeControlAction(serviceId, action);
-    });
-  }
-
   document.addEventListener('keydown', (event) => {
     if (event.key === '/' && document.activeElement !== input && input) {
       event.preventDefault();
       input.focus();
       input.select();
     }
-  });
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      refreshControlStates().then(() => {
-        scheduleControlRefresh();
-      });
-    }
-  });
-
-  window.addEventListener('focus', () => {
-    refreshControlStates().then(() => {
-      scheduleControlRefresh();
-    });
   });
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
@@ -981,17 +950,9 @@ function initEventListeners() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
-  ensureControlSection();
   ensureAiSection();
   initQuickAccess();
   initEventListeners();
-  renderControlGrid();
-
-  if (CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
-    refreshControlStates().then(() => {
-      scheduleControlRefresh();
-    });
-  }
 
   if (window.innerWidth > 768 && els.input()) {
     els.input().focus();

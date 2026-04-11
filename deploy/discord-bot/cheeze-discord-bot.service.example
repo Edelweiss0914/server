@@ -7,16 +7,7 @@ Wants=network-online.target
 Type=simple
 User=root
 WorkingDirectory=/opt/cheeze-bot
-Environment=DISCORD_BOT_TOKEN=CHANGE_ME
-Environment=DISCORD_APPLICATION_ID=1492519354129055939
-Environment=DISCORD_GUILD_ID=1492516751362097265
-Environment=DISCORD_ADMIN_ROLE_IDS=1492517995711561910
-Environment=DISCORD_MEMBER_ROLE_IDS=1492518234878906459
-Environment=CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
-Environment=CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-Environment=CHEEZE_BOT_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_ADMIN_TOKEN
-Environment=CHEEZE_BOT_REQUEST_TIMEOUT=30
-Environment=CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla
+EnvironmentFile=/etc/cheeze-bot/cheeze-discord-bot.env
 ExecStart=/usr/bin/python3 /opt/cheeze-bot/cheeze-discord-bot.py
 Restart=always
 RestartSec=2

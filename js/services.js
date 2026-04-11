@@ -155,6 +155,88 @@ const SERVICES = [
     featured: true,
     status: 'planned',
   },
+  {
+    id: 'ondemand',
+    name: 'On-Demand 서버',
+    nameKo: '온디맨드 서비스',
+    description: 'Minecraft Vanilla · Cobbleverse — 필요할 때만 켜지는 게임 서버',
+    url: 'servers.html',
+    color: '#4f7fff',
+    bgColor: '#ebf0ff',
+    bgColorDark: '#0e1533',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="14" y="28" width="72" height="44" rx="10" fill="#4f7fff"/>
+      <rect x="22" y="36" width="56" height="28" rx="6" fill="#ebf0ff"/>
+      <circle cx="34" cy="50" r="6" fill="#4f7fff"/>
+      <rect x="46" y="44" width="24" height="4" rx="2" fill="#4f7fff"/>
+      <rect x="46" y="52" width="16" height="4" rx="2" fill="#4f7fff" opacity="0.5"/>
+    </svg>`,
+    keywords: [
+      'ondemand', '온디맨드', 'server', '서버', 'game', '게임',
+      'minecraft', '마인크래프트', 'cobbleverse', '코블버스',
+    ],
+    category: 'Game Server',
+    categoryIcon: 'GAME',
+    featured: true,
+    onDemand: true,
+  },
+  {
+    id: 'minecraft-vanilla',
+    name: 'Minecraft Vanilla',
+    nameKo: '마인크래프트 바닐라',
+    description: '온디맨드 게임 서버. 클릭하면 서버 시작·종료 패널로 이동합니다.',
+    category: 'Game Server',
+    categoryIcon: 'GAME',
+    url: 'servers.html',
+    onDemand: true,
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="12" y="16" width="76" height="24" rx="6" fill="#4b7f3f"/>
+      <rect x="12" y="40" width="76" height="44" rx="8" fill="#6ea85f"/>
+      <rect x="24" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="42" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="60" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="28" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+      <rect x="56" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+      <rect x="44" y="66" width="12" height="8" rx="2" fill="#2d4a22"/>
+    </svg>`,
+    color: '#4b7f3f',
+    bgColor: '#edf6ea',
+    bgColorDark: '#162410',
+    keywords: [
+      'minecraft', '마인크래프트', 'game', '게임', 'server', '서버',
+      'vanilla', '바닐라', 'gaming', 'play', '플레이',
+    ],
+    featured: false,
+  },
+  {
+    id: 'minecraft-cobbleverse',
+    name: 'Cobbleverse',
+    nameKo: '코블버스',
+    description: 'Cobblemon 기반 온디맨드 모드팩 서버. 클릭하면 서버 시작·종료 패널로 이동합니다.',
+    category: 'Game Server',
+    categoryIcon: 'GAME',
+    url: 'servers.html',
+    onDemand: true,
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="12" y="14" width="76" height="22" rx="6" fill="#7d5330"/>
+      <rect x="12" y="36" width="76" height="48" rx="8" fill="#c88b42"/>
+      <circle cx="33" cy="28" r="6" fill="#ffe29a"/>
+      <circle cx="50" cy="28" r="6" fill="#ffd15a"/>
+      <circle cx="67" cy="28" r="6" fill="#ffe29a"/>
+      <rect x="24" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+      <rect x="42" y="62" width="16" height="12" rx="3" fill="#5d381d"/>
+      <rect x="60" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+    </svg>`,
+    color: '#c88b42',
+    bgColor: '#fbf1e4',
+    bgColorDark: '#2e1f11',
+    keywords: [
+      'cobbleverse', '코블버스', 'cobblemon', '코블몬', 'pokemon', '포켓몬',
+      'minecraft modpack', '마인크래프트 모드팩', 'modpack', '모드팩',
+      'game', '게임', 'server', '서버', 'pixelmon-like',
+    ],
+    featured: false,
+  },
 ];
 
 window.APP_CONFIG = {
@@ -192,6 +274,26 @@ window.APP_CONFIG = {
         </svg>`,
         color: '#4b7f3f',
         bgColor: '#edf6ea',
+      },
+      {
+        id: 'minecraft-cobbleverse',
+        name: 'Cobbleverse',
+        nameKo: '코블버스',
+        description: '백엔드 PC를 깨워 여는 Cobblemon 모드팩 서버입니다.',
+        category: 'Game Server',
+        categoryIcon: 'GAME',
+        icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="12" y="14" width="76" height="22" rx="6" fill="#7d5330"/>
+          <rect x="12" y="36" width="76" height="48" rx="8" fill="#c88b42"/>
+          <circle cx="33" cy="28" r="6" fill="#ffe29a"/>
+          <circle cx="50" cy="28" r="6" fill="#ffd15a"/>
+          <circle cx="67" cy="28" r="6" fill="#ffe29a"/>
+          <rect x="24" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+          <rect x="42" y="62" width="16" height="12" rx="3" fill="#5d381d"/>
+          <rect x="60" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+        </svg>`,
+        color: '#c88b42',
+        bgColor: '#fbf1e4',
       }
     ],
   },

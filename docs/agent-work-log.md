@@ -291,6 +291,32 @@
 - 사용자에게 웹 토큰을 발급하는 방식보다, Discord 봇이 직접 portal facade 를 호출하는 direct control 방식을 먼저 구현
 - `/stop` 은 자동 종료 정책이 없으므로 관리자 전용
 
+### 요청: Discord 봇 실제 배포 단계로 진행
+
+작업:
+
+- `docs/discord-bot-setup.md` 에 실제 service 예시 추가
+- `gateway-lxc` 적용 순서를 복붙 가능한 절차로 정리
+
+현재 남은 사용자 작업:
+
+- `DISCORD_BOT_TOKEN` 실제 값 입력
+- `CHEEZE_BOT_CONTROL_TOKEN` 평문 토큰 입력
+- `gateway-lxc` 에서 service 실행
+- Discord 내 slash command 실기 확인
+
+추가 진행:
+
+- 초기 Discord 초대 실패는 있었지만, 이후 봇 초대 완료
+- 다음 확인 단계는 bot 로그인 및 slash command sync 성공 여부
+
+추가 결과:
+
+- `cheeze-discord-bot.service` 는 현재 `active (running)`
+- Discord gateway 연결 성공 로그 확인
+- 초기 `403 Missing Access` 는 봇 초대 후 해소됨
+- 남은 확인은 Discord 클라이언트에서 slash command 노출 및 실제 명령 실행
+
 ### 요청: 보안 평가 후 발견 사항 코드 수정
 
 보안 평가 결과 (2026-04-11):
@@ -382,3 +408,144 @@
 4. 교훈:
    - git pull 이후 반드시 `/opt/cheeze-control/` 으로 파일 복사 필요
    - `install-portal-api.sh.example` 스크립트를 참고하여 배포 절차 준수
+
+### 요청: 유효한 Discord 봇 토큰 노출 정리 및 저장 방식 수정
+
+사용자 추가 정보:
+
+- Discord 봇은 이미 서버에 배포되어 있음
+- slash command 테스트도 완료된 상태임
+
+오류 기록:
+
+1. 증상:
+   - 유효한 `DISCORD_BOT_TOKEN` 이 로컬 agent 로그에 평문으로 남아 있었음
+   - 봇 배포 예시가 systemd service 파일 본문에 비밀값을 직접 넣는 흐름으로 작성되어 있었음
+
+2. 원인:
+   - 이전 대화 입력이 `.omx/logs/turns-2026-04-11.jsonl` 에 그대로 기록됨
+   - `deploy/discord-bot/cheeze-discord-bot.service.example` 와 `docs/discord-bot-setup.md` 가 inline `Environment=` 예시를 사용함
+
+3. 해결:
+   - `.omx/logs/turns-2026-04-11.jsonl` 의 실제 Discord 봇 토큰 값을 로컬에서 마스킹
+   - `deploy/discord-bot/cheeze-discord-bot.service.example` 를 `EnvironmentFile=/etc/cheeze-bot/cheeze-discord-bot.env` 방식으로 변경
+   - `deploy/discord-bot/cheeze-discord-bot.env.example` 추가
+   - `deploy/discord-bot/install-discord-bot.sh.example` 에 env 파일 생성 및 `chmod 600` 처리 추가
+   - `docs/discord-bot-setup.md` 를 env 파일 기준으로 수정하고, 이미 배포된 봇의 secret migration 절차 반영
+   - `docs/security-hardening.md` 에 Discord 봇 비밀값 취급 규칙 추가
+
+### 요청: Cobblemon 모드팩 작업 착수
+
+작업:
+
+- 범용 modpack 템플릿 대신 `minecraft-cobbleverse` 전용 스캐폴드 추가
+- backend agent / orchestrator 예시 설정에 Cobblemon 서비스 항목 추가
+- 제어 스크립트 예시와 문서에 Cobblemon 기준 경로/포트/메모리 시작값 반영
+
+반영 파일:
+
+- `deploy/backend/minecraft-cobbleverse/start.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/run.ps1.example`
+- `deploy/backend/minecraft-cobbleverse/stop.ps1.example`
+- `deploy/backend/cheeze-backend-agent-config.example.json`
+- `deploy/orchestrator/service-registry.example.json`
+- `deploy/backend/minecraft-control-plan.md`
+- `docs/orchestrator-current-status.md`
+
+결정:
+
+- 서비스 ID는 `minecraft-cobbleverse`
+- 기본 경로는 `D:\Servers\Minecraft\Modpacks\cobbleverse_server_1.7.3`
+- 제어 경로는 `D:\Servers\Control\minecraft-cobbleverse`
+- 기본 포트는 `25566`
+- 메모리 예시는 `6G/6G` 로 두되, 실제 서버팩 기준으로 재확정 필요
+- 실행 진입점은 `fabric-server-launch.jar` 기준으로 맞춤
+
+### 요청: Cobbleverse 1.7.3 서버팩 실서비스 기동
+
+작업:
+
+- `cobbleverse_server_1.7.2` 를 기준으로 `D:\Servers\Minecraft\Modpacks\cobbleverse_server_1.7.3` 생성
+- `COBBLEVERSE-1.7.31-CF.zip` 의 `overrides` 에서 서버용 변경분 선별 반영
+- live backend agent 설정 파일 `D:\Servers\Control\backend-agent\config.json` 에 `minecraft-cobbleverse` 서비스 추가
+- `D:\Servers\Control\minecraft-cobbleverse` 제어 스크립트 생성
+- live 기동 실패 원인을 단계별로 수정 후 재검증
+
+오류 기록:
+
+1. 증상:
+   - 첫 기동 시 `tmcraft 1.7.3` 와 `Cobblemon 1.7.1`, `capturexp 1.7.1`, `tim_core 1.7.1` 버전 충돌
+   - Java 25 실행으로 `Cobblemon 1.7.3` 요구 조건 불일치
+   - `COBBLEVERSE-DP-v19-CF.zip` 내 `lumymon:music.raid` 참조로 biome 데이터팩 로드 실패
+   - 이후 일부 레시피가 `zamega:*`, `lumymon:*` 항목을 참조하면서 초기 로드 경고 발생
+
+2. 원인:
+   - client overrides 일부만 반영한 상태에서 핵심 1.7.3 서버 의존성 jar가 누락됨
+   - live `run.ps1` 가 `java-runtime-epsilon` (Java 25) 를 가리킴
+   - 서버 데이터팩에 서버 환경에 없는 사운드 이벤트 참조가 포함됨
+   - live backend config 파일을 BOM 포함 UTF-8로 다시 쓰면서 agent가 설정 파싱 중 실패
+
+3. 해결:
+   - Modrinth CDN에서 아래 jar를 직접 받아 교체
+     - `Cobblemon-fabric-1.7.3+1.21.1.jar`
+     - `capturexp-fabric-1.7.3-1.3.0.jar`
+     - `timcore-fabric-1.7.3-1.31.0.jar`
+   - 구버전 jar 제거
+     - `Cobblemon-fabric-1.7.1+1.21.1.jar`
+     - `capturexp-fabric-1.7.1-1.3.0.jar`
+     - `timcore-fabric-1.7.1-1.27.0.jar`
+   - live `D:\Servers\Control\minecraft-cobbleverse\run.ps1` 를 Java 21 경로로 수정
+     - `java-runtime-delta` 사용
+   - `COBBLEVERSE-DP-v19-CF.zip` 를 서버용 폴더 데이터팩으로 풀고 `raid_den.json` 의 `music` 항목 제거
+   - duplicate `extra/Terralith-DP.zip` 제거
+   - live backend config를 BOM 없는 UTF-8로 다시 저장
+   - backend agent 상태 판정 로직은 control PID 파일 우선 방식으로 개선
+
+검증:
+
+- `http://127.0.0.1:5010/services` 에서 `minecraft-cobbleverse` 가 `running`
+- `netstat -ano | findstr :25566` 에서 `LISTENING`
+- `latest.log` 에서 아래 확인
+  - `Starting Minecraft server on *:25566`
+  - `Done (...)!`
+
+현재 결과:
+
+- `minecraft-cobbleverse` 서비스가 실제로 기동됨
+- backend agent 기준 `ready=true`, `state=running`
+
+### 요청: Cobbleverse를 홈페이지 UI와 WOL 흐름에 연결
+
+작업:
+
+- `js/services.js` 에 검색/빠른접근용 `minecraft-cobbleverse` 항목 추가
+- 홈페이지 on-demand control 카드 설정에 `minecraft-cobbleverse` 추가
+- 기존 `minecraft-vanilla` 와 동일한 카드 템플릿, 토큰 입력, 상태 폴링, start/stop 버튼 흐름 재사용
+- 문서에 Cobbleverse도 동일한 WOL-aware start 경로를 탄다는 점 기록
+
+결과:
+
+- 홈페이지에서 `Minecraft Vanilla` 와 같은 방식으로 `Cobbleverse` 카드가 노출됨
+- `시작` 버튼은 동일하게 `portal facade -> control API -> backend agent` 경로를 사용
+- backend가 잠들어 있으면 gateway WOL 후 서비스 시작을 이어가는 동일 흐름을 적용
+
+### 요청: 현재까지 작업 전부를 내일 이어갈 수 있게 문서화
+
+작업:
+
+- 현재 실제 Cobbleverse 상태를 기준으로 handoff 문서 신규 작성
+- 재개 프롬프트 `docs/restart-handoff-prompt.md` 를 Cobbleverse 포함 최신 상태로 갱신
+- `docs/orchestrator-current-status.md` 에 Cobbleverse 현재 상태와 내일 작업 포인트 반영
+
+반영 파일:
+
+- `docs/cobbleverse-handoff-2026-04-12.md`
+- `docs/restart-handoff-prompt.md`
+- `docs/orchestrator-current-status.md`
+
+현재 확정 상태:
+
+- Cobbleverse 서버는 실기동 성공 기록이 있음
+- 실제 접속 로그도 남아 있음
+- 현재 시점에는 사용자 요청으로 서버를 내려 둔 상태
+- 다음 세션의 핵심 작업은 homepage 실배포와 WOL end-to-end 검증

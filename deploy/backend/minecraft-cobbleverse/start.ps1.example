@@ -1,0 +1,45 @@
+$ErrorActionPreference = "Stop"
+
+$ControlRoot = "D:\Servers\Control\minecraft-cobbleverse"
+$RunnerScript = Join-Path $ControlRoot "run.ps1"
+$ServerPidFile = Join-Path $ControlRoot "minecraft.pid"
+$WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
+
+if (-not (Test-Path $RunnerScript)) {
+    throw "Runner script not found: $RunnerScript"
+}
+
+New-Item -ItemType Directory -Path $ControlRoot -Force | Out-Null
+
+if (Test-Path $WrapperPidFile) {
+    $existingWrapperPid = Get-Content $WrapperPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existingWrapperPid) {
+        $existingWrapperProcess = Get-Process -Id $existingWrapperPid -ErrorAction SilentlyContinue
+        if ($existingWrapperProcess) {
+            Write-Host "Cobbleverse wrapper is already running with PID $existingWrapperPid"
+            exit 0
+        }
+    }
+    Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+}
+
+if (Test-Path $ServerPidFile) {
+    $existingServerPid = Get-Content $ServerPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existingServerPid) {
+        $existingServerProcess = Get-Process -Id $existingServerPid -ErrorAction SilentlyContinue
+        if ($existingServerProcess) {
+            Write-Host "Cobbleverse server is already running with PID $existingServerPid"
+            exit 0
+        }
+    }
+    Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
+}
+
+$process = Start-Process `
+    -FilePath "powershell.exe" `
+    -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $RunnerScript) `
+    -WorkingDirectory $ControlRoot `
+    -PassThru
+
+Set-Content -Path $WrapperPidFile -Value $process.Id
+Write-Host "Cobbleverse wrapper started with PID $($process.Id)"

@@ -1051,3 +1051,157 @@ kbd {
   gap: 8px;
   padding: 0 20px 20px;
 }
+
+/* ─── 온디맨드 서버 페이지 ─── */
+
+.server-back-link {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-bottom: 24px;
+  transition: color var(--t-fast);
+}
+.server-back-link:hover { color: var(--accent); }
+
+.server-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.server-page-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 32px;
+}
+
+.server-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.server-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: box-shadow var(--t-normal), border-color var(--t-normal);
+}
+.server-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--service-color, var(--accent));
+}
+
+.server-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.server-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.server-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.server-card-ko {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.server-card-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.server-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.server-detail-chip {
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--bg-alt);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+}
+
+.server-card-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  min-height: 18px;
+}
+
+.server-card-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Server state badge (mirrors .control-state-badge) ── */
+.server-state-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.server-state-badge.is-offline  { background: #f1f3f4; color: #5f6368; }
+.server-state-badge.is-running  { background: #e6f4ea; color: #137333; }
+.server-state-badge.is-starting,
+.server-state-badge.is-waking   { background: #fef7e0; color: #b06000; }
+.server-state-badge.is-stopping { background: #fce8e6; color: #c5221f; }
+.server-state-badge.is-error    { background: #fce8e6; color: #c5221f; }
+
+[data-theme="dark"] .server-state-badge.is-offline  { background: #2e3150; color: #8e92b4; }
+[data-theme="dark"] .server-state-badge.is-running  { background: #0d2b1d; color: #4caf71; }
+[data-theme="dark"] .server-state-badge.is-starting,
+[data-theme="dark"] .server-state-badge.is-waking   { background: #2d2200; color: #f4b942; }
+[data-theme="dark"] .server-state-badge.is-stopping { background: #2d0f0d; color: #e57373; }
+[data-theme="dark"] .server-state-badge.is-error    { background: #2d0f0d; color: #e57373; }
+
+/* ── On-demand badge on main quick cards ── */
+.quick-card { position: relative; }
+
+.quick-card-ondemand {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--accent);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  line-height: 1.4;
+  pointer-events: none;
+}
