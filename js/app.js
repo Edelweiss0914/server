@@ -265,6 +265,11 @@ function resetAiResponse() {
   if (followupInput) followupInput.value = '';
 }
 
+function isAiResponseVisible() {
+  const responseCard = els.aiResponseCard();
+  return Boolean(responseCard && !responseCard.hidden);
+}
+
 function hideEmptyResultsAfterAiRequest() {
   if (currentResults.length > 0) return;
 
@@ -348,7 +353,16 @@ async function requestAiAnswer(query) {
     });
 
     if (!response.ok) {
-      throw new Error(`AI request failed with ${response.status}`);
+      let details = '';
+
+      try {
+        const errorPayload = await response.json();
+        details = errorPayload.message || errorPayload.error || '';
+      } catch (parseError) {
+        details = '';
+      }
+
+      throw new Error(details || `AI request failed with ${response.status}`);
     }
 
     const payload = await response.json();
@@ -363,7 +377,7 @@ async function requestAiAnswer(query) {
   } catch (error) {
     const message = error.name === 'AbortError'
       ? '응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
-      : 'AI 호출에 실패했습니다. 게이트웨이의 /ai 프록시와 Ollama 상태를 확인하세요.';
+      : error.message || 'AI 호출에 실패했습니다. 게이트웨이의 /ai 프록시와 Ollama 상태를 확인하세요.';
 
     if (status) status.textContent = 'AI 요청 실패';
     if (body) body.textContent = message;
@@ -488,7 +502,14 @@ function initEventListeners() {
 
   if (followupInput) {
     followupInput.addEventListener('input', (event) => {
-      showResults(event.target.value);
+      const query = event.target.value;
+
+      if (!query.trim() && isAiResponseVisible()) {
+        syncQueryInputs('', 'followup');
+        return;
+      }
+
+      showResults(query);
     });
   }
 
