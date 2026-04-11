@@ -41,6 +41,10 @@ WOL_TARGET_IP = os.environ.get("CHEEZE_WOL_TARGET_IP", "").strip()
 WOL_TARGET_PORT = int(os.environ.get("CHEEZE_WOL_TARGET_PORT", "9"))
 
 
+def normalized_wol_mac():
+  return WOL_MAC.replace("-", ":").strip()
+
+
 def load_registry():
   if not REGISTRY_PATH.exists():
     return {"host": {}, "services": []}
@@ -141,7 +145,7 @@ def build_wol_command():
     command.extend(["-i", WOL_TARGET_IP])
   if WOL_TARGET_PORT > 0:
     command.extend(["-p", str(WOL_TARGET_PORT)])
-  command.append(WOL_MAC)
+  command.append(normalized_wol_mac())
   return command
 
 

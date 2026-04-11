@@ -76,6 +76,12 @@ class ControlApiOfflineFallbackTests(unittest.TestCase):
 
 
 class ControlApiWakeTests(unittest.TestCase):
+  def test_normalized_wol_mac_converts_hyphen_separators(self):
+    with mock.patch.object(control_api, "WOL_MAC", "9C-6B-00-57-73-3A"):
+      normalized = control_api.normalized_wol_mac()
+
+    self.assertEqual(normalized, "9C:6B:00:57:73:3A")
+
   def test_build_wol_command_uses_configured_target(self):
     with mock.patch.object(control_api, "WOL_COMMAND", ""), \
          mock.patch.object(control_api, "WOL_BINARY", "wakeonlan"), \
@@ -86,7 +92,7 @@ class ControlApiWakeTests(unittest.TestCase):
 
     self.assertEqual(
       command,
-      ["wakeonlan", "-i", "192.168.50.255", "-p", "9", "9C-6B-00-57-73-3A"],
+      ["wakeonlan", "-i", "192.168.50.255", "-p", "9", "9C:6B:00:57:73:3A"],
     )
 
   def test_decode_backend_payload_keeps_non_json_body_as_raw_excerpt(self):
