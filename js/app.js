@@ -204,6 +204,8 @@ const els = {
   aiResponseCard: () => $('aiResponseCard'),
   aiResponseStatus: () => $('aiResponseStatus'),
   aiResponseBody: () => $('aiResponseBody'),
+  followupForm: () => $('aiFollowupForm'),
+  followupInput: () => $('aiFollowupInput'),
 };
 
 let currentResults = [];
@@ -230,6 +232,21 @@ function ensureAiSection() {
     <div class="ai-response-card" id="aiResponseCard" hidden>
       <div class="ai-response-status" id="aiResponseStatus"></div>
       <div class="ai-response-body" id="aiResponseBody"></div>
+      <form class="ai-followup-form" id="aiFollowupForm" autocomplete="off">
+        <label class="ai-followup-label" for="aiFollowupInput">다음 질문</label>
+        <div class="ai-followup-bar">
+          <input
+            type="search"
+            id="aiFollowupInput"
+            class="ai-followup-input"
+            placeholder="답변을 읽은 뒤 바로 이어서 질문하세요"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          >
+          <button type="submit" class="ai-followup-submit">질문</button>
+        </div>
+      </form>
     </div>
   `;
 
@@ -240,10 +257,37 @@ function resetAiResponse() {
   const responseCard = els.aiResponseCard();
   const status = els.aiResponseStatus();
   const body = els.aiResponseBody();
+  const followupInput = els.followupInput();
 
   if (responseCard) responseCard.hidden = true;
   if (status) status.textContent = '';
   if (body) body.innerHTML = '';
+  if (followupInput) followupInput.value = '';
+}
+
+function hideEmptyResultsAfterAiRequest() {
+  if (currentResults.length > 0) return;
+
+  const resultsSection = els.resultsSection();
+  const resultsCount = els.resultsCount();
+  const resultsGrid = els.resultsGrid();
+
+  if (resultsCount) resultsCount.textContent = '';
+  if (resultsGrid) resultsGrid.innerHTML = '';
+  if (resultsSection) resultsSection.style.display = 'none';
+}
+
+function syncQueryInputs(query, source = 'main') {
+  const mainInput = els.input();
+  const followupInput = els.followupInput();
+
+  if (source !== 'main' && mainInput && mainInput.value !== query) {
+    mainInput.value = query;
+  }
+
+  if (source !== 'followup' && followupInput && followupInput.value !== query) {
+    followupInput.value = query;
+  }
 }
 
 function updateAiPrompt(query) {
@@ -284,6 +328,8 @@ async function requestAiAnswer(query) {
   if (responseCard) responseCard.hidden = false;
   if (status) status.textContent = 'AI가 답변을 생성하는 중입니다...';
   if (body) body.innerHTML = '';
+  syncQueryInputs(query);
+  hideEmptyResultsAfterAiRequest();
 
   const timeoutId = window.setTimeout(() => aiAbortController.abort(), AI_CONFIG.timeoutMs || 90000);
 
@@ -310,6 +356,10 @@ async function requestAiAnswer(query) {
 
     if (status) status.textContent = 'CHEEZE AI 응답';
     if (body) body.innerHTML = renderAiAnswer(text);
+    const followupInput = els.followupInput();
+    if (followupInput) {
+      window.requestAnimationFrame(() => followupInput.focus());
+    }
   } catch (error) {
     const message = error.name === 'AbortError'
       ? '응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
@@ -326,6 +376,7 @@ async function requestAiAnswer(query) {
 function showResults(query) {
   currentQuery = query;
   currentResults = searchServices(query);
+  syncQueryInputs(query);
 
   const hasQuery = query.trim().length > 0;
   const quickAccess = els.quickAccess();
@@ -380,6 +431,8 @@ function initEventListeners() {
   const clearBtn = els.clearBtn();
   const themeToggle = $('themeToggle');
   const aiPromptCard = els.aiPromptCard();
+  const followupForm = els.followupForm();
+  const followupInput = els.followupInput();
 
   if (input) {
     input.addEventListener('input', (event) => {
@@ -431,6 +484,24 @@ function initEventListeners() {
 
   if (aiPromptCard) {
     aiPromptCard.addEventListener('click', () => requestAiAnswer(currentQuery));
+  }
+
+  if (followupInput) {
+    followupInput.addEventListener('input', (event) => {
+      showResults(event.target.value);
+    });
+  }
+
+  if (followupForm && followupInput) {
+    followupForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const query = followupInput.value.trim();
+      if (!query) return;
+
+      showResults(query);
+      requestAiAnswer(query);
+    });
   }
 
   document.addEventListener('keydown', (event) => {
