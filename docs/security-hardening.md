@@ -84,19 +84,157 @@ Browser
 5. 토큰은 저장소에 커밋하지 않음
 6. 배포 후 `/api/control/healthz` 로 `action_token_configured=true` 확인
 
-## 6. 다음 보안 단계
+## 6. 현재 2차 보안 구현
 
 ### 1차
 
 - 관리자 토큰 기반 제어
 - 공개 facade + 내부 control API 분리
 
+### 1차 브라우저 검증 기준
+
+브라우저에서 확인할 항목:
+
+1. 홈페이지 로드 시 서비스 상태 조회가 정상 동작한다.
+2. `시작` 버튼 클릭 시 관리자 제어 토큰 입력창이 뜬다.
+3. `종료` 버튼 클릭 시에도 관리자 제어 토큰 입력창이 뜬다.
+4. 잘못된 토큰 입력 시:
+   - 시작이 실행되지 않는다.
+   - 종료도 실행되지 않는다.
+   - 프런트가 "토큰이 없거나 올바르지 않다"는 메시지를 보여준다.
+5. 올바른 토큰 입력 시:
+   - `X-Cheeze-Control-Token` 헤더와 함께 `/api/control/services/{id}/start` 요청이 나간다.
+   - 서비스 상태가 `waking -> starting -> running` 흐름으로 전이한다.
+   - `stop` 요청도 같은 헤더로 전달된다.
+6. 새로고침 후 같은 브라우저 세션에서는 토큰이 `sessionStorage` 에 남아 재입력을 요구하지 않는다.
+
+주의:
+
+- 현재 토큰 저장 위치는 `sessionStorage` 이므로 브라우저 탭/세션이 종료되면 다시 입력해야 한다.
+- 1차 단계에서는 사용자 계정 개념이 없고, 관리자 토큰 단일 값만 사용한다.
+- 1차 단계에서는 `stop` 도 파괴적 제어 동작으로 취급하므로 토큰이 필요하다.
+
 ### 2차
 
-- 친구용 초대 토큰
+- 다중 토큰 레지스트리
 - 서비스 범위 제한
+- 액션 범위 제한
 - 만료 시간
 - 요청 이력 로그
+
+### 2차 설계안
+
+현재 반영:
+
+- 파일: `deploy/gateway/portal-control-tokens.example.json`
+- 파일: `deploy/gateway/cheeze-portal-api.py`
+- portal facade 는 아래를 지원한다.
+  - 레거시 단일 환경변수 관리자 토큰
+  - 토큰 레지스트리 파일 기반 다중 토큰
+  - `allowed_services`
+  - `allowed_actions`
+  - `expires_at`
+  - `revoked_at`
+  - 감사 로그 append
+
+목표:
+
+- 관리자 단일 토큰을 넘어, 사용자별 또는 공유 링크별 제어 범위를 제한한다.
+- 누가 어떤 서비스를 언제 켰는지 남긴다.
+- 토큰이 유출돼도 전체 제어권으로 바로 이어지지 않게 한다.
+
+권장 구조:
+
+```text
+Browser
+  -> portal facade
+  -> token validation layer
+  -> policy check (service scope / expiry / action scope)
+  -> internal control API
+```
+
+필요 구성:
+
+1. 토큰 저장소
+- 파일 또는 sqlite
+- 필드:
+  - `token_id`
+  - `token_hash`
+  - `label`
+  - `role`
+  - `allowed_services`
+  - `allowed_actions`
+  - `expires_at`
+  - `created_at`
+  - `revoked_at`
+
+현재 2차 구현에서는 파일형 JSON 레지스트리를 사용한다.
+
+2. 역할 모델
+- `admin`
+  - 모든 서비스 start/stop/wake 허용
+- `friend`
+  - 허용된 게임 서버만 start 가능
+  - stop 은 허용 여부를 별도 설정
+- `readonly`
+  - 상태 조회만 허용
+
+3. 서비스 범위
+- 예:
+  - `minecraft-vanilla:start`
+  - `minecraft-modpacks/*:start`
+  - `ollama:deny`
+
+4. 토큰 만료
+- 일회성 초대 토큰
+- N시간/일 단위 만료
+- 수동 폐기 가능
+
+5. 감사 로그
+- 필드:
+  - `timestamp`
+  - `token_id`
+  - `service_id`
+  - `action`
+  - `remote_ip`
+  - `user_agent`
+  - `result`
+
+현재 기본 로그 파일:
+
+- `/opt/cheeze-control/portal-control-audit.log`
+
+6. 최소 rate limit
+- 토큰별
+- IP별
+- 서비스별 연속 start 제한
+
+구현 순서:
+
+1. portal facade 에 토큰 검증 계층 추가
+2. 토큰 저장소 파일/DB 도입
+3. 감사 로그 추가
+4. 친구용 제한 토큰 발급 도구 추가
+5. 프런트에 "읽기 전용 / 제어 가능" 상태 반영
+
+현재 완료:
+
+- 1, 2, 3
+
+다음 후보:
+
+- 4, 5
+
+운영 메모:
+
+- `CHEEZE_PORTAL_CONTROL_TOKEN` 은 레거시 관리자 토큰으로 계속 동작한다.
+- 2차를 본격 사용하려면 `CHEEZE_PORTAL_TOKEN_REGISTRY` 경로의 실제 토큰 파일을 배포하고, 토큰은 평문 대신 SHA-256 해시로 저장한다.
+- registry 기반 운영 중에도 레거시 환경변수 토큰을 남겨두면 관리자 우회 통로가 유지되므로, 완전 전환 시에는 환경변수 토큰을 비우는 편이 낫다.
+
+배제한 것:
+
+- 2차 단계에서는 아직 전체 계정 시스템이나 SSO를 도입하지 않는다.
+- 2차 단계에서는 내부 control API 자체를 복잡하게 만들지 않고, 정책 판단은 facade 에 둔다.
 
 ### 3차
 

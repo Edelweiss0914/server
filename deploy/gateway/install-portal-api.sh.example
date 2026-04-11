@@ -9,6 +9,7 @@ mkdir -p "$APP_ROOT"
 cp "$SRC_ROOT/cheeze-portal-api.py" "$APP_ROOT/cheeze-portal-api.py"
 chmod +x "$APP_ROOT/cheeze-portal-api.py"
 cp "$SRC_ROOT/cheeze-portal-api.service.example" "$SERVICE_FILE"
+cp "$SRC_ROOT/portal-control-tokens.example.json" "$APP_ROOT/portal-control-tokens.example.json"
 
 systemctl daemon-reload
 systemctl enable --now cheeze-portal-api
