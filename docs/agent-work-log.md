@@ -214,6 +214,83 @@
   - 관리자 페이지 구성 방향
   - 로그 파일 운영 권장안
 
+### 요청: Discord 봇 권장 아키텍처와 gateway-lxc 상태 평가
+
+질문 요지:
+
+- Discord 봇을 어떤 방식으로 두는 게 좋은지
+- 1회용 3분 토큰을 당사자 전용으로 만들 수 있는지
+- 게임 정보 종합 제공 봇으로 확장 가능한지
+- gateway-lxc 가 현재까지 작업 기준으로 과도하게 무거운지
+
+결론:
+
+- Discord 봇은 `gateway-lxc` + `Python` 이 권장
+- 게임 상태 종합 제공 기능은 공개 채널
+- 민감한 토큰/승인/개인 정보는 DM
+- "토큰을 발급받은 당사자만 사용"을 강하게 보장하려면 Discord OAuth 또는 봇 직접 제어 방식이 필요
+- 단기적으로는 Discord 봇이 토큰을 발급하기보다 직접 portal facade 에 제어 요청을 대행하는 방식이 더 단순하고 안전
+- 현재 gateway-lxc 는 아직 감당 가능한 수준이지만, Discord 봇 + 관리자 페이지 + job 저장소까지 붙으면 분리 시점을 검토해야 함
+
+문서 반영:
+
+- `docs/security-hardening.md` 에 Discord 봇 권장안과 gateway-lxc 상태 판단 추가
+
+### 요청: Discord 봇 구현 준비 정보 정리
+
+사용자 제공 정보:
+
+- Discord 봇은 처음부터 구성해야 함
+- 언어는 `Python`
+- 초기 대상 서비스는 `minecraft-vanilla` 만
+- 자동 종료 시스템은 아직 없음
+- `gateway-lxc` 의 현재 제어 경로:
+  - `/opt/cheeze-control/cheeze-control-api.py`
+  - `/opt/cheeze-control/cheeze-portal-api.py`
+  - `/opt/cheeze-control/portal-control-tokens.json`
+  - `/opt/cheeze-control/portal-control-audit.log`
+- Python 버전은 `3.9.18`
+
+결정:
+
+- Discord 봇은 `gateway-lxc` 에 배치
+- 설치 위치는 제어 평면과 가까운 별도 디렉터리 사용을 권장
+- 초기 명령 범위는 `minecraft-vanilla` 중심으로 최소화
+
+남은 필수 정보:
+
+- Discord Bot Token
+- Guild ID
+- 허용할 Role 이름 또는 Role ID
+- 봇을 DM 허용 상태로 쓸지 여부
+
+### 요청: Discord 봇 MVP 스캐폴드 구현
+
+작업:
+
+- `gateway-lxc` 배치 기준 Python Discord 봇 골격 추가
+- Guild/Role 기반 권한 체크 추가
+- `minecraft-vanilla` 전용 `/games`, `/start`, `/status`, `/stop` 명령 추가
+- portal facade direct control 방식으로 설계
+
+반영 파일:
+
+- `deploy/discord-bot/cheeze-discord-bot.py`
+- `deploy/discord-bot/requirements.txt`
+- `deploy/discord-bot/cheeze-discord-bot.service.example`
+- `deploy/discord-bot/install-discord-bot.sh.example`
+- `docs/discord-bot-setup.md`
+
+현재 필요한 남은 비밀값:
+
+- `DISCORD_BOT_TOKEN`
+- `CHEEZE_BOT_CONTROL_TOKEN`
+
+결정:
+
+- 사용자에게 웹 토큰을 발급하는 방식보다, Discord 봇이 직접 portal facade 를 호출하는 direct control 방식을 먼저 구현
+- `/stop` 은 자동 종료 정책이 없으므로 관리자 전용
+
 ### 요청: 보안 평가 후 발견 사항 코드 수정
 
 보안 평가 결과 (2026-04-11):
@@ -285,3 +362,23 @@
 검증:
 
 - `node --check js/app.js` → SYNTAX OK
+
+### 요청: gateway-lxc 서비스 배포 후 /healthz 내부 정보 노출 확인
+
+오류 기록:
+
+1. 증상:
+   - `git pull` 후 `systemctl restart` 해도 `/healthz` 응답에 `internal_control_base`, `audit_log_path` 가 계속 노출됨
+
+2. 원인:
+   - 서비스는 `/opt/cheeze-control/cheeze-portal-api.py` 를 직접 실행
+   - `git pull` 은 `/var/www/home/deploy/gateway/cheeze-portal-api.py` 만 업데이트
+   - 배포 시 `/opt/cheeze-control/` 으로 파일을 복사하는 단계가 누락됨
+
+3. 해결:
+   - `cp /var/www/home/deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/cheeze-portal-api.py`
+   - `sudo systemctl restart cheeze-portal-api`
+
+4. 교훈:
+   - git pull 이후 반드시 `/opt/cheeze-control/` 으로 파일 복사 필요
+   - `install-portal-api.sh.example` 스크립트를 참고하여 배포 절차 준수

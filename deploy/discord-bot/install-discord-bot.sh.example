@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/cheeze-bot"
+SRC_ROOT="/var/www/home/deploy/discord-bot"
+SERVICE_FILE="/etc/systemd/system/cheeze-discord-bot.service"
+
+mkdir -p "$APP_ROOT"
+cp "$SRC_ROOT/cheeze-discord-bot.py" "$APP_ROOT/cheeze-discord-bot.py"
+cp "$SRC_ROOT/requirements.txt" "$APP_ROOT/requirements.txt"
+chmod +x "$APP_ROOT/cheeze-discord-bot.py"
+python3 -m pip install --upgrade pip
+python3 -m pip install -r "$APP_ROOT/requirements.txt"
+cp "$SRC_ROOT/cheeze-discord-bot.service.example" "$SERVICE_FILE"
+
+systemctl daemon-reload
+systemctl enable --now cheeze-discord-bot
+systemctl status cheeze-discord-bot --no-pager
