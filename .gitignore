@@ -13,3 +13,7 @@ Thumbs.db
 
 # 로그
 *.log
+
+# Python
+__pycache__/
+*.pyc
