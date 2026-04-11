@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import time
 import urllib.error
@@ -34,6 +35,10 @@ BACKEND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_TIMEOUT", "8"))
 BACKEND_WAKE_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_WAKE_TIMEOUT", "150"))
 BACKEND_WAKE_POLL = int(os.environ.get("CHEEZE_BACKEND_WAKE_POLL", "3"))
 BACKEND_UNREACHABLE_MESSAGE = "backend agent unreachable; host may be asleep"
+WOL_COMMAND = os.environ.get("CHEEZE_WOL_COMMAND", "").strip()
+WOL_BINARY = os.environ.get("CHEEZE_WOL_BINARY", "wakeonlan")
+WOL_TARGET_IP = os.environ.get("CHEEZE_WOL_TARGET_IP", "").strip()
+WOL_TARGET_PORT = int(os.environ.get("CHEEZE_WOL_TARGET_PORT", "9"))
 
 
 def load_registry():
@@ -102,19 +107,84 @@ def backend_health():
   return status_code == 200
 
 
-def run_wol():
-  result = subprocess.run(
-    ["wakeonlan", WOL_MAC],
-    text=True,
-    capture_output=True,
-    check=False,
-  )
+def decode_backend_payload(body, *, fallback_message):
+  if not body:
+    return {"message": fallback_message}
+
+  text = body.decode("utf-8", errors="replace").strip()
+  if not text:
+    return {"message": fallback_message}
+
+  try:
+    payload = json.loads(text)
+  except json.JSONDecodeError:
+    return {
+      "message": fallback_message,
+      "raw_body": text[:300],
+    }
+
+  if isinstance(payload, dict):
+    return payload
+
   return {
-    "returncode": result.returncode,
-    "stdout": result.stdout,
-    "stderr": result.stderr,
-    "mac": WOL_MAC,
+    "message": fallback_message,
+    "raw_body": text[:300],
   }
+
+
+def build_wol_command():
+  if WOL_COMMAND:
+    return shlex.split(WOL_COMMAND)
+
+  command = [WOL_BINARY]
+  if WOL_TARGET_IP:
+    command.extend(["-i", WOL_TARGET_IP])
+  if WOL_TARGET_PORT > 0:
+    command.extend(["-p", str(WOL_TARGET_PORT)])
+  command.append(WOL_MAC)
+  return command
+
+
+def run_wol():
+  command = build_wol_command()
+  try:
+    result = subprocess.run(
+      command,
+      text=True,
+      capture_output=True,
+      check=False,
+    )
+    return {
+      "returncode": result.returncode,
+      "stdout": result.stdout,
+      "stderr": result.stderr,
+      "mac": WOL_MAC,
+      "command": command,
+      "target_ip": WOL_TARGET_IP or None,
+      "target_port": WOL_TARGET_PORT,
+    }
+  except FileNotFoundError as error:
+    return {
+      "returncode": 127,
+      "stdout": "",
+      "stderr": str(error),
+      "mac": WOL_MAC,
+      "command": command,
+      "target_ip": WOL_TARGET_IP or None,
+      "target_port": WOL_TARGET_PORT,
+      "error": "wol_command_not_found",
+    }
+  except OSError as error:
+    return {
+      "returncode": 1,
+      "stdout": "",
+      "stderr": str(error),
+      "mac": WOL_MAC,
+      "command": command,
+      "target_ip": WOL_TARGET_IP or None,
+      "target_port": WOL_TARGET_PORT,
+      "error": "wol_command_failed",
+    }
 
 
 def ensure_backend_online():
@@ -157,7 +227,10 @@ def ensure_backend_online():
   return {
     "woke": True,
     "ready": False,
-    "message": "backend agent did not become reachable before timeout",
+    "message": (
+      "backend agent did not become reachable before timeout; "
+      "verify LAN broadcast target and NIC wake settings"
+    ),
     "wol": wol_result,
     "last_error": last_error,
   }
@@ -173,6 +246,8 @@ class Handler(BaseHTTPRequestHandler):
         "ok": True,
         "backend_agent_base": BACKEND_AGENT_BASE,
         "wol_mac": WOL_MAC,
+        "wol_target_ip": WOL_TARGET_IP or None,
+        "wol_target_port": WOL_TARGET_PORT,
         "service_count": len(registry.get("services", [])),
       })
       return
@@ -225,7 +300,7 @@ class Handler(BaseHTTPRequestHandler):
           return
 
         status_code, body = backend_fetch(f"/services/{service_id}/start", method="POST", payload={})
-        payload = json.loads(body.decode("utf-8"))
+        payload = decode_backend_payload(body, fallback_message="backend start request completed")
         payload["wake_result"] = wake_result
         self.respond_json(status_code, payload)
       except Exception as error:

@@ -524,6 +524,51 @@ async function fetchControlState(serviceId) {
   return response.json();
 }
 
+function parseJsonObject(rawPayload) {
+  if (!rawPayload) return {};
+
+  try {
+    const parsed = JSON.parse(rawPayload);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function summarizeControlError(response, payload, rawPayload) {
+  if (payload.message) return payload.message;
+  if (payload.error) return payload.error;
+
+  const trimmed = (rawPayload || '').trim();
+  if (trimmed.startsWith('<')) {
+    return '/control 경로가 JSON 대신 HTML 오류 페이지를 반환했습니다. gateway/nginx 프록시 설정과 control API 배포 상태를 확인하세요.';
+  }
+
+  if (trimmed) {
+    return trimmed.slice(0, 180);
+  }
+
+  return `control action failed with ${response.status}`;
+}
+
+function normalizeControlActionError(error) {
+  const message = String(error && error.message ? error.message : '').trim();
+
+  if (!message) {
+    return '서비스 제어 요청이 실패했습니다.';
+  }
+
+  if (message.startsWith('Unexpected')) {
+    return '/control 응답이 JSON 형식이 아닙니다. gateway/nginx 프록시 또는 control API 오류 페이지가 내려왔을 가능성이 큽니다.';
+  }
+
+  if (message === 'Failed to fetch') {
+    return 'control API에 연결하지 못했습니다. 네트워크, 프록시, 또는 gateway 서비스 상태를 확인하세요.';
+  }
+
+  return message;
+}
+
 async function refreshControlStates() {
   if (!CONTROL_CONFIG.enabled || !CONTROL_CONFIG.services.length) return;
 
@@ -584,18 +629,10 @@ async function invokeControlAction(serviceId, action) {
   try {
     const response = await fetch(endpoint, { method: 'POST' });
     const rawPayload = await response.text();
-    let payload = {};
-
-    if (rawPayload) {
-      try {
-        payload = JSON.parse(rawPayload);
-      } catch (parseError) {
-        payload = {};
-      }
-    }
+    const payload = parseJsonObject(rawPayload);
 
     if (!response.ok) {
-      throw new Error(payload.message || payload.error || `control action failed with ${response.status}`);
+      throw new Error(summarizeControlError(response, payload, rawPayload));
     }
 
     const wakeMessage = payload.wake_result && payload.wake_result.woke
@@ -614,7 +651,7 @@ async function invokeControlAction(serviceId, action) {
   } catch (error) {
     controlState.set(serviceId, {
       state: 'error',
-      message: error.message || '서비스 제어 요청에 실패했습니다.',
+      message: normalizeControlActionError(error),
     });
     renderControlGrid();
     scheduleControlRefresh();
