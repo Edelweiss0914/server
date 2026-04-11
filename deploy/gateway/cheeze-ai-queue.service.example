@@ -1,0 +1,20 @@
+[Unit]
+Description=CHEEZE AI queue gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cheeze-ai
+Environment=CHEEZE_AI_LISTEN_HOST=127.0.0.1
+Environment=CHEEZE_AI_LISTEN_PORT=11435
+Environment=CHEEZE_AI_UPSTREAM=http://100.86.252.21:11434
+Environment=CHEEZE_AI_MAX_QUEUE=2
+Environment=CHEEZE_AI_TIMEOUT=180
+ExecStart=/usr/bin/python3 /opt/cheeze-ai/cheeze-ai-queue.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
