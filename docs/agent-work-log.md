@@ -187,3 +187,101 @@
 - 해시는 신뢰 가능한 로컬 작업 PC 또는 `gateway-lxc` 에서 생성 가능
 - 저장소와 서버 설정에는 평문 토큰이 아니라 `SHA-256` 해시만 저장
 - 실제 운영 레지스트리 파일은 `/opt/cheeze-control/portal-control-tokens.json` 으로 둔다
+
+### 요청: 최종 보안 판단과 다음 운영 방향 정리
+
+사용자 결정:
+
+- 레거시 관리자 환경변수 토큰은 직접 제거함
+- 이후 토큰 발급은 Discord 봇 기반 단기 토큰으로 가고 싶음
+- 토큰 유효시간은 약 3분
+- 토큰은 첫 사용 즉시 만료
+- 미사용 시 3분 후 만료
+
+추가 요구:
+
+- rate limit 필요
+- job 모델 필요
+- 관리자 페이지에서 상태/로그 모니터링 필요
+
+문서 반영:
+
+- `docs/security-hardening.md` 에 아래를 추가
+  - 레거시 토큰 제거 운영 결정
+  - Discord 봇 발급 토큰 방향
+  - rate limit 개념과 권장 규칙
+  - job 모델 개념과 상태 제안
+  - 관리자 페이지 구성 방향
+  - 로그 파일 운영 권장안
+
+### 요청: 보안 평가 후 발견 사항 코드 수정
+
+보안 평가 결과 (2026-04-11):
+
+- 전체 위험 수준: MEDIUM
+- Critical 0 / High 2 / Medium 4 / Low 3
+
+수행 작업:
+
+1. **[HIGH] 타이밍 공격 차단** (`cheeze-portal-api.py`)
+   - `token_matches_record`: `==` → `hmac.compare_digest` 교체
+   - 레거시 환경변수 토큰 비교도 동일하게 교체
+   - `import hmac` 추가
+
+2. **[HIGH] nginx rate limit 추가** (`home-control-location.conf.example`)
+   - `limit_req zone=cheeze_control burst=3 nodelay` 적용
+   - `limit_req_status 429` 설정
+   - 주석으로 http 블록 `limit_req_zone` 선언 안내 추가
+
+3. **[MEDIUM] service_id 경로 파라미터 검증** (`cheeze-portal-api.py`)
+   - `SERVICE_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$')` 추가
+   - `valid_service_id()` 함수 추가
+   - GET `/services/{id}`, POST `/services/{id}/start|stop` 진입 시 검증
+   - 검증 실패 시 `400 invalid_service_id` 반환
+   - `import re` 추가
+
+4. **[MEDIUM] /healthz 내부 정보 노출 제거**
+   - `cheeze-portal-api.py`: `internal_control_base`, `audit_log_path` 필드 제거
+   - `cheeze-control-api.py`: `backend_agent_base`, `wol_mac`, `wol_target_ip`, `wol_target_port` 필드 제거
+
+5. **[MEDIUM] 프론트엔드 XSS 방지** (`js/app.js`)
+   - `renderResultCard`: `service.url`, `service.name`, `service.nameKo`, `service.description`, `service.category`, `urlDisplay` 에 `escapeHtml` 적용
+   - `renderQuickCard`: `service.url`, `service.description`, `service.nameKo`, `service.name` 에 적용
+   - `renderControlCard`: `service.id`, `service.name`, `service.nameKo`, `service.category`, `service.description` 에 적용
+
+검증:
+
+- `python -m py_compile deploy/gateway/cheeze-control-api.py deploy/gateway/cheeze-portal-api.py` → OK
+- `node --check js/app.js` → OK
+- `python -m unittest deploy/gateway/test_cheeze_control_api.py deploy/gateway/test_cheeze_portal_api.py` → 17건 OK
+
+남은 항목 (미수정):
+
+- **[MEDIUM]** 내부 control API(11436) 공유 비밀 헤더 인증 — 인프라 변경 필요, 별도 수행
+- **[LOW]** 감사 로그 append-only 권한 (`chattr +a`) — 서버 배포 시 적용
+- **[LOW]** nginx 보안 헤더 (`X-Frame-Options` 등) — 상위 nginx 설정에서 확인 필요
+
+### 요청: window.prompt() 토큰 입력을 커스텀 모달로 교체
+
+작업:
+
+- `index.html`: `</body>` 바로 위에 native `<dialog>` 기반 토큰 입력 모달 추가
+  - 자물쇠 SVG 아이콘 + 제목("제어 토큰 확인") + 동적 부제(`id="tokenDialogSub"`)
+  - 비밀번호 input (`id="tokenInput"`) + 눈 아이콘 토글 버튼 (`id="tokenEyeBtn"`)
+  - 취소/확인 버튼 (`id="tokenCancelBtn"`, `id="tokenConfirmBtn"`)
+
+- `css/style.css`: 파일 끝에 `/* ─── 토큰 입력 모달 ─── */` 블록 추가
+  - `.token-dialog`: `position:fixed; inset:0; margin:auto; width:min(420px, calc(100vw - 32px))`
+  - `::backdrop`: `rgba(0,0,0,0.45)` + `backdrop-filter:blur(3px)` + 페이드인 애니메이션
+  - `@keyframes token-dialog-in`: `translateY(14px) scale(0.97)` → none
+  - `.token-input`: 포커스 시 `border-color:var(--border-focus)` + `box-shadow:0 0 0 4px rgba(79,127,255,.12)`
+  - CSS 변수만 사용하여 다크/라이트 테마 자동 대응
+
+- `js/app.js`: `promptForControlActionToken` + `resolveControlActionToken` 교체
+  - `showTokenDialog(serviceName, action)` 추가: Promise 반환, 이벤트 정리 포함
+  - `resolveControlActionToken(serviceName, action)` async 함수로 교체
+  - `invokeControlAction` 내 호출 부분을 `await resolveControlActionToken(service.name, action)` 으로 변경
+
+검증:
+
+- `node --check js/app.js` → SYNTAX OK

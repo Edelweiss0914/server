@@ -15,8 +15,10 @@ host and dispatch service lifecycle commands.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 import urllib.error
@@ -101,12 +103,19 @@ def action_token_configured():
   return bool(CONTROL_ACTION_TOKEN) or token_registry_configured()
 
 
+SERVICE_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$')
+
+
+def valid_service_id(service_id):
+  return bool(SERVICE_ID_PATTERN.match(service_id))
+
+
 def token_matches_record(raw_token, token_record):
   expected_hash = token_record.get("token_hash", "").strip().lower()
   if not expected_hash:
     return False
 
-  return sha256_hex(raw_token).lower() == expected_hash
+  return hmac.compare_digest(sha256_hex(raw_token).lower(), expected_hash)
 
 
 def token_expired(token_record):
@@ -169,7 +178,7 @@ def authorize_action(headers, service_id, action):
       "message": "a valid control action token is required",
     }, None
 
-  if CONTROL_ACTION_TOKEN and supplied == CONTROL_ACTION_TOKEN:
+  if CONTROL_ACTION_TOKEN and hmac.compare_digest(supplied, CONTROL_ACTION_TOKEN):
     return None, None, {
       "token_id": "legacy-admin-env-token",
       "label": "Legacy Admin Env Token",
@@ -235,10 +244,8 @@ class Handler(BaseHTTPRequestHandler):
     if self.path == "/healthz":
       self.respond_json(200, {
         "ok": True,
-        "internal_control_base": CONTROL_API_BASE,
         "action_token_configured": action_token_configured(),
         "token_registry_configured": token_registry_configured(),
-        "audit_log_path": str(AUDIT_LOG_PATH),
       })
       return
 
@@ -248,6 +255,9 @@ class Handler(BaseHTTPRequestHandler):
 
     if self.path.startswith("/services/"):
       service_id = self.path.split("/", 2)[2]
+      if not valid_service_id(service_id):
+        self.respond_json(400, {"error": "invalid_service_id"})
+        return
       self.forward_or_error(f"/services/{service_id}")
       return
 
@@ -263,6 +273,9 @@ class Handler(BaseHTTPRequestHandler):
     ):
       service_id = self.path.split("/")[2]
       action = self.path.rsplit("/", 1)[1]
+      if not valid_service_id(service_id):
+        self.respond_json(400, {"error": "invalid_service_id"})
+        return
       self.require_auth_then_forward(
         f"/services/{service_id}/{action}",
         payload={},

@@ -1,4 +1,10 @@
+# Rate limit zone: defined in nginx http {} block (e.g. nginx.conf or a conf.d snippet):
+#   limit_req_zone $binary_remote_addr zone=cheeze_control:10m rate=5r/m;
+
 location /api/control/ {
+    limit_req zone=cheeze_control burst=3 nodelay;
+    limit_req_status 429;
+
     proxy_pass http://127.0.0.1:11437/;
     proxy_http_version 1.1;
 

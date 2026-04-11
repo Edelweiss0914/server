@@ -231,6 +231,11 @@ Browser
 - 2차를 본격 사용하려면 `CHEEZE_PORTAL_TOKEN_REGISTRY` 경로의 실제 토큰 파일을 배포하고, 토큰은 평문 대신 SHA-256 해시로 저장한다.
 - registry 기반 운영 중에도 레거시 환경변수 토큰을 남겨두면 관리자 우회 통로가 유지되므로, 완전 전환 시에는 환경변수 토큰을 비우는 편이 낫다.
 
+2026-04-11 운영 결정:
+
+- 레거시 관리자 환경변수 토큰은 제거했다.
+- 이후 운영 기준은 registry 기반 토큰만 사용한다.
+
 ## 7. 토큰 생성과 배치 방법
 
 핵심:
@@ -339,14 +344,200 @@ curl http://127.0.0.1:11437/healthz
 - 2차 단계에서는 아직 전체 계정 시스템이나 SSO를 도입하지 않는다.
 - 2차 단계에서는 내부 control API 자체를 복잡하게 만들지 않고, 정책 판단은 facade 에 둔다.
 
-## 8. 다음 단계
+## 8. 2026-04-11 보안 수정 반영 (3차)
 
-### 3차
+### 수정 완료
+
+#### [HIGH] 타이밍 공격 차단
+
+- `cheeze-portal-api.py`
+  - `token_matches_record`: `==` 비교 → `hmac.compare_digest` 교체
+  - 레거시 환경변수 토큰 비교도 동일 적용
+- 근거: Python `==` 문자열 비교는 첫 불일치 바이트에서 즉시 반환하므로 응답 시간 차이로 해시 추론 가능
+
+#### [HIGH] nginx rate limit 추가
+
+- `home-control-location.conf.example`
+  - `limit_req zone=cheeze_control burst=3 nodelay` 추가
+  - `limit_req_status 429` 추가
+- 서버 nginx `http {}` 블록에 아래 선언 필요:
+  ```nginx
+  limit_req_zone $binary_remote_addr zone=cheeze_control:10m rate=5r/m;
+  ```
+
+#### [MEDIUM] service_id 경로 파라미터 검증
+
+- `cheeze-portal-api.py`
+  - `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$` 패턴 검증 추가
+  - GET/POST 모든 service_id 진입 경로에 적용
+  - 실패 시 `400 invalid_service_id`
+
+#### [MEDIUM] /healthz 내부 정보 노출 제거
+
+- `cheeze-portal-api.py`: `internal_control_base`, `audit_log_path` 제거
+- `cheeze-control-api.py`: `backend_agent_base`, `wol_mac`, `wol_target_ip`, `wol_target_port` 제거
+
+#### [MEDIUM] 프론트엔드 XSS 방지
+
+- `js/app.js`
+  - `renderResultCard`, `renderQuickCard`, `renderControlCard` 의 서비스 텍스트 속성 전체에 `escapeHtml` 적용
+  - 대상: `service.url`(href), `service.name`, `service.nameKo`, `service.description`, `service.category`, `service.id`(data 속성)
+
+### 미완료 항목 (다음 단계)
+
+- **[MEDIUM]** 내부 control API(11436) 공유 비밀 헤더 인증 — 서버 배포 변경 필요
+- **[LOW]** 감사 로그 append-only 권한 (`chattr +a /opt/cheeze-control/portal-control-audit.log`)
+- **[LOW]** nginx 보안 헤더 (`X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security`, `CSP`)
+
+## 9. 다음 단계
+
+### 4차
 
 - 비동기 job 모델
 - 감사 로그 구조화
-- rate limit
 - 토큰 회전 절차
+- Discord 봇 단기 토큰 발급
+
+## 9. 다음 보안/운영 방향
+
+### Discord 발급 토큰
+
+희망 운영 방향:
+
+- Discord 봇이 제어 토큰을 발급한다.
+- 발급된 토큰은 약 3분간만 유효하다.
+- 토큰은 첫 사용 즉시 만료된다.
+- 3분이 지나도 미사용이면 자동 만료된다.
+- 수동 폐기는 registry 에서 삭제 또는 `revoked_at` 설정으로 처리한다.
+
+권장 구현 방식:
+
+1. Discord 봇은 평문 토큰 1개를 생성한다.
+2. 봇은 `token_hash`, `expires_at`, `allowed_services`, `allowed_actions`, `use_once=true` 성격의 항목을 registry 저장소에 기록한다.
+3. portal facade 는 성공적으로 허용된 첫 요청 직후 해당 토큰을 삭제하거나 `revoked_at` 을 기록한다.
+4. 만료된 토큰은 주기적으로 정리한다.
+
+실무 메모:
+
+- 단순 운영이라면 "삭제"만으로도 사실상 폐기다.
+- 감사 목적을 남기고 싶으면 즉시 삭제보다 `revoked_at` 기록 후 주기 정리가 더 낫다.
+
+### Rate Limit
+
+목적:
+
+- 누군가가 반복적으로 `start/stop/wake` 를 때려서 서비스나 host를 흔드는 것을 막는다.
+
+개념:
+
+- 같은 토큰이 짧은 시간에 너무 많이 요청하면 차단
+- 같은 IP가 짧은 시간에 너무 많이 요청하면 차단
+- 같은 서비스에 연속 `start` 요청이 들어오면 차단
+
+권장 1차 규칙:
+
+- 토큰별 `start/stop/wake` : 1분당 3회 이하
+- IP별 `start/stop/wake` : 1분당 10회 이하
+- 같은 서비스 `start` : 진행 중이면 추가 요청 거부
+
+응답:
+
+- 초과 시 `429 Too Many Requests`
+- 응답 본문에 재시도까지 남은 시간 포함
+
+### Job Model
+
+목적:
+
+- `wake -> boot wait -> backend agent wait -> service start` 같은 긴 작업을 브라우저 요청 한 번에 묶지 않는다.
+
+개념:
+
+지금:
+
+```text
+브라우저가 start 요청 -> 응답이 끝날 때까지 오래 대기
+```
+
+job 모델:
+
+```text
+브라우저가 start 요청 -> 서버는 job_id 즉시 반환
+브라우저는 /jobs/{id} 상태만 조회
+실제 wake/start 작업은 서버 내부에서 계속 진행
+```
+
+장점:
+
+- nginx timeout 의존성이 줄어든다.
+- 브라우저가 중간에 끊겨도 작업이 계속된다.
+- 관리자 페이지에서 작업 진행률을 보여주기 쉽다.
+
+권장 job 상태:
+
+- `queued`
+- `waking`
+- `waiting_backend`
+- `starting_service`
+- `running`
+- `failed`
+
+### 관리자 페이지
+
+희망 방향:
+
+- 웹 UI에서 웹서비스, 게임서버, AI, 각종 API 상태를 모니터링
+- 제어 작업과 감사 로그도 함께 확인
+
+권장 화면 구성:
+
+1. Host 요약
+- `gateway-lxc`
+- `homepc`
+- host online/offline
+- last wake
+
+2. Service 패널
+- `ollama`
+- `minecraft-vanilla`
+- 이후 서비스들
+- state, last action, last change time
+
+3. Job 패널
+- 최근 start/stop/wake 작업
+- 진행 중 작업
+- 실패 원인
+
+4. Audit 패널
+- 누가 어떤 토큰으로 무엇을 했는지
+- 성공/거부/실패
+
+### 로그 파일 운영
+
+권장안:
+
+1. 로그 분리
+- 감사 로그: `portal-control-audit.log`
+- 애플리케이션 에러 로그: systemd journal 또는 별도 앱 로그
+- job 로그: job 모델 도입 후 별도 파일 또는 상태 저장소
+
+2. 회전
+- `logrotate` 사용
+- 일 단위 또는 크기 기준 회전
+- 최근 14~30개 보관
+
+3. 형식
+- JSON Lines 유지
+- 한 줄 = 한 이벤트
+- 관리자 페이지는 이 파일을 읽거나, 나중에 sqlite로 옮긴다.
+
+4. 보관 정책
+- 감사 로그는 최소 30일 이상 권장
+- 에러 로그는 짧게 보관해도 무방
+
+5. 장기 방향
+- 처음에는 JSONL 파일
+- 관리자 페이지와 검색이 중요해지면 sqlite 로 이전
 
 ## 7. 문서 운영 규칙
 

@@ -248,10 +248,6 @@ class Handler(BaseHTTPRequestHandler):
       registry = load_registry()
       self.respond_json(200, {
         "ok": True,
-        "backend_agent_base": BACKEND_AGENT_BASE,
-        "wol_mac": WOL_MAC,
-        "wol_target_ip": WOL_TARGET_IP or None,
-        "wol_target_port": WOL_TARGET_PORT,
         "service_count": len(registry.get("services", [])),
       })
       return

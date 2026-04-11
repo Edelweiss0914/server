@@ -920,3 +920,134 @@ kbd {
 }
 
 .search-input:focus-visible { outline: none; }
+
+/* ─── 토큰 입력 모달 ────────────────────────────────────── */
+@keyframes token-dialog-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.token-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  animation: token-dialog-in 0.2s var(--ease) both;
+}
+
+.token-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  animation: token-dialog-in 0.2s var(--ease) both;
+}
+
+.token-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 0;
+}
+
+.token-dialog-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.token-dialog-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.token-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.token-dialog-sub {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-dialog-body {
+  padding: 16px 20px;
+}
+
+.token-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.token-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 44px 0 14px;
+  background: var(--bg-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  outline: none;
+}
+
+.token-input::placeholder {
+  color: var(--text-muted);
+}
+
+.token-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px rgba(79, 127, 255, 0.12);
+}
+
+.token-eye-btn {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+
+.token-eye-btn:hover {
+  color: var(--text);
+}
+
+.token-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 20px 20px;
+}

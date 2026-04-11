@@ -154,5 +154,65 @@
   <script src="js/services.js?v=20260411-archivebox"></script>
   <script src="js/app.js?v=20260411-archivebox"></script>
 
+  <!-- ── 토큰 입력 모달 ────────────────────────────────── -->
+  <dialog class="token-dialog" id="tokenDialog" aria-modal="true" aria-labelledby="tokenDialogTitle">
+    <div class="token-dialog-header">
+      <div class="token-dialog-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div class="token-dialog-title-group">
+        <h2 class="token-dialog-title" id="tokenDialogTitle">제어 토큰 확인</h2>
+        <p class="token-dialog-sub" id="tokenDialogSub"></p>
+      </div>
+    </div>
+
+    <div class="token-dialog-body">
+      <div class="token-input-wrap">
+        <input
+          type="password"
+          class="token-input"
+          id="tokenInput"
+          placeholder="토큰을 입력하세요"
+          autocomplete="current-password"
+          aria-label="제어 토큰"
+        >
+        <button
+          type="button"
+          class="token-eye-btn"
+          id="tokenEyeBtn"
+          aria-label="토큰 표시/숨김"
+          tabindex="-1"
+        >
+          <!-- eye 아이콘 (기본: 숨김 상태) -->
+          <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+          <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true" style="display:none">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="token-dialog-footer">
+      <button type="button" class="control-btn" id="tokenCancelBtn">취소</button>
+      <button type="button" class="control-btn is-primary" id="tokenConfirmBtn">확인</button>
+    </div>
+  </dialog>
+
 </body>
 </html>

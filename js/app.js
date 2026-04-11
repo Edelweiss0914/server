@@ -77,24 +77,64 @@ function clearControlActionToken() {
   }
 }
 
-function promptForControlActionToken() {
-  const token = window.prompt('관리자 제어 토큰을 입력하세요. 이 토큰은 시작/종료 요청에만 사용됩니다.', '');
-  if (!token) return '';
+function showTokenDialog(serviceName, action) {
+  return new Promise((resolve) => {
+    const dialog = $('tokenDialog');
+    const subEl = $('tokenDialogSub');
+    const input = $('tokenInput');
+    const eyeBtn = $('tokenEyeBtn');
+    const confirmBtn = $('tokenConfirmBtn');
+    const cancelBtn = $('tokenCancelBtn');
 
-  const normalized = token.trim();
-  if (!normalized) return '';
+    const actionLabel = action === 'start' ? '시작' : action === 'stop' ? '종료' : action;
+    subEl.textContent = `${serviceName} ${actionLabel}`;
 
-  writeControlActionToken(normalized);
-  return normalized;
+    input.value = '';
+    input.type = 'password';
+    eyeBtn.querySelector('.eye-off').style.display = '';
+    eyeBtn.querySelector('.eye-on').style.display = 'none';
+
+    function finish(token) {
+      dialog.close();
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKeydown);
+      dialog.removeEventListener('cancel', onCancel);
+      eyeBtn.removeEventListener('click', onEyeToggle);
+      resolve(token);
+    }
+
+    function onConfirm() { finish(input.value.trim()); }
+    function onCancel() { finish(''); }
+    function onKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); onConfirm(); } }
+
+    function onEyeToggle() {
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      eyeBtn.querySelector('.eye-off').style.display = isPassword ? 'none' : '';
+      eyeBtn.querySelector('.eye-on').style.display = isPassword ? '' : 'none';
+    }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKeydown);
+    dialog.addEventListener('cancel', onCancel, { once: true });
+    eyeBtn.addEventListener('click', onEyeToggle);
+
+    dialog.showModal();
+    setTimeout(() => input.focus(), 50);
+  });
 }
 
-function resolveControlActionToken() {
+async function resolveControlActionToken(serviceName, action) {
   if (!CONTROL_CONFIG.actionsRequireToken) return '';
 
   const existing = readControlActionToken();
   if (existing) return existing;
 
-  return promptForControlActionToken();
+  const token = await showTokenDialog(serviceName || '', action || '');
+  if (token) writeControlActionToken(token);
+  return token;
 }
 
 function buildControlHeaders({ includeActionToken = false, token = '' } = {}) {
@@ -206,7 +246,7 @@ function renderResultCard(service) {
   const bgVar = `--service-bg: ${service.bgColor || `${service.color}18`}`;
 
   return `
-    <a href="${service.url}"
+    <a href="${escapeHtml(service.url)}"
        class="result-card"
        target="_blank"
        rel="noopener noreferrer"
@@ -215,12 +255,12 @@ function renderResultCard(service) {
         ${renderIcon(service, 'md')}
         <div class="result-info">
           <div class="result-name">
-            ${service.name}
-            ${service.nameKo ? `<span class="result-name-ko">${service.nameKo}</span>` : ''}
-            ${service.categoryIcon ? `<span class="result-category">${service.categoryIcon} ${service.category}</span>` : ''}
+            ${escapeHtml(service.name)}
+            ${service.nameKo ? `<span class="result-name-ko">${escapeHtml(service.nameKo)}</span>` : ''}
+            ${service.categoryIcon ? `<span class="result-category">${service.categoryIcon} ${escapeHtml(service.category)}</span>` : ''}
           </div>
-          <div class="result-desc"><span class="result-desc-text">${service.description}</span></div>
-          <div class="result-url">${urlDisplay}</div>
+          <div class="result-desc"><span class="result-desc-text">${escapeHtml(service.description)}</span></div>
+          <div class="result-url">${escapeHtml(urlDisplay)}</div>
         </div>
         <div class="result-arrow" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -239,15 +279,15 @@ function renderQuickCard(service) {
   const bgVar = `--service-bg: ${service.bgColor || `${service.color}18`}`;
 
   return `
-    <a href="${service.url}"
+    <a href="${escapeHtml(service.url)}"
        class="quick-card"
        target="_blank"
        rel="noopener noreferrer"
-       title="${service.description}"
+       title="${escapeHtml(service.description)}"
        style="${bgVar}; --service-color: ${service.color}">
       ${renderIcon(service, 'lg')}
-      <span class="quick-name">${service.nameKo || service.name}</span>
-      <span class="quick-sub">${service.name}</span>
+      <span class="quick-name">${escapeHtml(service.nameKo || service.name)}</span>
+      <span class="quick-sub">${escapeHtml(service.name)}</span>
     </a>
   `;
 }
@@ -510,16 +550,16 @@ function renderControlCard(service, state = {}) {
         : '백엔드 상태를 확인하는 중입니다.');
 
   return `
-    <article class="control-card" data-service-id="${service.id}" style="${bgVar}; --service-color: ${service.color}">
+    <article class="control-card" data-service-id="${escapeHtml(service.id)}" style="${bgVar}; --service-color: ${service.color}">
       <div class="control-head">
         ${renderIcon(service, 'md')}
         <div class="control-info">
           <div class="control-title">
-            <span>${service.name}</span>
-            ${service.nameKo ? `<span class="control-name-ko">${service.nameKo}</span>` : ''}
-            ${service.categoryIcon ? `<span class="control-category">${service.categoryIcon} ${service.category}</span>` : ''}
+            <span>${escapeHtml(service.name)}</span>
+            ${service.nameKo ? `<span class="control-name-ko">${escapeHtml(service.nameKo)}</span>` : ''}
+            ${service.categoryIcon ? `<span class="control-category">${service.categoryIcon} ${escapeHtml(service.category)}</span>` : ''}
           </div>
-          <p class="control-desc">${service.description}</p>
+          <p class="control-desc">${escapeHtml(service.description)}</p>
         </div>
         <span class="control-state-badge ${stateClass(cardState)}">${stateLabel(cardState)}</span>
       </div>
@@ -685,7 +725,7 @@ async function invokeControlAction(serviceId, action) {
   }
 
   const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}/${action}`;
-  const actionToken = action === 'refresh' ? '' : resolveControlActionToken();
+  const actionToken = action === 'refresh' ? '' : await resolveControlActionToken(service.name || serviceId, action);
   if (CONTROL_CONFIG.actionsRequireToken && action !== 'refresh' && !actionToken) {
     controlState.set(serviceId, {
       ...(controlState.get(serviceId) || {}),
