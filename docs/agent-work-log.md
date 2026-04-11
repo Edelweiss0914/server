@@ -169,3 +169,21 @@
 - gateway-lxc 에 실제 토큰 레지스트리 파일 배포
 - 레거시 단일 관리자 토큰을 계속 유지할지, registry-only 로 전환할지 운영 결정
 - 브라우저에서 제한 토큰 사용 시 허용/거부 동작 실기 확인
+
+### 요청: 해시 생성 위치와 방법 안내
+
+작업:
+
+- 토큰 해시 생성 절차를 보안 문서에 추가
+- 토큰 생성 helper 스크립트 추가
+
+반영 파일:
+
+- `deploy/gateway/generate-control-token.py`
+- `docs/security-hardening.md`
+
+결정:
+
+- 해시는 신뢰 가능한 로컬 작업 PC 또는 `gateway-lxc` 에서 생성 가능
+- 저장소와 서버 설정에는 평문 토큰이 아니라 `SHA-256` 해시만 저장
+- 실제 운영 레지스트리 파일은 `/opt/cheeze-control/portal-control-tokens.json` 으로 둔다

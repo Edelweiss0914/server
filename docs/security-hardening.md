@@ -231,10 +231,115 @@ Browser
 - 2차를 본격 사용하려면 `CHEEZE_PORTAL_TOKEN_REGISTRY` 경로의 실제 토큰 파일을 배포하고, 토큰은 평문 대신 SHA-256 해시로 저장한다.
 - registry 기반 운영 중에도 레거시 환경변수 토큰을 남겨두면 관리자 우회 통로가 유지되므로, 완전 전환 시에는 환경변수 토큰을 비우는 편이 낫다.
 
+## 7. 토큰 생성과 배치 방법
+
+핵심:
+
+- 토큰 평문은 사람에게만 전달한다.
+- 서버에는 평문 대신 SHA-256 해시만 저장한다.
+- 실제 운영 파일은 예시 파일과 분리한다.
+
+권장 배치 위치:
+
+- 실제 토큰 레지스트리:
+  - `/opt/cheeze-control/portal-control-tokens.json`
+- 감사 로그:
+  - `/opt/cheeze-control/portal-control-audit.log`
+
+예시 파일:
+
+- `deploy/gateway/portal-control-tokens.example.json`
+
+해시 생성 위치:
+
+- 신뢰할 수 있는 로컬 작업 PC
+- 또는 `gateway-lxc` 자체
+
+중요:
+
+- 토큰 평문은 shell history, 문서, git 커밋에 남기지 않는 편이 낫다.
+- 가능하면 임시 생성 후 사용자에게만 전달하고, 저장소에는 해시만 남긴다.
+
+### 방법 1. 저장소 스크립트 사용
+
+파일:
+
+- `deploy/gateway/generate-control-token.py`
+
+예시:
+
+```bash
+cd /var/www/home
+python3 deploy/gateway/generate-control-token.py \
+  --token-id friend-minecraft-24h \
+  --label "Friend Minecraft Start Token" \
+  --role friend \
+  --services minecraft-vanilla \
+  --actions start \
+  --expires-at 2026-04-12T12:00:00+00:00
+```
+
+이 스크립트는 아래를 출력한다.
+
+- 평문 토큰
+- SHA-256 해시
+- `portal-control-tokens.json` 에 넣을 JSON 항목
+
+### 방법 2. openssl 사용
+
+```bash
+printf '%s' '여기에_실제_토큰' | openssl dgst -sha256
+```
+
+출력된 해시값만 `token_hash` 에 넣는다.
+
+### 방법 3. Python 한 줄 사용
+
+```bash
+python3 - <<'PY'
+import hashlib
+token = '여기에_실제_토큰'
+print(hashlib.sha256(token.encode('utf-8')).hexdigest())
+PY
+```
+
+### 실제 운영 파일 만들기
+
+```bash
+sudo cp /var/www/home/deploy/gateway/portal-control-tokens.example.json /opt/cheeze-control/portal-control-tokens.json
+sudo nano /opt/cheeze-control/portal-control-tokens.json
+```
+
+`REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN` 자리에 생성한 해시를 넣는다.
+
+그 다음 service 파일에서 경로 확인:
+
+```ini
+Environment=CHEEZE_PORTAL_TOKEN_REGISTRY=/opt/cheeze-control/portal-control-tokens.json
+Environment=CHEEZE_PORTAL_AUDIT_LOG=/opt/cheeze-control/portal-control-audit.log
+```
+
+반영:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart cheeze-portal-api
+```
+
+확인:
+
+```bash
+curl http://127.0.0.1:11437/healthz
+```
+
+응답에서 `token_registry_configured: true` 가 보여야 한다.
+
 배제한 것:
 
 - 2차 단계에서는 아직 전체 계정 시스템이나 SSO를 도입하지 않는다.
 - 2차 단계에서는 내부 control API 자체를 복잡하게 만들지 않고, 정책 판단은 facade 에 둔다.
+
+## 8. 다음 단계
 
 ### 3차
 
