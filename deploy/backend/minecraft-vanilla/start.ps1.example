@@ -1,0 +1,32 @@
+$ErrorActionPreference = "Stop"
+
+$ControlRoot = "D:\Servers\Control\minecraft-vanilla"
+$RunnerScript = Join-Path $ControlRoot "run.ps1"
+$WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
+
+if (-not (Test-Path $RunnerScript)) {
+    throw "Runner script not found: $RunnerScript"
+}
+
+New-Item -ItemType Directory -Path $ControlRoot -Force | Out-Null
+
+if (Test-Path $WrapperPidFile) {
+    $existingPid = (Get-Content $WrapperPidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($existingPid) {
+        $existingProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
+        if ($existingProcess) {
+            Write-Host "Minecraft Vanilla wrapper is already running with PID $existingPid"
+            exit 0
+        }
+    }
+    Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+}
+
+$process = Start-Process `
+    -FilePath "powershell.exe" `
+    -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $RunnerScript) `
+    -WorkingDirectory $ControlRoot `
+    -PassThru
+
+Set-Content -Path $WrapperPidFile -Value $process.Id
+Write-Host "Minecraft Vanilla wrapper started with PID $($process.Id)"

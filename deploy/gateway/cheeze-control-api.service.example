@@ -1,0 +1,20 @@
+[Unit]
+Description=CHEEZE generic control API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cheeze-control
+Environment=CHEEZE_CONTROL_LISTEN_HOST=127.0.0.1
+Environment=CHEEZE_CONTROL_LISTEN_PORT=11436
+Environment=CHEEZE_BACKEND_AGENT_BASE=http://100.86.252.21:5010
+Environment=CHEEZE_BACKEND_MAC=9C-6B-00-57-73-3A
+Environment=CHEEZE_SERVICE_REGISTRY=/var/www/home/deploy/orchestrator/service-registry.example.json
+ExecStart=/usr/bin/python3 /opt/cheeze-control/cheeze-control-api.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

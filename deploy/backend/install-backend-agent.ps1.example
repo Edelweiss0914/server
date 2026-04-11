@@ -1,0 +1,34 @@
+$ErrorActionPreference = "Stop"
+
+$AppRoot = "C:\ProgramData\CHEEZE\backend-agent"
+$ConfigSource = "D:\Project\deploy\backend\cheeze-backend-agent-config.example.json"
+$AgentSource = "D:\Project\deploy\backend\cheeze-backend-agent.py"
+$PythonExe = "python"
+$TaskName = "CHEEZE Backend Agent"
+
+New-Item -ItemType Directory -Path $AppRoot -Force | Out-Null
+Copy-Item $AgentSource (Join-Path $AppRoot "cheeze-backend-agent.py") -Force
+Copy-Item $ConfigSource (Join-Path $AppRoot "config.json") -Force
+
+$Action = New-ScheduledTaskAction `
+    -Execute $PythonExe `
+    -Argument (Join-Path $AppRoot "cheeze-backend-agent.py")
+
+$Trigger = New-ScheduledTaskTrigger -AtStartup
+
+$Settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable
+
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $Action `
+    -Trigger $Trigger `
+    -Settings $Settings `
+    -User "SYSTEM" `
+    -RunLevel Highest `
+    -Force
+
+Start-ScheduledTask -TaskName $TaskName
+Get-ScheduledTask -TaskName $TaskName

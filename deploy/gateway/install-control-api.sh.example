@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/cheeze-control"
+SRC_ROOT="/var/www/home/deploy/gateway"
+SERVICE_FILE="/etc/systemd/system/cheeze-control-api.service"
+
+mkdir -p "$APP_ROOT"
+cp "$SRC_ROOT/cheeze-control-api.py" "$APP_ROOT/cheeze-control-api.py"
+chmod +x "$APP_ROOT/cheeze-control-api.py"
+cp "$SRC_ROOT/cheeze-control-api.service.example" "$SERVICE_FILE"
+
+systemctl daemon-reload
+systemctl enable --now cheeze-control-api
+systemctl status cheeze-control-api --no-pager

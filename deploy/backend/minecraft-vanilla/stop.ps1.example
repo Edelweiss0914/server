@@ -1,0 +1,41 @@
+$ErrorActionPreference = "Stop"
+
+$ControlRoot = "D:\Servers\Control\minecraft-vanilla"
+$PidFile = Join-Path $ControlRoot "minecraft.pid"
+$WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
+$StopFlag = Join-Path $ControlRoot "stop.flag"
+
+if (-not (Test-Path $PidFile)) {
+    Write-Host "PID file not found. Minecraft Vanilla may already be stopped."
+    exit 0
+}
+
+$pid = Get-Content $PidFile | Select-Object -First 1
+if (-not $pid) {
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-Host "Empty PID file removed."
+    exit 0
+}
+
+$process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+if (-not $process) {
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-Host "Process $pid not found. PID file removed."
+    exit 0
+}
+
+New-Item -ItemType File -Path $StopFlag -Force | Out-Null
+
+if ($process.WaitForExit(120000)) {
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+    Write-Host "Minecraft Vanilla stopped gracefully."
+    exit 0
+}
+
+Stop-Process -Id $pid -Force
+Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
+Write-Host "Minecraft Vanilla process $pid force-stopped after graceful timeout."

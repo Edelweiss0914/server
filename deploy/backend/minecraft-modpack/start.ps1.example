@@ -1,0 +1,27 @@
+$ErrorActionPreference = "Stop"
+
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$ModpackName
+)
+
+$ServerRoot = Join-Path "D:\Servers\Minecraft\Modpacks" $ModpackName
+$JavaExe = "java"
+$Arguments = @(
+    "-Xms4G"
+    "-Xmx8G"
+    "-jar"
+    "server.jar"
+    "nogui"
+)
+
+if (-not (Test-Path $ServerRoot)) {
+    throw "Modpack server root not found: $ServerRoot"
+}
+
+Set-Location $ServerRoot
+
+Start-Process `
+    -FilePath $JavaExe `
+    -ArgumentList $Arguments `
+    -WorkingDirectory $ServerRoot

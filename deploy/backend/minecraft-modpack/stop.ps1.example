@@ -1,0 +1,16 @@
+$ErrorActionPreference = "Stop"
+
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$ModpackName
+)
+
+$ServerRoot = Join-Path "D:\Servers\Minecraft\Modpacks" $ModpackName
+$StopFile = Join-Path $ServerRoot "stop.flag"
+
+if (-not (Test-Path $ServerRoot)) {
+    throw "Modpack server root not found: $ServerRoot"
+}
+
+New-Item -ItemType File -Path $StopFile -Force | Out-Null
+Write-Host "Created stop flag at $StopFile"

@@ -1,0 +1,86 @@
+{
+  "host": {
+    "name": "homepc",
+    "lan_ip": "192.168.50.85",
+    "tailscale_ip": "100.86.252.21",
+    "mac": "9C-6B-00-57-73-3A",
+    "sleep_mode": "hibernate",
+    "hibernate_guard": {
+      "enabled": true,
+      "min_c_free_gb": 20
+    },
+    "quiet_hours": {
+      "enabled": true,
+      "start": "19:00",
+      "end": "01:00"
+    }
+  },
+  "services": [
+    {
+      "id": "ollama",
+      "type": "http-api",
+      "display_name": "Ollama",
+      "enabled": true,
+      "working_dir": "C:\\Users\\zoop7",
+      "start_command": "ollama serve",
+      "stop_command": "taskkill /IM ollama.exe /F",
+      "process_name": "ollama.exe",
+      "ready_check": {
+        "type": "http",
+        "url": "http://127.0.0.1:11434/api/version"
+      },
+      "idle_policy": {
+        "keep_alive_minutes": 30
+      },
+      "metadata": {
+        "public_mode": "gateway-proxy",
+        "route": "/ai"
+      }
+    },
+    {
+      "id": "minecraft-vanilla",
+      "type": "game-server",
+      "display_name": "Minecraft Vanilla",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Vanilla",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-vanilla\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-vanilla\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25565
+      },
+      "idle_policy": {
+        "stop_when_empty_minutes": 20,
+        "forced_stop_at": "01:00"
+      },
+      "metadata": {
+        "public_mode": "direct-port",
+        "public_port": 25565
+      }
+    },
+    {
+      "id": "minecraft-modpack-template",
+      "type": "game-server",
+      "display_name": "Minecraft Modpack Template",
+      "enabled": false,
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\<modpack-name>",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-<modpack-name>\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-<modpack-name>\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25566
+      },
+      "idle_policy": {
+        "stop_when_empty_minutes": 20
+      },
+      "metadata": {
+        "public_mode": "direct-port",
+        "public_port": 25566
+      }
+    }
+  ]
+}
