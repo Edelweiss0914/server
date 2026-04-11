@@ -423,6 +423,14 @@ kbd {
   line-height: 1.5;
 }
 
+.ai-disclaimer {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
 .ai-response-card {
   margin-top: 12px;
   padding: 18px 20px;

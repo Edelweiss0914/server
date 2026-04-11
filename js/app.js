@@ -228,10 +228,12 @@ function ensureAiSection() {
       <div class="ai-prompt-label">CHEEZE AI</div>
       <div class="ai-prompt-title" id="aiPromptTitle"></div>
       <div class="ai-prompt-meta" id="aiPromptMeta">클릭하면 AI가 바로 답변합니다.</div>
+      <div class="ai-disclaimer">AI는 정확하지 않을 수 있습니다. 중요한 내용은 재차 검토해 주세요.</div>
     </button>
     <div class="ai-response-card" id="aiResponseCard" hidden>
       <div class="ai-response-status" id="aiResponseStatus"></div>
       <div class="ai-response-body" id="aiResponseBody"></div>
+      <div class="ai-disclaimer">AI는 정확하지 않을 수 있습니다. 중요한 내용은 재차 검토해 주세요.</div>
       <form class="ai-followup-form" id="aiFollowupForm" autocomplete="off">
         <label class="ai-followup-label" for="aiFollowupInput">다음 질문</label>
         <div class="ai-followup-bar">
