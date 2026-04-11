@@ -48,6 +48,41 @@
 - `/services` 상태 질의 정상
 - `minecraft-vanilla` 시작/종료 정상
 
+### Homepage control card 경로
+
+`Browser homepage -> /control -> cheeze-control-api -> cheeze-backend-agent`
+
+현재 반영 상태:
+
+- 메인 페이지에 `Minecraft Vanilla` 온디맨드 서비스 카드 코드 반영
+- 같은 오리진 `/control` 경로를 전제로 동작
+- 버튼:
+  - `시작`
+  - `종료`
+  - `새로고침`
+- 상태 표시:
+  - `꺼짐`
+  - `켜는 중`
+  - `가동 중`
+  - `종료 중`
+  - `오류`
+- 상태 자동 갱신:
+  - 평시 `10초`
+  - `starting/stopping/waking` 상태에서 `2초`
+  - 탭/포커스 복귀 시 즉시 갱신
+
+주의:
+
+- `/control/` 프록시는 아직 `home.conf`에 실제 반영 검증이 남아 있다.
+
+2026-04-11 코드 교체 상태:
+
+- `deploy/gateway/cheeze-control-api.py` 에 sleep/hibernate 상태 fallback 반영 완료
+- `js/app.js` 에 control card polling 경쟁 조건 완화 반영 완료
+- `deploy/gateway/cheeze-control-api.service.example` wake timeout `150초` 로 상향
+- `deploy/gateway/home-control-location.conf.example` proxy timeout `210초` 로 상향
+- 저장소 기준 파일 교체는 끝났고, `gateway-lxc` 실제 운영 반영은 별도 수행 필요
+
 ## 3. 실제 상태값
 
 ### Tailscale
@@ -135,20 +170,23 @@
 
 ### 가장 가까운 다음 단계
 
-1. `WOL` 자동 연동
-2. `homepc` 가 sleep/hibernate 상태일 때
+1. `gateway-lxc` 에 수정된 control API / systemd env / homepage 정적 파일 실제 반영
+2. `home.conf` 에 `/control/` 프록시 timeout 실제 반영
+3. 메인 페이지에서 Minecraft Vanilla 카드 실동작 검증
+4. `WOL` 자동 연동 end-to-end 검증
+5. `homepc` 가 sleep/hibernate 상태일 때
    - wake
    - boot wait
    - backend agent online wait
    - service start
-   흐름 자동화
+   흐름 자동화 검증
 
 ### 이후 단계
 
-3. idle 감지 후 `hibernate`
-4. 친구용 인가 API
-5. `minecraft-modpacks`
-6. `garrysmod`
+6. idle 감지 후 `hibernate`
+7. 친구용 인가 API
+8. `minecraft-modpacks`
+9. `garrysmod`
 
 ## 8. 운영 주의
 
@@ -164,14 +202,17 @@
 문서:
 
 - `docs/WOL-plan.md`
+- `docs/WOL-start-flow.md`
 - `docs/on-demand-service-architecture.md`
 - `docs/orchestrator-current-status.md`
+- `docs/restart-handoff-prompt.md`
 
 Gateway:
 
 - `deploy/gateway/cheeze-control-api.py`
 - `deploy/gateway/cheeze-control-api.service.example`
 - `deploy/gateway/wake-homepc.sh.example`
+- `deploy/gateway/home-control-location.conf.example`
 
 Backend:
 
@@ -185,6 +226,10 @@ Backend:
 Registry:
 
 - `deploy/orchestrator/service-registry.example.json`
+
+테스트:
+
+- `deploy/gateway/test_cheeze_control_api.py`
 
 ## 10. 다음 작업용 요약
 
@@ -211,7 +256,22 @@ minecraft-vanilla:
 - jar = server.jar
 - memory = -Xms4G -Xmx4G
 
+프런트 상태:
+- 검색창 AI 카드 존재
+- AI 응답 하단 후속 질문 존재
+- 온디맨드 서비스 카드(Minecraft Vanilla) 코드 반영 완료
+- /control proxy 예시 파일 존재
+- control card 상태 자동 갱신 반영
+  - 평시 10초
+  - starting/stopping/waking 중 2초
+  - 탭/포커스 복귀 시 즉시 갱신
+- backend sleep/hibernate 상태 status 조회 fallback 코드 반영 완료
+- start 요청 중 background polling 충돌 완화 반영 완료
+
 다음 단계:
-- WOL 자동 연동
-- wake -> boot -> backend agent online -> service start 자동화
+- gateway-lxc 에 수정 파일 실제 배포
+- gateway home.conf에 /control/ timeout 포함 반영
+- homepage에서 Minecraft Vanilla 상태/시작/종료 버튼 실동작 검증
+- WOL-aware start를 homepc hibernate 상태에서 검증
+- 이후 idle 감지 + auto hibernate 구현
 ```

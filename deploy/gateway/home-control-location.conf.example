@@ -9,6 +9,6 @@ location /control/ {
     proxy_set_header X-Forwarded-Proto https;
 
     proxy_connect_timeout 10s;
-    proxy_send_timeout 100s;
-    proxy_read_timeout 100s;
+    proxy_send_timeout 210s;
+    proxy_read_timeout 210s;
 }

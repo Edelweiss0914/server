@@ -31,14 +31,23 @@ REGISTRY_PATH = Path(os.environ.get(
   "/var/www/home/deploy/orchestrator/service-registry.example.json",
 ))
 BACKEND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_TIMEOUT", "8"))
-BACKEND_WAKE_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_WAKE_TIMEOUT", "90"))
+BACKEND_WAKE_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_WAKE_TIMEOUT", "150"))
 BACKEND_WAKE_POLL = int(os.environ.get("CHEEZE_BACKEND_WAKE_POLL", "3"))
+BACKEND_UNREACHABLE_MESSAGE = "backend agent unreachable; host may be asleep"
 
 
 def load_registry():
   if not REGISTRY_PATH.exists():
     return {"host": {}, "services": []}
   return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+
+
+def find_registry_service(service_id):
+  registry = load_registry()
+  for service in registry.get("services", []):
+    if service.get("id") == service_id:
+      return service
+  return None
 
 
 def json_bytes(payload):
@@ -53,9 +62,39 @@ def backend_fetch(path, method="GET", payload=None):
     headers={"Content-Type": "application/json"},
     method=method,
   )
-  with urllib.request.urlopen(request, timeout=BACKEND_TIMEOUT) as response:
-    body = response.read()
-    return response.getcode(), body
+  try:
+    with urllib.request.urlopen(request, timeout=BACKEND_TIMEOUT) as response:
+      body = response.read()
+      return response.getcode(), body
+  except urllib.error.HTTPError as error:
+    return error.code, error.read()
+
+
+def offline_service_payload(service):
+  return {
+    "id": service["id"],
+    "display_name": service.get("display_name", service["id"]),
+    "state": "offline",
+    "process_running": False,
+    "ready": False,
+    "stop_pending": False,
+    "backend_reachable": False,
+    "message": BACKEND_UNREACHABLE_MESSAGE,
+  }
+
+
+def offline_services_payload():
+  registry = load_registry()
+  services = [
+    offline_service_payload(service)
+    for service in registry.get("services", [])
+    if service.get("enabled", True)
+  ]
+  return {
+    "services": services,
+    "backend_reachable": False,
+    "message": BACKEND_UNREACHABLE_MESSAGE,
+  }
 
 
 def backend_health():
@@ -147,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
         status_code, body = backend_fetch("/services")
         self.respond_raw(status_code, body)
       except Exception as error:
-        self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
+        self.respond_json(200, offline_services_payload())
       return
 
     if self.path.startswith("/services/"):
@@ -156,7 +195,11 @@ class Handler(BaseHTTPRequestHandler):
         status_code, body = backend_fetch(f"/services/{service_id}")
         self.respond_raw(status_code, body)
       except Exception as error:
-        self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
+        service = find_registry_service(service_id)
+        if service is None:
+          self.respond_json(404, {"error": "not_found"})
+          return
+        self.respond_json(200, offline_service_payload(service))
       return
 
     self.respond_json(404, {"error": "not_found"})
@@ -176,6 +219,7 @@ class Handler(BaseHTTPRequestHandler):
           self.respond_json(504, {
             "error": "backend_not_ready",
             "service": service_id,
+            "message": wake_result["message"],
             "wake_result": wake_result,
           })
           return

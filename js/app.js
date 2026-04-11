@@ -47,6 +47,7 @@ let currentQuery = '';
 let aiAbortController = null;
 const controlState = new Map();
 let controlRefreshHandle = null;
+const controlPendingActions = new Set();
 
 function escapeHtml(value) {
   const map = {
@@ -535,6 +536,10 @@ async function refreshControlStates() {
 
   results.forEach((result, index) => {
     const service = CONTROL_CONFIG.services[index];
+    if (controlPendingActions.has(service.id)) {
+      return;
+    }
+
     if (result.status === 'fulfilled') {
       controlState.set(service.id, result.value.payload);
       return;
@@ -564,10 +569,11 @@ async function invokeControlAction(serviceId, action) {
   }
 
   const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}/${action}`;
+  controlPendingActions.add(serviceId);
 
     controlState.set(serviceId, {
       ...(controlState.get(serviceId) || {}),
-      state: action === 'start' ? 'starting' : 'stopping',
+      state: action === 'start' ? 'waking' : 'stopping',
       message: action === 'start'
         ? '백엔드와 서비스 상태를 확인하는 중입니다...'
         : '서비스를 안전하게 종료하는 중입니다...',
@@ -577,7 +583,16 @@ async function invokeControlAction(serviceId, action) {
 
   try {
     const response = await fetch(endpoint, { method: 'POST' });
-    const payload = await response.json();
+    const rawPayload = await response.text();
+    let payload = {};
+
+    if (rawPayload) {
+      try {
+        payload = JSON.parse(rawPayload);
+      } catch (parseError) {
+        payload = {};
+      }
+    }
 
     if (!response.ok) {
       throw new Error(payload.message || payload.error || `control action failed with ${response.status}`);
@@ -603,6 +618,8 @@ async function invokeControlAction(serviceId, action) {
     });
     renderControlGrid();
     scheduleControlRefresh();
+  } finally {
+    controlPendingActions.delete(serviceId);
   }
 }
 

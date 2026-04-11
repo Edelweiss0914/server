@@ -12,7 +12,7 @@ Environment=CHEEZE_CONTROL_LISTEN_PORT=11436
 Environment=CHEEZE_BACKEND_AGENT_BASE=http://100.86.252.21:5010
 Environment=CHEEZE_BACKEND_MAC=9C-6B-00-57-73-3A
 Environment=CHEEZE_SERVICE_REGISTRY=/var/www/home/deploy/orchestrator/service-registry.example.json
-Environment=CHEEZE_BACKEND_WAKE_TIMEOUT=90
+Environment=CHEEZE_BACKEND_WAKE_TIMEOUT=150
 Environment=CHEEZE_BACKEND_WAKE_POLL=3
 ExecStart=/usr/bin/python3 /opt/cheeze-control/cheeze-control-api.py
 Restart=always

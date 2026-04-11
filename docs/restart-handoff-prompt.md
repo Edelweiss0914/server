@@ -39,14 +39,23 @@ Minecraft Vanilla 실제 값:
 현재 프런트 상태:
 - 검색창 AI 카드 존재
 - AI 응답 하단 후속 질문 존재
-- 온디맨드 서비스 카드(Minecraft Vanilla) 연동 코드가 로컬 저장소에 반영됨
-- /control proxy 예시 파일도 추가됨
+- 온디맨드 서비스 카드(Minecraft Vanilla) 코드 반영 완료
+- /control proxy 예시 파일 존재
+- control card 상태 자동 갱신 반영
+  - 평시 10초
+  - starting/stopping/waking 중 2초
+  - 탭/포커스 복귀 시 즉시 갱신
+- backend sleep/hibernate 시 status 조회를 `offline` 으로 처리하는 코드 반영 완료
+- start 요청 중 background polling 충돌 완화 코드 반영 완료
+- gateway wake timeout 기본값 `150초` 로 상향
+- `/control/` proxy timeout 예시 `210초` 로 상향
 
 다음 작업:
-1. gateway home.conf에 /control/ 프록시 반영
-2. 홈페이지에서 Minecraft Vanilla 상태/시작/종료 버튼 실제 동작 검증
-3. 필요 시 WOL-aware start를 homepc hibernate 상태에서 검증
-4. 이후 idle 감지 + auto hibernate 구현
+1. gateway-lxc 에 수정된 `cheeze-control-api.py`, systemd env, `js/app.js` 실제 반영
+2. gateway `home.conf` 에 `/control/` 프록시 및 timeout 반영
+3. 홈페이지에서 Minecraft Vanilla 상태/시작/종료 버튼 실제 동작 검증
+4. 필요 시 WOL-aware start를 homepc hibernate 상태에서 검증
+5. 이후 idle 감지 + auto hibernate 구현
 
 관련 문서:
 - docs/orchestrator-current-status.md
