@@ -168,6 +168,7 @@ window.APP_CONFIG = {
     enabled: true,
     endpoint: '/control',
     refreshMs: 10000,
+    activeRefreshMs: 2000,
     services: [
       {
         id: 'minecraft-vanilla',

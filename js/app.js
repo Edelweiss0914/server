@@ -46,6 +46,7 @@ let currentResults = [];
 let currentQuery = '';
 let aiAbortController = null;
 const controlState = new Map();
+let controlRefreshHandle = null;
 
 function escapeHtml(value) {
   const map = {
@@ -484,6 +485,35 @@ function renderControlGrid() {
     .join('');
 }
 
+function hasActiveControlTransition() {
+  return CONTROL_CONFIG.services.some((service) => {
+    const state = controlState.get(service.id)?.state;
+    return state === 'starting' || state === 'stopping' || state === 'waking';
+  });
+}
+
+function nextControlRefreshDelay() {
+  return hasActiveControlTransition()
+    ? (CONTROL_CONFIG.activeRefreshMs || 2000)
+    : (CONTROL_CONFIG.refreshMs || 10000);
+}
+
+function scheduleControlRefresh() {
+  if (!CONTROL_CONFIG.enabled || !CONTROL_CONFIG.services.length) return;
+
+  if (controlRefreshHandle) {
+    window.clearTimeout(controlRefreshHandle);
+  }
+
+  controlRefreshHandle = window.setTimeout(async () => {
+    try {
+      await refreshControlStates();
+    } finally {
+      scheduleControlRefresh();
+    }
+  }, nextControlRefreshDelay());
+}
+
 async function fetchControlState(serviceId) {
   const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}`;
   const response = await fetch(endpoint);
@@ -535,14 +565,15 @@ async function invokeControlAction(serviceId, action) {
 
   const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}/${action}`;
 
-  controlState.set(serviceId, {
-    ...(controlState.get(serviceId) || {}),
-    state: action === 'start' ? 'starting' : 'stopping',
-    message: action === 'start'
-      ? '백엔드와 서비스 상태를 확인하는 중입니다...'
-      : '서비스를 안전하게 종료하는 중입니다...',
-  });
-  renderControlGrid();
+    controlState.set(serviceId, {
+      ...(controlState.get(serviceId) || {}),
+      state: action === 'start' ? 'starting' : 'stopping',
+      message: action === 'start'
+        ? '백엔드와 서비스 상태를 확인하는 중입니다...'
+        : '서비스를 안전하게 종료하는 중입니다...',
+    });
+    renderControlGrid();
+    scheduleControlRefresh();
 
   try {
     const response = await fetch(endpoint, { method: 'POST' });
@@ -564,22 +595,14 @@ async function invokeControlAction(serviceId, action) {
       message: wakeMessage,
     });
     renderControlGrid();
-
-    window.setTimeout(() => {
-      refreshControlStates().catch(() => {
-        controlState.set(serviceId, {
-          state: 'error',
-          message: '상태 갱신에 실패했습니다.',
-        });
-        renderControlGrid();
-      });
-    }, 3000);
+    scheduleControlRefresh();
   } catch (error) {
     controlState.set(serviceId, {
       state: 'error',
       message: error.message || '서비스 제어 요청에 실패했습니다.',
     });
     renderControlGrid();
+    scheduleControlRefresh();
   }
 }
 
@@ -746,6 +769,20 @@ function initEventListeners() {
     }
   });
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshControlStates().then(() => {
+        scheduleControlRefresh();
+      });
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    refreshControlStates().then(() => {
+      scheduleControlRefresh();
+    });
+  });
+
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
     if (!localStorage.getItem('edelweiss-theme')) {
       applyTheme(event.matches ? 'dark' : 'light');
@@ -769,10 +806,9 @@ document.addEventListener('DOMContentLoaded', () => {
   renderControlGrid();
 
   if (CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
-    refreshControlStates();
-    window.setInterval(() => {
-      refreshControlStates();
-    }, CONTROL_CONFIG.refreshMs || 10000);
+    refreshControlStates().then(() => {
+      scheduleControlRefresh();
+    });
   }
 
   if (window.innerWidth > 768 && els.input()) {
