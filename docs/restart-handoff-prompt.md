@@ -1,0 +1,56 @@
+# Restart Handoff Prompt
+
+아래 블록은 재부팅 또는 세션 종료 후 다음 에이전트가 현재 상황을 빠르게 이어받기 위한 재개 프롬프트다.
+
+```text
+현재 프로젝트는 Proxmox 기반 홈 포털 + Windows 백엔드 오케스트레이션 환경이다.
+
+현재 실제 상태:
+- gateway-lxc
+  - AI queue gateway 배포 완료
+  - generic control API 배포 완료
+- homepc
+  - backend agent 배포 완료
+  - ollama 상태 조회 정상
+  - minecraft-vanilla start/stop 정상
+- tailscale
+  - gateway-lxc = 100.75.209.83
+  - homepc = 100.86.252.21
+- homepc LAN = 192.168.50.85
+- homepc MAC = 9C-6B-00-57-73-3A
+
+Minecraft Vanilla 실제 값:
+- server root = D:\Servers\Minecraft\Vanilla
+- control root = D:\Servers\Control\minecraft-vanilla
+- java = C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-epsilon\windows-x64\java-runtime-epsilon\bin\java.exe
+- jar = server.jar
+- memory = -Xms4G -Xmx4G
+
+현재 구조:
+- Browser -> /ai -> gateway queue -> Ollama
+- Browser -> /control -> gateway control API -> backend agent -> service scripts
+
+검증 완료:
+- AI API 외부 공개 완료
+- homepage AI card/후속 질문 UX 완료
+- minecraft-vanilla gateway start/stop 완료
+- state 모델 starting/running/stopping/offline 동작 확인
+
+현재 프런트 상태:
+- 검색창 AI 카드 존재
+- AI 응답 하단 후속 질문 존재
+- 온디맨드 서비스 카드(Minecraft Vanilla) 연동 코드가 로컬 저장소에 반영됨
+- /control proxy 예시 파일도 추가됨
+
+다음 작업:
+1. gateway home.conf에 /control/ 프록시 반영
+2. 홈페이지에서 Minecraft Vanilla 상태/시작/종료 버튼 실제 동작 검증
+3. 필요 시 WOL-aware start를 homepc hibernate 상태에서 검증
+4. 이후 idle 감지 + auto hibernate 구현
+
+관련 문서:
+- docs/orchestrator-current-status.md
+- docs/WOL-plan.md
+- docs/WOL-start-flow.md
+- docs/on-demand-service-architecture.md
+```

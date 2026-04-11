@@ -164,4 +164,31 @@ window.APP_CONFIG = {
     model: 'huihui_ai/qwen3-vl-abliterated:8b-instruct',
     timeoutMs: 90000,
   },
+  control: {
+    enabled: true,
+    endpoint: '/control',
+    refreshMs: 10000,
+    services: [
+      {
+        id: 'minecraft-vanilla',
+        name: 'Minecraft Vanilla',
+        nameKo: '마인크래프트 바닐라',
+        description: '백엔드 PC에서 온디맨드로 켜지는 게임 서버입니다.',
+        category: 'Game Server',
+        categoryIcon: 'GAME',
+        icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="12" y="16" width="76" height="24" rx="6" fill="#4b7f3f"/>
+          <rect x="12" y="40" width="76" height="44" rx="8" fill="#6ea85f"/>
+          <rect x="24" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+          <rect x="42" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+          <rect x="60" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+          <rect x="28" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+          <rect x="56" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+          <rect x="44" y="66" width="12" height="8" rx="2" fill="#2d4a22"/>
+        </svg>`,
+        color: '#4b7f3f',
+        bgColor: '#edf6ea',
+      }
+    ],
+  },
 };

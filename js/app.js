@@ -1,7 +1,8 @@
 /**
  * CHEEZE home page logic.
- * - Service search remains the default behavior.
- * - AI is invoked only when the user clicks the AI suggestion card.
+ * - Service search
+ * - AI prompt / response flow
+ * - On-demand service controls via /control
  */
 
 const AI_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.APP_CONFIG.ai) || {
@@ -10,6 +11,57 @@ const AI_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.
   model: 'huihui_ai/qwen3-vl-abliterated:8b-instruct',
   timeoutMs: 90000,
 };
+
+const CONTROL_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.APP_CONFIG.control) || {
+  enabled: false,
+  endpoint: '/control',
+  refreshMs: 10000,
+  services: [],
+};
+
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  input: () => $('searchInput'),
+  clearBtn: () => $('clearBtn'),
+  quickAccess: () => $('quickAccess'),
+  quickGrid: () => $('quickGrid'),
+  resultsSection: () => $('resultsSection'),
+  resultsGrid: () => $('resultsGrid'),
+  resultsCount: () => $('resultsCount'),
+  controlSection: () => $('controlSection'),
+  controlGrid: () => $('controlGrid'),
+  aiSection: () => $('aiSection'),
+  aiPromptCard: () => $('aiPromptCard'),
+  aiPromptTitle: () => $('aiPromptTitle'),
+  aiPromptMeta: () => $('aiPromptMeta'),
+  aiResponseCard: () => $('aiResponseCard'),
+  aiResponseStatus: () => $('aiResponseStatus'),
+  aiResponseBody: () => $('aiResponseBody'),
+  followupForm: () => $('aiFollowupForm'),
+  followupInput: () => $('aiFollowupInput'),
+};
+
+let currentResults = [];
+let currentQuery = '';
+let aiAbortController = null;
+const controlState = new Map();
+
+function escapeHtml(value) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+
+  return String(value).replace(/[&<>"']/g, (char) => map[char]);
+}
+
+function normalizeText(text) {
+  return (text || '').toLowerCase().trim();
+}
 
 function initTheme() {
   const savedTheme = localStorage.getItem('edelweiss-theme');
@@ -21,14 +73,13 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('edelweiss-theme', theme);
 
-  const button = document.getElementById('themeToggle');
+  const button = $('themeToggle');
   if (!button) return;
 
   button.setAttribute('aria-label', theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환');
 
   const sun = button.querySelector('.icon-sun');
   const moon = button.querySelector('.icon-moon');
-
   if (sun) sun.style.display = theme === 'dark' ? 'block' : 'none';
   if (moon) moon.style.display = theme === 'light' ? 'block' : 'none';
 }
@@ -55,10 +106,6 @@ function renderIcon(service, size = 'md') {
       </div>
     </div>
   `;
-}
-
-function normalizeText(text) {
-  return (text || '').toLowerCase().trim();
 }
 
 function scoreService(service, query) {
@@ -92,18 +139,6 @@ function searchServices(query) {
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
     .map(({ service }) => service);
-}
-
-function escapeHtml(str) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  };
-
-  return String(str).replace(/[&<>"']/g, (char) => map[char]);
 }
 
 function renderResultCard(service) {
@@ -187,30 +222,23 @@ function syncResultDescOverflow(root = document) {
   });
 }
 
-const $ = (id) => document.getElementById(id);
+function ensureControlSection() {
+  if ($('controlSection')) return;
+  if (!CONTROL_CONFIG.enabled || !CONTROL_CONFIG.services.length) return;
 
-const els = {
-  input: () => $('searchInput'),
-  clearBtn: () => $('clearBtn'),
-  resultsSection: () => $('resultsSection'),
-  resultsGrid: () => $('resultsGrid'),
-  resultsCount: () => $('resultsCount'),
-  quickAccess: () => $('quickAccess'),
-  quickGrid: () => $('quickGrid'),
-  aiSection: () => $('aiSection'),
-  aiPromptCard: () => $('aiPromptCard'),
-  aiPromptTitle: () => $('aiPromptTitle'),
-  aiPromptMeta: () => $('aiPromptMeta'),
-  aiResponseCard: () => $('aiResponseCard'),
-  aiResponseStatus: () => $('aiResponseStatus'),
-  aiResponseBody: () => $('aiResponseBody'),
-  followupForm: () => $('aiFollowupForm'),
-  followupInput: () => $('aiFollowupInput'),
-};
+  const quickAccess = els.quickAccess();
+  if (!quickAccess || !quickAccess.parentNode) return;
 
-let currentResults = [];
-let currentQuery = '';
-let aiAbortController = null;
+  const section = document.createElement('section');
+  section.id = 'controlSection';
+  section.className = 'control-section';
+  section.innerHTML = `
+    <p class="section-label">On-Demand</p>
+    <div class="control-grid" id="controlGrid"></div>
+  `;
+
+  quickAccess.parentNode.insertBefore(section, quickAccess.nextSibling);
+}
 
 function ensureAiSection() {
   if ($('aiSection')) return;
@@ -305,8 +333,8 @@ function updateAiPrompt(query) {
   if (!aiSection || !promptTitle || !promptMeta) return;
 
   const hasQuery = query.trim().length > 0 && AI_CONFIG.enabled;
-
   aiSection.style.display = hasQuery ? 'block' : 'none';
+
   if (!hasQuery) {
     resetAiResponse();
     return;
@@ -335,6 +363,7 @@ async function requestAiAnswer(query) {
   if (responseCard) responseCard.hidden = false;
   if (status) status.textContent = 'AI가 답변을 생성하는 중입니다...';
   if (body) body.innerHTML = '';
+
   syncQueryInputs(query);
   hideEmptyResultsAfterAiRequest();
 
@@ -360,7 +389,7 @@ async function requestAiAnswer(query) {
       try {
         const errorPayload = await response.json();
         details = errorPayload.message || errorPayload.error || '';
-      } catch (parseError) {
+      } catch (error) {
         details = '';
       }
 
@@ -372,6 +401,7 @@ async function requestAiAnswer(query) {
 
     if (status) status.textContent = 'CHEEZE AI 응답';
     if (body) body.innerHTML = renderAiAnswer(text);
+
     const followupInput = els.followupInput();
     if (followupInput) {
       window.requestAnimationFrame(() => followupInput.focus());
@@ -386,6 +416,170 @@ async function requestAiAnswer(query) {
   } finally {
     window.clearTimeout(timeoutId);
     aiAbortController = null;
+  }
+}
+
+function stateLabel(state) {
+  const labels = {
+    offline: '꺼짐',
+    waking: '깨우는 중',
+    starting: '켜는 중',
+    running: '가동 중',
+    stopping: '종료 중',
+    error: '오류',
+  };
+
+  return labels[state] || '확인 중';
+}
+
+function stateClass(state) {
+  return `is-${state || 'offline'}`;
+}
+
+function renderControlCard(service, state = {}) {
+  const cardState = state.state || 'offline';
+  const bgVar = `--service-bg: ${service.bgColor || `${service.color}18`}`;
+  const busy = cardState === 'starting' || cardState === 'waking' || cardState === 'stopping';
+  const canStart = cardState === 'offline' || cardState === 'error';
+  const canStop = cardState === 'running' || cardState === 'starting' || cardState === 'waking' || cardState === 'stopping';
+  const statusLine = state.message
+    || (cardState === 'running'
+      ? '접속 준비가 끝났습니다.'
+      : cardState === 'offline'
+        ? '필요할 때만 백엔드 PC를 깨워서 실행합니다.'
+        : '백엔드 상태를 확인하는 중입니다.');
+
+  return `
+    <article class="control-card" data-service-id="${service.id}" style="${bgVar}; --service-color: ${service.color}">
+      <div class="control-head">
+        ${renderIcon(service, 'md')}
+        <div class="control-info">
+          <div class="control-title">
+            <span>${service.name}</span>
+            ${service.nameKo ? `<span class="control-name-ko">${service.nameKo}</span>` : ''}
+            ${service.categoryIcon ? `<span class="control-category">${service.categoryIcon} ${service.category}</span>` : ''}
+          </div>
+          <p class="control-desc">${service.description}</p>
+        </div>
+        <span class="control-state-badge ${stateClass(cardState)}">${stateLabel(cardState)}</span>
+      </div>
+      <div class="control-meta">
+        <div class="control-status-line">${escapeHtml(statusLine)}</div>
+        <div class="control-actions">
+          <button type="button" class="control-btn is-primary" data-action="start" ${canStart ? '' : 'disabled'}>시작</button>
+          <button type="button" class="control-btn is-danger" data-action="stop" ${canStop ? '' : 'disabled'}>종료</button>
+          <button type="button" class="control-btn" data-action="refresh" ${busy ? 'disabled' : ''}>새로고침</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlGrid() {
+  const grid = els.controlGrid();
+  if (!grid) return;
+
+  grid.innerHTML = CONTROL_CONFIG.services
+    .map((service) => renderControlCard(service, controlState.get(service.id)))
+    .join('');
+}
+
+async function fetchControlState(serviceId) {
+  const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}`;
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`control status failed with ${response.status}`);
+  }
+  return response.json();
+}
+
+async function refreshControlStates() {
+  if (!CONTROL_CONFIG.enabled || !CONTROL_CONFIG.services.length) return;
+
+  const results = await Promise.allSettled(
+    CONTROL_CONFIG.services.map(async (service) => {
+      const payload = await fetchControlState(service.id);
+      return { serviceId: service.id, payload };
+    })
+  );
+
+  results.forEach((result, index) => {
+    const service = CONTROL_CONFIG.services[index];
+    if (result.status === 'fulfilled') {
+      controlState.set(service.id, result.value.payload);
+      return;
+    }
+
+    controlState.set(service.id, {
+      state: 'error',
+      message: '제어 API 상태를 읽지 못했습니다.',
+    });
+  });
+
+  renderControlGrid();
+}
+
+async function invokeControlAction(serviceId, action) {
+  const service = CONTROL_CONFIG.services.find((item) => item.id === serviceId);
+  if (!service) return;
+
+  if (action === 'refresh') {
+    controlState.set(serviceId, {
+      ...(controlState.get(serviceId) || {}),
+      message: '상태를 다시 확인하는 중입니다...',
+    });
+    renderControlGrid();
+    await refreshControlStates();
+    return;
+  }
+
+  const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}/${action}`;
+
+  controlState.set(serviceId, {
+    ...(controlState.get(serviceId) || {}),
+    state: action === 'start' ? 'starting' : 'stopping',
+    message: action === 'start'
+      ? '백엔드와 서비스 상태를 확인하는 중입니다...'
+      : '서비스를 안전하게 종료하는 중입니다...',
+  });
+  renderControlGrid();
+
+  try {
+    const response = await fetch(endpoint, { method: 'POST' });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.message || payload.error || `control action failed with ${response.status}`);
+    }
+
+    const wakeMessage = payload.wake_result && payload.wake_result.woke
+      ? '백엔드 PC를 깨워 서비스를 시작하는 중입니다.'
+      : action === 'start'
+        ? '서비스 시작 명령이 전달됐습니다.'
+        : '서비스 종료 명령이 전달됐습니다.';
+
+    controlState.set(serviceId, {
+      ...(controlState.get(serviceId) || {}),
+      state: action === 'start' ? 'starting' : 'stopping',
+      message: wakeMessage,
+    });
+    renderControlGrid();
+
+    window.setTimeout(() => {
+      refreshControlStates().catch(() => {
+        controlState.set(serviceId, {
+          state: 'error',
+          message: '상태 갱신에 실패했습니다.',
+        });
+        renderControlGrid();
+      });
+    }, 3000);
+  } catch (error) {
+    controlState.set(serviceId, {
+      state: 'error',
+      message: error.message || '서비스 제어 요청에 실패했습니다.',
+    });
+    renderControlGrid();
   }
 }
 
@@ -449,6 +643,7 @@ function initEventListeners() {
   const aiPromptCard = els.aiPromptCard();
   const followupForm = els.followupForm();
   const followupInput = els.followupInput();
+  const controlGrid = els.controlGrid();
 
   if (input) {
     input.addEventListener('input', (event) => {
@@ -527,6 +722,22 @@ function initEventListeners() {
     });
   }
 
+  if (controlGrid) {
+    controlGrid.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+
+      const card = button.closest('[data-service-id]');
+      if (!card) return;
+
+      const serviceId = card.getAttribute('data-service-id');
+      const action = button.getAttribute('data-action');
+      if (!serviceId || !action) return;
+
+      invokeControlAction(serviceId, action);
+    });
+  }
+
   document.addEventListener('keydown', (event) => {
     if (event.key === '/' && document.activeElement !== input && input) {
       event.preventDefault();
@@ -551,9 +762,18 @@ function initEventListeners() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  ensureControlSection();
   ensureAiSection();
   initQuickAccess();
   initEventListeners();
+  renderControlGrid();
+
+  if (CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
+    refreshControlStates();
+    window.setInterval(() => {
+      refreshControlStates();
+    }, CONTROL_CONFIG.refreshMs || 10000);
+  }
 
   if (window.innerWidth > 768 && els.input()) {
     els.input().focus();
