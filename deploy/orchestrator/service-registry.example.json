@@ -56,6 +56,7 @@
         "forced_stop_at": "01:00"
       },
       "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-vanilla",
         "public_mode": "direct-port",
         "public_port": 25565
       }
@@ -78,6 +79,7 @@
         "stop_when_empty_minutes": 20
       },
       "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-<modpack-name>",
         "public_mode": "direct-port",
         "public_port": 25566
       }

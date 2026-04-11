@@ -93,6 +93,12 @@ def service_status(service):
   ready = False
   ready_check = service.get("ready_check", {})
   ready_type = ready_check.get("type")
+  metadata = service.get("metadata", {})
+  control_dir = metadata.get("control_dir")
+  stop_flag_exists = False
+
+  if control_dir:
+    stop_flag_exists = Path(control_dir, "stop.flag").exists()
 
   if ready_type == "http":
     ready = http_ready(ready_check["url"])
@@ -101,7 +107,9 @@ def service_status(service):
 
   process_running = is_process_running(service.get("process_name"))
 
-  if ready:
+  if stop_flag_exists:
+    state = "stopping"
+  elif ready:
     state = "running"
   elif process_running:
     state = "starting"
@@ -114,6 +122,7 @@ def service_status(service):
     "state": state,
     "process_running": process_running,
     "ready": ready,
+    "stop_pending": stop_flag_exists,
   }
 
 

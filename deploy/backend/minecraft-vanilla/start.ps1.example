@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $ControlRoot = "D:\Servers\Control\minecraft-vanilla"
 $RunnerScript = Join-Path $ControlRoot "run.ps1"
+$ServerPidFile = Join-Path $ControlRoot "minecraft.pid"
 $WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
 
 if (-not (Test-Path $RunnerScript)) {
@@ -11,15 +12,27 @@ if (-not (Test-Path $RunnerScript)) {
 New-Item -ItemType Directory -Path $ControlRoot -Force | Out-Null
 
 if (Test-Path $WrapperPidFile) {
-    $existingPid = (Get-Content $WrapperPidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if ($existingPid) {
-        $existingProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
-        if ($existingProcess) {
-            Write-Host "Minecraft Vanilla wrapper is already running with PID $existingPid"
+    $existingWrapperPid = Get-Content $WrapperPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existingWrapperPid) {
+        $existingWrapperProcess = Get-Process -Id $existingWrapperPid -ErrorAction SilentlyContinue
+        if ($existingWrapperProcess) {
+            Write-Host "Minecraft Vanilla wrapper is already running with PID $existingWrapperPid"
             exit 0
         }
     }
     Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
+}
+
+if (Test-Path $ServerPidFile) {
+    $existingServerPid = Get-Content $ServerPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existingServerPid) {
+        $existingServerProcess = Get-Process -Id $existingServerPid -ErrorAction SilentlyContinue
+        if ($existingServerProcess) {
+            Write-Host "Minecraft Vanilla server is already running with PID $existingServerPid"
+            exit 0
+        }
+    }
+    Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
 }
 
 $process = Start-Process `

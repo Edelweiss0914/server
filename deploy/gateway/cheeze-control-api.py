@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +31,8 @@ REGISTRY_PATH = Path(os.environ.get(
   "/var/www/home/deploy/orchestrator/service-registry.example.json",
 ))
 BACKEND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_TIMEOUT", "8"))
+BACKEND_WAKE_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_WAKE_TIMEOUT", "90"))
+BACKEND_WAKE_POLL = int(os.environ.get("CHEEZE_BACKEND_WAKE_POLL", "3"))
 
 
 def load_registry():
@@ -55,6 +58,11 @@ def backend_fetch(path, method="GET", payload=None):
     return response.getcode(), body
 
 
+def backend_health():
+  status_code, _ = backend_fetch("/healthz")
+  return status_code == 200
+
+
 def run_wol():
   result = subprocess.run(
     ["wakeonlan", WOL_MAC],
@@ -67,6 +75,52 @@ def run_wol():
     "stdout": result.stdout,
     "stderr": result.stderr,
     "mac": WOL_MAC,
+  }
+
+
+def ensure_backend_online():
+  try:
+    if backend_health():
+      return {
+        "woke": False,
+        "ready": True,
+        "message": "backend agent already online",
+      }
+  except Exception:
+    pass
+
+  wol_result = run_wol()
+  if wol_result["returncode"] != 0:
+    return {
+      "woke": False,
+      "ready": False,
+      "message": "wake-on-lan command failed",
+      "wol": wol_result,
+    }
+
+  deadline = time.time() + BACKEND_WAKE_TIMEOUT
+  last_error = None
+
+  while time.time() < deadline:
+    try:
+      if backend_health():
+        return {
+          "woke": True,
+          "ready": True,
+          "message": "backend agent became reachable after wake",
+          "wol": wol_result,
+        }
+    except Exception as error:
+      last_error = str(error)
+
+    time.sleep(BACKEND_WAKE_POLL)
+
+  return {
+    "woke": True,
+    "ready": False,
+    "message": "backend agent did not become reachable before timeout",
+    "wol": wol_result,
+    "last_error": last_error,
   }
 
 
@@ -117,8 +171,19 @@ class Handler(BaseHTTPRequestHandler):
     if self.path.startswith("/services/") and self.path.endswith("/start"):
       service_id = self.path.split("/")[2]
       try:
+        wake_result = ensure_backend_online()
+        if not wake_result["ready"]:
+          self.respond_json(504, {
+            "error": "backend_not_ready",
+            "service": service_id,
+            "wake_result": wake_result,
+          })
+          return
+
         status_code, body = backend_fetch(f"/services/{service_id}/start", method="POST", payload={})
-        self.respond_raw(status_code, body)
+        payload = json.loads(body.decode("utf-8"))
+        payload["wake_result"] = wake_result
+        self.respond_json(status_code, payload)
       except Exception as error:
         self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
       return

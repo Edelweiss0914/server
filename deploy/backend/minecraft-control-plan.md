@@ -54,18 +54,20 @@ D:\Servers\Control\minecraft-<modpack-name>\stop.ps1
 현재 반영된 값:
 
 1. Vanilla 서버 jar 파일명
-   - `minecraft_server.26.1.2.jar`
+   - `server.jar`
 2. Vanilla 서버 메모리 할당량
    - `-Xms4G -Xmx4G`
+3. Java 실행 경로
+   - `C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-epsilon\windows-x64\java-runtime-epsilon\bin\java.exe`
 3. 종료 방식
    - 관리자 종료 요청
    - 정책 종료(새벽 1시, 장시간 활동 미감지 시)
-   - 현재 스캐폴드는 wrapper가 `stop` 명령을 표준 입력으로 전달
-   - `120초` 내 종료 실패 시에만 강제 종료
+    - 현재 스캐폴드는 wrapper가 `stop` 명령을 표준 입력으로 전달
+    - `120초` 내 종료 실패 시에만 강제 종료
 
 ## 현재 추천
 
-1. 시작은 `start.ps1` 에 `java -Xms4G -Xmx4G -jar minecraft_server.26.1.2.jar nogui`
+1. 시작은 `run.ps1` 에서 `java -Xms4G -Xmx4G -jar server.jar nogui`
 2. 종료는 현재 wrapper 기반 graceful stop 을 우선 사용
 3. `120초` 내 종료되지 않을 때만 강제 종료
 4. 이후 필요하면 `RCON stop` 으로도 업그레이드 가능

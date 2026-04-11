@@ -2,10 +2,11 @@ $ErrorActionPreference = "Stop"
 
 $ServerRoot = "D:\Servers\Minecraft\Vanilla"
 $ControlRoot = "D:\Servers\Control\minecraft-vanilla"
-$JavaExe = "java"
+$JavaExe = "C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-epsilon\windows-x64\java-runtime-epsilon\bin\java.exe"
 $MinRam = "4G"
 $MaxRam = "4G"
-$JarName = "minecraft_server.26.1.2.jar"
+$JarName = "server.jar"
+
 $ServerPidFile = Join-Path $ControlRoot "minecraft.pid"
 $WrapperPidFile = Join-Path $ControlRoot "wrapper.pid"
 $StopFlag = Join-Path $ControlRoot "stop.flag"
@@ -19,7 +20,7 @@ if (-not (Test-Path $ServerRoot)) {
 New-Item -ItemType Directory -Path $ControlRoot -Force | Out-Null
 Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
 
-$psi = [System.Diagnostics.ProcessStartInfo]::new()
+$psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $JavaExe
 $psi.WorkingDirectory = $ServerRoot
 $psi.Arguments = "-Xms$MinRam -Xmx$MaxRam -jar $JarName nogui"
@@ -29,33 +30,38 @@ $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $psi.CreateNoWindow = $true
 
-$process = [System.Diagnostics.Process]::new()
+$process = New-Object System.Diagnostics.Process
 $process.StartInfo = $psi
 
-$stdoutWriter = [System.IO.StreamWriter]::new($StdOutLog, $true)
-$stderrWriter = [System.IO.StreamWriter]::new($StdErrLog, $true)
+$stdoutWriter = New-Object System.IO.StreamWriter($StdOutLog, $true)
+$stderrWriter = New-Object System.IO.StreamWriter($StdErrLog, $true)
+
+$outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) {
+        $stdoutWriter.WriteLine($eventArgs.Data)
+        $stdoutWriter.Flush()
+    }
+}
+
+$errorHandler = [System.Diagnostics.DataReceivedEventHandler]{
+    param($sender, $eventArgs)
+    if ($eventArgs.Data) {
+        $stderrWriter.WriteLine($eventArgs.Data)
+        $stderrWriter.Flush()
+    }
+}
 
 try {
     $null = $process.Start()
     Set-Content -Path $ServerPidFile -Value $process.Id
     Set-Content -Path $WrapperPidFile -Value $PID
 
+    $process.add_OutputDataReceived($outputHandler)
+    $process.add_ErrorDataReceived($errorHandler)
+
     $process.BeginOutputReadLine()
     $process.BeginErrorReadLine()
-
-    Register-ObjectEvent -InputObject $process -EventName OutputDataReceived -Action {
-        if ($EventArgs.Data) {
-            $Event.MessageData.StdOut.WriteLine($EventArgs.Data)
-            $Event.MessageData.StdOut.Flush()
-        }
-    } -MessageData @{ StdOut = $stdoutWriter } | Out-Null
-
-    Register-ObjectEvent -InputObject $process -EventName ErrorDataReceived -Action {
-        if ($EventArgs.Data) {
-            $Event.MessageData.StdErr.WriteLine($EventArgs.Data)
-            $Event.MessageData.StdErr.Flush()
-        }
-    } -MessageData @{ StdErr = $stderrWriter } | Out-Null
 
     while (-not $process.HasExited) {
         if (Test-Path $StopFlag) {
@@ -75,7 +81,6 @@ try {
 finally {
     $stdoutWriter.Dispose()
     $stderrWriter.Dispose()
-    Unregister-Event -SourceIdentifier * -ErrorAction SilentlyContinue
     Remove-Item $ServerPidFile -Force -ErrorAction SilentlyContinue
     Remove-Item $WrapperPidFile -Force -ErrorAction SilentlyContinue
     Remove-Item $StopFlag -Force -ErrorAction SilentlyContinue
