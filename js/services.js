@@ -166,9 +166,12 @@ window.APP_CONFIG = {
   },
   control: {
     enabled: true,
-    endpoint: '/control',
+    endpoint: '/api/control',
     refreshMs: 10000,
     activeRefreshMs: 2000,
+    actionsRequireToken: true,
+    actionTokenHeader: 'X-Cheeze-Control-Token',
+    actionTokenStorageKey: 'cheeze-control-action-token',
     services: [
       {
         id: 'minecraft-vanilla',

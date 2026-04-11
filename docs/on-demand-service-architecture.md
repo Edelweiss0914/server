@@ -38,7 +38,8 @@
 ```text
 Browser
   -> gateway-lxc homepage / control UI
-  -> gateway control API
+  -> public portal control facade
+  -> internal gateway control API
   -> wake-on-lan (homepc)
   -> backend agent on homepc
   -> service start/stop/status
@@ -47,7 +48,7 @@ AI traffic:
 Browser -> Nginx /ai -> queue gateway -> Ollama
 
 Game control:
-Browser -> gateway control API -> backend agent -> start server
+Browser -> public portal control facade -> internal gateway control API -> backend agent -> start server
 ```
 
 ## 4. 역할 분리
@@ -57,11 +58,16 @@ Browser -> gateway control API -> backend agent -> start server
 `gateway-lxc` 는 아래를 담당한다.
 
 - 포털 UI 제공
-- 서비스 상태 조회
+- 공개 서비스 상태 조회
+- 제어 토큰 검증
+- 내부 제어 API 호출
+- AI 요청은 큐를 거쳐 프록시
+
+내부 control API는 아래를 담당한다.
+
 - WOL 전송
 - 백엔드 기상 대기
 - 백엔드 에이전트에 시작/종료 명령 전달
-- AI 요청은 큐를 거쳐 프록시
 
 ### Backend
 
@@ -193,6 +199,8 @@ Browser -> gateway control API -> backend agent -> start server
 ### 1차
 
 - 관리자 전용 또는 내부 보호
+- 공개 포털 facade와 내부 control API 분리
+- `start/stop/wake` 는 토큰 필요
 
 ### 2차
 

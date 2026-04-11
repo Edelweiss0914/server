@@ -2,7 +2,7 @@
  * CHEEZE home page logic.
  * - Service search
  * - AI prompt / response flow
- * - On-demand service controls via /control
+ * - On-demand service controls via the public portal facade
  */
 
 const AI_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.APP_CONFIG.ai) || {
@@ -14,7 +14,7 @@ const AI_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.
 
 const CONTROL_CONFIG = (typeof window !== 'undefined' && window.APP_CONFIG && window.APP_CONFIG.control) || {
   enabled: false,
-  endpoint: '/control',
+  endpoint: '/api/control',
   refreshMs: 10000,
   services: [],
 };
@@ -48,6 +48,64 @@ let aiAbortController = null;
 const controlState = new Map();
 let controlRefreshHandle = null;
 const controlPendingActions = new Set();
+
+function controlTokenStorageKey() {
+  return CONTROL_CONFIG.actionTokenStorageKey || 'cheeze-control-action-token';
+}
+
+function readControlActionToken() {
+  try {
+    return window.sessionStorage.getItem(controlTokenStorageKey()) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function writeControlActionToken(token) {
+  try {
+    window.sessionStorage.setItem(controlTokenStorageKey(), token);
+  } catch (error) {
+    // Ignore storage failures and continue with the in-memory request.
+  }
+}
+
+function clearControlActionToken() {
+  try {
+    window.sessionStorage.removeItem(controlTokenStorageKey());
+  } catch (error) {
+    // Ignore storage failures during cleanup.
+  }
+}
+
+function promptForControlActionToken() {
+  const token = window.prompt('관리자 제어 토큰을 입력하세요. 이 토큰은 시작/종료 요청에만 사용됩니다.', '');
+  if (!token) return '';
+
+  const normalized = token.trim();
+  if (!normalized) return '';
+
+  writeControlActionToken(normalized);
+  return normalized;
+}
+
+function resolveControlActionToken() {
+  if (!CONTROL_CONFIG.actionsRequireToken) return '';
+
+  const existing = readControlActionToken();
+  if (existing) return existing;
+
+  return promptForControlActionToken();
+}
+
+function buildControlHeaders({ includeActionToken = false, token = '' } = {}) {
+  const headers = {};
+
+  if (includeActionToken && token) {
+    headers[CONTROL_CONFIG.actionTokenHeader || 'X-Cheeze-Control-Token'] = token;
+  }
+
+  return headers;
+}
 
 function escapeHtml(value) {
   const map = {
@@ -541,7 +599,7 @@ function summarizeControlError(response, payload, rawPayload) {
 
   const trimmed = (rawPayload || '').trim();
   if (trimmed.startsWith('<')) {
-    return '/control 경로가 JSON 대신 HTML 오류 페이지를 반환했습니다. gateway/nginx 프록시 설정과 control API 배포 상태를 확인하세요.';
+    return `${CONTROL_CONFIG.endpoint} 경로가 JSON 대신 HTML 오류 페이지를 반환했습니다. gateway/nginx 프록시 설정과 portal API 배포 상태를 확인하세요.`;
   }
 
   if (trimmed) {
@@ -558,12 +616,25 @@ function normalizeControlActionError(error) {
     return '서비스 제어 요청이 실패했습니다.';
   }
 
+  if (message === 'ACTION_TOKEN_REQUIRED') {
+    return '제어 토큰이 필요합니다. 토큰 입력을 취소했거나 비어 있습니다.';
+  }
+
+  if (message.includes('valid control action token is required')) {
+    clearControlActionToken();
+    return '관리자 제어 토큰이 없거나 올바르지 않습니다. 다시 입력하세요.';
+  }
+
+  if (message.includes('control actions are disabled until a portal action token is configured')) {
+    return '게이트웨이에 제어 토큰이 아직 설정되지 않았습니다. portal API 서비스 환경변수를 확인하세요.';
+  }
+
   if (message.startsWith('Unexpected')) {
-    return '/control 응답이 JSON 형식이 아닙니다. gateway/nginx 프록시 또는 control API 오류 페이지가 내려왔을 가능성이 큽니다.';
+    return `${CONTROL_CONFIG.endpoint} 응답이 JSON 형식이 아닙니다. gateway/nginx 프록시 또는 portal API 오류 페이지가 내려왔을 가능성이 큽니다.`;
   }
 
   if (message === 'Failed to fetch') {
-    return 'control API에 연결하지 못했습니다. 네트워크, 프록시, 또는 gateway 서비스 상태를 확인하세요.';
+    return 'portal control API에 연결하지 못했습니다. 네트워크, 프록시, 또는 gateway 서비스 상태를 확인하세요.';
   }
 
   return message;
@@ -614,6 +685,17 @@ async function invokeControlAction(serviceId, action) {
   }
 
   const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/${serviceId}/${action}`;
+  const actionToken = action === 'refresh' ? '' : resolveControlActionToken();
+  if (CONTROL_CONFIG.actionsRequireToken && action !== 'refresh' && !actionToken) {
+    controlState.set(serviceId, {
+      ...(controlState.get(serviceId) || {}),
+      state: 'error',
+      message: normalizeControlActionError(new Error('ACTION_TOKEN_REQUIRED')),
+    });
+    renderControlGrid();
+    return;
+  }
+
   controlPendingActions.add(serviceId);
 
     controlState.set(serviceId, {
@@ -627,7 +709,13 @@ async function invokeControlAction(serviceId, action) {
     scheduleControlRefresh();
 
   try {
-    const response = await fetch(endpoint, { method: 'POST' });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: buildControlHeaders({
+        includeActionToken: CONTROL_CONFIG.actionsRequireToken,
+        token: actionToken,
+      }),
+    });
     const rawPayload = await response.text();
     const payload = parseJsonObject(rawPayload);
 

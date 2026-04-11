@@ -83,6 +83,13 @@
 - `deploy/gateway/home-control-location.conf.example` proxy timeout `210초` 로 상향
 - 저장소 기준 파일 교체는 끝났고, `gateway-lxc` 실제 운영 반영은 별도 수행 필요
 
+2026-04-11 보안 개편 목표:
+
+- 공개 브라우저가 내부 `/control` API를 직접 호출하지 않도록 분리
+- 공개 경로는 `portal facade` 로 축소
+- 내부 `cheeze-control-api` 는 localhost 내부용으로 유지
+- `start/stop/wake` 는 관리자 제어 토큰을 요구하도록 전환
+
 ## 3. 실제 상태값
 
 ### Tailscale
@@ -210,7 +217,9 @@
 Gateway:
 
 - `deploy/gateway/cheeze-control-api.py`
+- `deploy/gateway/cheeze-portal-api.py`
 - `deploy/gateway/cheeze-control-api.service.example`
+- `deploy/gateway/cheeze-portal-api.service.example`
 - `deploy/gateway/wake-homepc.sh.example`
 - `deploy/gateway/home-control-location.conf.example`
 
@@ -230,6 +239,7 @@ Registry:
 테스트:
 
 - `deploy/gateway/test_cheeze_control_api.py`
+- `deploy/gateway/test_cheeze_portal_api.py`
 
 ## 10. 다음 작업용 요약
 

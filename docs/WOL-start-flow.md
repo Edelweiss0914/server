@@ -12,7 +12,7 @@
 
 ## 현재 구현
 
-`cheeze-control-api`의 `/services/{name}/start` 는 다음 순서로 동작한다.
+공개 `portal facade` 의 `/api/control/services/{name}/start` 는 내부 `cheeze-control-api` 를 통해 아래 순서로 동작한다.
 
 1. backend agent `/healthz` 확인
 2. 이미 online이면 바로 start 전달
