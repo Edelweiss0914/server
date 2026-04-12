@@ -1195,7 +1195,7 @@ kbd {
   align-items: center;
   gap: 7px;
   padding: 6px 14px;
-  margin: -8px auto 12px;
+  margin: 0 auto 8px;
   width: fit-content;
   border-radius: 99px;
   background: var(--bg-alt);
