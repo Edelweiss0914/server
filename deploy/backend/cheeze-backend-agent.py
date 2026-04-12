@@ -529,6 +529,43 @@ def start_watchdog(config: dict):
 
 
 # ---------------------------------------------------------------------------
+# RCON client (Minecraft Remote Console)
+# ---------------------------------------------------------------------------
+
+def rcon_command(host: str, port: int, password: str, command: str, timeout: int = 5) -> str:
+  import struct
+
+  def _pack(req_id, pkt_type, payload):
+    data = payload.encode("utf-8") + b"\x00\x00"
+    return struct.pack("<iii", len(data) + 8, req_id, pkt_type) + data
+
+  def _recv_exact(sock, n):
+    buf = b""
+    while len(buf) < n:
+      chunk = sock.recv(n - len(buf))
+      if not chunk:
+        raise ConnectionError("RCON connection closed")
+      buf += chunk
+    return buf
+
+  def _read_packet(sock):
+    header = _recv_exact(sock, 12)
+    length, req_id, pkt_type = struct.unpack("<iii", header)
+    payload = _recv_exact(sock, length - 8)
+    return req_id, pkt_type, payload[:-2].decode("utf-8", errors="replace")
+
+  with socket.create_connection((host, port), timeout=timeout) as sock:
+    sock.sendall(_pack(1, 3, password))
+    auth_id, _, _ = _read_packet(sock)
+    if auth_id == -1:
+      raise PermissionError("RCON authentication failed — wrong password")
+    sock.sendall(_pack(2, 2, command))
+    _, _, response = _read_packet(sock)
+
+  return response
+
+
+# ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
 
@@ -637,6 +674,41 @@ class Handler(BaseHTTPRequestHandler):
         return
       status_code, payload = stop_service(service)
       self.respond_json(status_code, payload)
+      return
+
+    if self.path.startswith("/services/") and self.path.endswith("/console"):
+      service_id = self.path.split("/")[2]
+      service = find_service(config, service_id)
+      if not service:
+        self.respond_json(404, {"error": "not_found"})
+        return
+      rcon_cfg = service.get("rcon") or {}
+      if not rcon_cfg.get("password"):
+        self.respond_json(400, {"error": "rcon_not_configured", "message": "RCON is not configured for this service"})
+        return
+      content_length = int(self.headers.get("Content-Length", 0))
+      raw_body = self.rfile.read(content_length) if content_length else b"{}"
+      try:
+        body = json.loads(raw_body)
+      except Exception:
+        self.respond_json(400, {"error": "invalid_json"})
+        return
+      command = str(body.get("command", "")).strip()
+      if not command:
+        self.respond_json(400, {"error": "command_required"})
+        return
+      try:
+        response = rcon_command(
+          rcon_cfg.get("host", "127.0.0.1"),
+          int(rcon_cfg.get("port", 25575)),
+          rcon_cfg.get("password", ""),
+          command,
+        )
+        self.respond_json(200, {"success": True, "command": command, "response": response})
+      except PermissionError as exc:
+        self.respond_json(403, {"error": "rcon_auth_failed", "message": str(exc)})
+      except Exception as exc:
+        self.respond_json(502, {"error": "rcon_error", "message": str(exc)})
       return
 
     self.respond_json(404, {"error": "not_found"})

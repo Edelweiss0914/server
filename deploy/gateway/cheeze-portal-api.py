@@ -331,6 +331,24 @@ class Handler(BaseHTTPRequestHandler):
       )
       return
 
+    if self.path.startswith("/services/") and self.path.endswith("/console"):
+      service_id = self.path.split("/")[2]
+      if not valid_service_id(service_id):
+        self.respond_json(400, {"error": "invalid_service_id"})
+        return
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      content_length = int(self.headers.get("Content-Length", 0))
+      raw_body = self.rfile.read(content_length) if content_length else b"{}"
+      try:
+        payload = json.loads(raw_body)
+      except Exception:
+        payload = {}
+      self.forward_or_error(f"/services/{service_id}/console", method="POST", payload=payload)
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def handle_admin_status(self):

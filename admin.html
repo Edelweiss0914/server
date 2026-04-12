@@ -390,6 +390,51 @@
     .console-scroll-hint:hover { background: #30363d; color: #c9d1d9; }
     .console-scroll-hint.visible { display: block; }
 
+    .console-input-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      background: #0d1117;
+      border-top: 1px solid #21262d;
+    }
+
+    .console-prompt {
+      color: #3fb950;
+      font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.775rem;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .console-cmd-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e6edf3;
+      font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.775rem;
+      caret-color: #3fb950;
+    }
+    .console-cmd-input::placeholder { color: #484f58; }
+    .console-cmd-input:disabled { opacity: 0.4; }
+
+    .console-send-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 0.7rem;
+      padding: 2px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: monospace;
+      flex-shrink: 0;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .console-send-btn:hover:not(:disabled) { border-color: #3fb950; color: #3fb950; }
+    .console-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
     @media (max-width: 600px) {
       .console-terminal { height: 280px; font-size: 0.7rem; }
       .console-dot-group { display: none; }
@@ -530,6 +575,13 @@
         <div class="console-terminal-wrap">
           <div class="console-terminal" id="consoleTerminal"><span class="console-empty-hint">서비스를 선택하면 로그가 표시됩니다.</span></div>
           <div class="console-scroll-hint" id="consoleScrollHint">↓ 최신으로</div>
+        </div>
+        <div class="console-input-bar">
+          <span class="console-prompt">$</span>
+          <input type="text" class="console-cmd-input" id="consoleInput"
+                 placeholder="명령어 입력  (예: say Hello, list, weather clear, give @a diamond 1)"
+                 autocomplete="off" spellcheck="false" disabled>
+          <button type="button" class="console-send-btn" id="consoleSendBtn" disabled>전송</button>
         </div>
       </div>
     </section>
@@ -1044,12 +1096,77 @@
         renderConsoleLines(lines.slice(-CONSOLE_RENDER_MAX), false);
         $('consoleDot').className = 'console-status-dot is-live';
         $('consoleStatusLabel').textContent = `${total}줄`;
+        consoleInputEnable(true);
       } catch (err) {
         if (err.authError) return;
         $('consoleTerminal').innerHTML = `<span class="console-empty-hint">로드 실패: ${esc(String(err))}</span>`;
         $('consoleDot').className = 'console-status-dot';
+        consoleInputEnable(false);
       }
       scheduleConsolePoll();
+    }
+
+    // ── Console command history ────────────────────────
+    let consoleHistory = [];
+    let consoleHistoryIdx = -1;
+
+    function consoleInputEnable(enabled) {
+      const input = $('consoleInput');
+      const btn = $('consoleSendBtn');
+      if (input) input.disabled = !enabled;
+      if (btn)   btn.disabled   = !enabled;
+    }
+
+    async function sendConsoleCommand(command) {
+      if (!consoleActiveId || !command.trim()) return;
+      const terminal = $('consoleTerminal');
+
+      // Echo command in green
+      const cmdEl = document.createElement('span');
+      cmdEl.className = 'console-line console-line-new';
+      cmdEl.style.color = '#3fb950';
+      cmdEl.textContent = `> ${command}`;
+      terminal.appendChild(cmdEl);
+      if (consoleAutoScroll) terminal.scrollTop = terminal.scrollHeight;
+
+      // Save history
+      if (consoleHistory[0] !== command) consoleHistory.unshift(command);
+      if (consoleHistory.length > 50) consoleHistory.pop();
+      consoleHistoryIdx = -1;
+
+      consoleInputEnable(false);
+      try {
+        const token = readAdminToken();
+        const res = await fetch(`${CONTROL_ENDPOINT}/services/${consoleActiveId}/console`, {
+          method: 'POST',
+          headers: { [CONTROL_TOKEN_HEADER]: token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command }),
+        });
+        const data = await res.json();
+        if (data.response) {
+          for (const line of data.response.split('\n')) {
+            if (!line.trim()) continue;
+            const el = document.createElement('span');
+            el.className = 'console-line console-line-new';
+            el.textContent = line;
+            terminal.appendChild(el);
+          }
+        } else if (!data.success) {
+          const el = document.createElement('span');
+          el.className = 'console-line console-line-new is-error';
+          el.textContent = `오류: ${esc(data.message || data.error || '알 수 없는 오류')}`;
+          terminal.appendChild(el);
+        }
+      } catch (err) {
+        const el = document.createElement('span');
+        el.className = 'console-line console-line-new is-error';
+        el.textContent = `전송 실패: ${esc(String(err))}`;
+        terminal.appendChild(el);
+      }
+      consoleInputEnable(true);
+      const input = $('consoleInput');
+      if (input) { input.value = ''; input.focus(); }
+      if (consoleAutoScroll) terminal.scrollTop = terminal.scrollHeight;
     }
 
     function scheduleConsolePoll() {
@@ -1157,6 +1274,39 @@
           consoleAutoScroll = true;
           consoleSetScrollHint(false);
           if (consoleTerminal) consoleTerminal.scrollTop = consoleTerminal.scrollHeight;
+        });
+      }
+
+      // Console command input
+      const consoleInput = $('consoleInput');
+      if (consoleInput) {
+        consoleInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            sendConsoleCommand(consoleInput.value.trim());
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (consoleHistoryIdx < consoleHistory.length - 1) {
+              consoleHistoryIdx++;
+              consoleInput.value = consoleHistory[consoleHistoryIdx];
+            }
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (consoleHistoryIdx > 0) {
+              consoleHistoryIdx--;
+              consoleInput.value = consoleHistory[consoleHistoryIdx];
+            } else {
+              consoleHistoryIdx = -1;
+              consoleInput.value = '';
+            }
+          }
+        });
+      }
+
+      const consoleSendBtn = $('consoleSendBtn');
+      if (consoleSendBtn) {
+        consoleSendBtn.addEventListener('click', () => {
+          if (consoleInput) sendConsoleCommand(consoleInput.value.trim());
         });
       }
 
