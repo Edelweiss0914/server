@@ -11,13 +11,23 @@
       "revoked_at": null
     },
     {
-      "token_id": "friend-minecraft-24h",
-      "label": "Friend Minecraft Start Token",
+      "token_id": "discord-bot-start",
+      "label": "Discord Bot Multi-Server Start Token",
       "role": "friend",
       "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
-      "allowed_services": ["minecraft-vanilla"],
+      "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
       "allowed_actions": ["start"],
       "expires_at": "2026-04-12T12:00:00+00:00",
+      "revoked_at": null
+    },
+    {
+      "token_id": "discord-bot-stop",
+      "label": "Discord Bot Multi-Server Stop Token",
+      "role": "admin",
+      "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
+      "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
+      "allowed_actions": ["stop"],
+      "expires_at": null,
       "revoked_at": null
     }
   ]
