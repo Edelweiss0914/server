@@ -277,6 +277,17 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(200, offline_services_payload())
       return
 
+    if self.path.startswith("/services/") and "/console" in self.path:
+      parts = self.path.split("?", 1)
+      query = parts[1] if len(parts) > 1 else ""
+      backend_path = parts[0] + (f"?{query}" if query else "")
+      try:
+        status_code, body = backend_fetch(backend_path)
+        self.respond_raw(status_code, body)
+      except Exception as error:
+        self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
+      return
+
     if self.path.startswith("/services/"):
       service_id = self.path.split("/", 2)[2]
       try:
@@ -328,6 +339,17 @@ class Handler(BaseHTTPRequestHandler):
       service_id = self.path.split("/")[2]
       try:
         status_code, body = backend_fetch(f"/services/{service_id}/stop", method="POST", payload={})
+        self.respond_raw(status_code, body)
+      except Exception as error:
+        self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
+      return
+
+    if self.path.startswith("/services/") and self.path.endswith("/console"):
+      service_id = self.path.split("/")[2]
+      content_length = int(self.headers.get("Content-Length", 0))
+      payload = json.loads(self.rfile.read(content_length)) if content_length > 0 else {}
+      try:
+        status_code, body = backend_fetch(f"/services/{service_id}/console", method="POST", payload=payload)
         self.respond_raw(status_code, body)
       except Exception as error:
         self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
