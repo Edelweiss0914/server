@@ -550,6 +550,47 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, {"services": statuses})
       return
 
+    if self.path.startswith("/services/") and self.path.split("?", 1)[0].endswith("/console"):
+      path_no_qs = self.path.split("?", 1)[0]
+      parts = path_no_qs.split("/")
+      if len(parts) >= 4:
+        service_id = parts[2]
+        service = find_service(config, service_id)
+        if not service:
+          self.respond_json(404, {"error": "not_found"})
+          return
+        offset = None
+        tail = None
+        if "?" in self.path:
+          for param in self.path.split("?", 1)[1].split("&"):
+            if param.startswith("offset="):
+              try: offset = max(0, int(param[7:]))
+              except ValueError: pass
+            elif param.startswith("tail="):
+              try: tail = max(1, min(1000, int(param[5:])))
+              except ValueError: pass
+        log_file = (service.get("metadata") or {}).get("log_file") or str(
+          Path(service.get("working_dir", ".")) / "logs" / "latest.log"
+        )
+        log_path = Path(log_file)
+        if not log_path.exists():
+          self.respond_json(200, {"lines": [], "total_lines": 0, "log_file": log_file, "exists": False})
+          return
+        try:
+          with log_path.open("r", encoding="utf-8", errors="replace") as fh:
+            all_lines = fh.read().splitlines()
+          total = len(all_lines)
+          if tail is not None:
+            lines = all_lines[max(0, total - tail):]
+          elif offset is not None:
+            lines = all_lines[min(offset, total):]
+          else:
+            lines = all_lines[max(0, total - 300):]
+          self.respond_json(200, {"lines": lines, "total_lines": total, "log_file": log_file, "exists": True})
+        except Exception as exc:
+          self.respond_json(500, {"error": str(exc)})
+        return
+
     if self.path.startswith("/services/"):
       service_id = self.path.split("/")[2]
       service = find_service(config, service_id)

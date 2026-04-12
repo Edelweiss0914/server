@@ -227,6 +227,173 @@
       .admin-service-grid { grid-template-columns: 1fr; }
       .admin-table th, .admin-table td { padding: 8px 10px; }
     }
+
+    /* ── Server Console ──────────────────────────────────── */
+    .console-wrap {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1.5px solid #30363d;
+      background: #0d1117;
+    }
+
+    .console-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      min-height: 36px;
+    }
+
+    .console-dot-group {
+      display: flex;
+      gap: 5px;
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+    .console-dot-close,
+    .console-dot-min,
+    .console-dot-max {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+    }
+    .console-dot-close { background: #ff5f57; }
+    .console-dot-min   { background: #febc2e; }
+    .console-dot-max   { background: #28c840; }
+
+    .console-tab-list {
+      display: flex;
+      gap: 2px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .console-tab-btn {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      font-size: 0.76rem;
+      padding: 3px 11px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.12s, color 0.12s;
+    }
+    .console-tab-btn:hover  { background: #21262d; color: #c9d1d9; }
+    .console-tab-btn.is-active {
+      background: #21262d;
+      color: #e6edf3;
+      font-weight: 600;
+    }
+
+    .console-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .console-status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #30363d;
+      flex-shrink: 0;
+    }
+    .console-status-dot.is-live {
+      background: #3fb950;
+      box-shadow: 0 0 5px #3fb950aa;
+      animation: console-pulse 2s ease-in-out infinite;
+    }
+    @keyframes console-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.45; }
+    }
+
+    .console-status-label {
+      font-size: 0.7rem;
+      color: #8b949e;
+      font-family: monospace;
+    }
+
+    .console-clear-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-family: monospace;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .console-clear-btn:hover { border-color: #8b949e; color: #c9d1d9; }
+
+    .console-terminal-wrap {
+      position: relative;
+    }
+
+    .console-terminal {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', 'Menlo', monospace;
+      font-size: 0.775rem;
+      line-height: 1.55;
+      padding: 12px 16px;
+      height: 380px;
+      overflow-y: auto;
+      overflow-x: auto;
+      white-space: pre;
+      scrollbar-width: thin;
+      scrollbar-color: #30363d #0d1117;
+    }
+    .console-terminal::-webkit-scrollbar       { width: 6px; height: 6px; }
+    .console-terminal::-webkit-scrollbar-track { background: #0d1117; }
+    .console-terminal::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    .console-terminal::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    .console-line { display: block; min-height: 1.2em; }
+    .console-line.is-warn  { color: #e3b341; }
+    .console-line.is-error { color: #f85149; }
+    .console-line.is-debug { color: #484f58; }
+    .console-line.is-info  { color: #79c0ff; }
+
+    @keyframes console-fadein {
+      from { opacity: 0; transform: translateX(-3px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .console-line-new { animation: console-fadein 0.14s ease-out forwards; }
+
+    .console-empty-hint {
+      color: #484f58;
+      font-style: italic;
+      white-space: normal;
+    }
+
+    .console-scroll-hint {
+      display: none;
+      position: absolute;
+      bottom: 10px;
+      right: 20px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.12s;
+      z-index: 1;
+    }
+    .console-scroll-hint:hover { background: #30363d; color: #c9d1d9; }
+    .console-scroll-hint.visible { display: block; }
+
+    @media (max-width: 600px) {
+      .console-terminal { height: 280px; font-size: 0.7rem; }
+      .console-dot-group { display: none; }
+    }
   </style>
 </head>
 
@@ -339,7 +506,35 @@
       </div>
     </section>
 
-    <!-- 3. 제어 -->
+    <!-- 3. 서버 콘솔 -->
+    <section class="admin-section" aria-label="서버 콘솔">
+      <div class="admin-section-header">
+        <span class="admin-section-title">서버 콘솔</span>
+      </div>
+      <div class="console-wrap" id="consoleWrap">
+        <div class="console-titlebar">
+          <div class="console-dot-group" aria-hidden="true">
+            <span class="console-dot-close"></span>
+            <span class="console-dot-min"></span>
+            <span class="console-dot-max"></span>
+          </div>
+          <div class="console-tab-list" id="consoleTabs">
+            <span class="console-empty-hint" style="font-size:0.74rem;padding:0 4px">불러오는 중...</span>
+          </div>
+          <div class="console-actions">
+            <span class="console-status-dot" id="consoleDot"></span>
+            <span class="console-status-label" id="consoleStatusLabel">-</span>
+            <button type="button" class="console-clear-btn" id="consoleClearBtn">지우기</button>
+          </div>
+        </div>
+        <div class="console-terminal-wrap">
+          <div class="console-terminal" id="consoleTerminal"><span class="console-empty-hint">서비스를 선택하면 로그가 표시됩니다.</span></div>
+          <div class="console-scroll-hint" id="consoleScrollHint">↓ 최신으로</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 제어 -->
     <section class="admin-section" aria-label="서비스 제어">
       <div class="admin-section-header">
         <span class="admin-section-title">제어</span>
@@ -694,10 +889,12 @@
           lastServices = services;
           renderServiceGrid(services);
           renderControlGrid(services);
+          initConsoleTabs(services);
         } else if (services && typeof services === 'object' && Array.isArray(services.services)) {
           lastServices = services.services;
           renderServiceGrid(services.services);
           renderControlGrid(services.services);
+          initConsoleTabs(services.services);
         }
 
         const ts = new Date().toLocaleTimeString('ko-KR');
@@ -747,6 +944,153 @@
       }
     }
 
+    // ── Server Console ────────────────────────────────────
+    const CONSOLE_TAIL_INITIAL = 200;
+    const CONSOLE_MAX_LINES    = 2000;
+    const CONSOLE_RENDER_MAX   = 500;
+
+    let consoleActiveId    = null;
+    let consoleLinesOffset = {};   // serviceId -> next fetch offset
+    let consoleBuffer      = {};   // serviceId -> [line strings]
+    let consolePollHandle  = null;
+    let consoleAutoScroll  = true;
+
+    function consoleLineClass(text) {
+      if (!text) return '';
+      const t = text.toLowerCase();
+      if (/\[(error|fatal|severe)\]|: (error|fatal|severe) /.test(t)) return 'is-error';
+      if (/\[warn(ing)?\]|: warn(ing)? /.test(t))                     return 'is-warn';
+      if (/\[debug\]|: debug /.test(t))                                return 'is-debug';
+      if (/\[info\]|: info /.test(t))                                  return 'is-info';
+      return '';
+    }
+
+    function consoleSetScrollHint(visible) {
+      const hint = $('consoleScrollHint');
+      if (hint) hint.classList.toggle('visible', visible);
+    }
+
+    function renderConsoleLines(lines, append) {
+      const terminal = $('consoleTerminal');
+      if (!append) {
+        if (!lines || lines.length === 0) {
+          terminal.innerHTML = '<span class="console-empty-hint">로그 없음</span>';
+          return;
+        }
+        terminal.innerHTML = lines.map((line) => {
+          const cls = consoleLineClass(line);
+          return `<span class="console-line${cls ? ' ' + cls : ''}">${esc(line)}</span>`;
+        }).join('');
+      } else {
+        const frag = document.createDocumentFragment();
+        for (const line of lines) {
+          const el = document.createElement('span');
+          el.className = 'console-line console-line-new' + (consoleLineClass(line) ? ' ' + consoleLineClass(line) : '');
+          el.textContent = line;
+          frag.appendChild(el);
+        }
+        terminal.appendChild(frag);
+        // Trim rendered lines to CONSOLE_RENDER_MAX
+        const all = terminal.querySelectorAll('.console-line');
+        if (all.length > CONSOLE_RENDER_MAX) {
+          for (let i = 0; i < all.length - CONSOLE_RENDER_MAX; i++) all[i].remove();
+        }
+      }
+      if (consoleAutoScroll) {
+        terminal.scrollTop = terminal.scrollHeight;
+        consoleSetScrollHint(false);
+      }
+    }
+
+    function initConsoleTabs(services) {
+      const tabs = $('consoleTabs');
+      if (!tabs) return;
+      if (!Array.isArray(services) || services.length === 0) {
+        tabs.innerHTML = '<span class="console-empty-hint" style="font-size:0.74rem;padding:0 4px">서비스 없음</span>';
+        return;
+      }
+      tabs.innerHTML = services.map((s) =>
+        `<button type="button" class="console-tab-btn${consoleActiveId === s.id ? ' is-active' : ''}" data-console-id="${esc(s.id || '')}">${esc(s.display_name || s.id || '')}</button>`
+      ).join('');
+      if (!consoleActiveId || !services.find((s) => s.id === consoleActiveId)) {
+        startConsoleTab(services[0].id);
+      }
+    }
+
+    async function startConsoleTab(serviceId) {
+      consoleActiveId = serviceId;
+      document.querySelectorAll('.console-tab-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.getAttribute('data-console-id') === serviceId);
+      });
+      if (consoleBuffer[serviceId]) {
+        renderConsoleLines(consoleBuffer[serviceId].slice(-CONSOLE_RENDER_MAX), false);
+      } else {
+        $('consoleTerminal').innerHTML = '<span class="console-empty-hint">불러오는 중...</span>';
+      }
+      if (consolePollHandle) { clearTimeout(consolePollHandle); consolePollHandle = null; }
+      await fetchConsoleInitial(serviceId);
+    }
+
+    async function fetchConsoleInitial(serviceId) {
+      $('consoleDot').className = 'console-status-dot';
+      try {
+        const res = await adminFetch(`/services/${serviceId}/console?tail=${CONSOLE_TAIL_INITIAL}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const lines = data.lines || [];
+        const total = data.total_lines || 0;
+        consoleBuffer[serviceId] = lines;
+        consoleLinesOffset[serviceId] = total;
+        renderConsoleLines(lines.slice(-CONSOLE_RENDER_MAX), false);
+        $('consoleDot').className = 'console-status-dot is-live';
+        $('consoleStatusLabel').textContent = `${total}줄`;
+      } catch (err) {
+        if (err.authError) return;
+        $('consoleTerminal').innerHTML = `<span class="console-empty-hint">로드 실패: ${esc(String(err))}</span>`;
+        $('consoleDot').className = 'console-status-dot';
+      }
+      scheduleConsolePoll();
+    }
+
+    function scheduleConsolePoll() {
+      if (consolePollHandle) clearTimeout(consolePollHandle);
+      consolePollHandle = setTimeout(pollConsole, 3000);
+    }
+
+    async function pollConsole() {
+      if (!consoleActiveId) return;
+      const offset = consoleLinesOffset[consoleActiveId] || 0;
+      try {
+        const res = await adminFetch(`/services/${consoleActiveId}/console?offset=${offset}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const newLines = data.lines || [];
+        const total    = data.total_lines || 0;
+        // Log rotation: total went backwards
+        if (total < offset) {
+          consoleLinesOffset[consoleActiveId] = 0;
+          consoleBuffer[consoleActiveId] = [];
+          await fetchConsoleInitial(consoleActiveId);
+          return;
+        }
+        if (newLines.length > 0) {
+          if (!consoleBuffer[consoleActiveId]) consoleBuffer[consoleActiveId] = [];
+          consoleBuffer[consoleActiveId].push(...newLines);
+          if (consoleBuffer[consoleActiveId].length > CONSOLE_MAX_LINES)
+            consoleBuffer[consoleActiveId] = consoleBuffer[consoleActiveId].slice(-CONSOLE_MAX_LINES);
+          consoleLinesOffset[consoleActiveId] = total;
+          renderConsoleLines(newLines, true);
+        }
+        $('consoleDot').className = 'console-status-dot is-live';
+        $('consoleStatusLabel').textContent = `${total}줄 · ${new Date().toLocaleTimeString('ko-KR')}`;
+      } catch (err) {
+        if (err.authError) return;
+        $('consoleDot').className = 'console-status-dot';
+        $('consoleStatusLabel').textContent = '연결 실패';
+      }
+      scheduleConsolePoll();
+    }
+
     // ── DOMContentLoaded ───────────────────────────────────
     document.addEventListener('DOMContentLoaded', async () => {
       initTheme();
@@ -787,6 +1131,45 @@
         const action = btn.getAttribute('data-ctrl-action');
         if (serviceId && action) invokeControlAction(serviceId, action);
       });
+
+      // Console tab click delegation
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-console-id]');
+        if (!btn) return;
+        const serviceId = btn.getAttribute('data-console-id');
+        if (serviceId && serviceId !== consoleActiveId) startConsoleTab(serviceId);
+      });
+
+      // Console auto-scroll detection
+      const consoleTerminal = $('consoleTerminal');
+      if (consoleTerminal) {
+        consoleTerminal.addEventListener('scroll', () => {
+          const atBottom = consoleTerminal.scrollHeight - consoleTerminal.scrollTop - consoleTerminal.clientHeight < 60;
+          consoleAutoScroll = atBottom;
+          consoleSetScrollHint(!atBottom);
+        });
+      }
+
+      // Console scroll hint click → jump to bottom
+      const scrollHint = $('consoleScrollHint');
+      if (scrollHint) {
+        scrollHint.addEventListener('click', () => {
+          consoleAutoScroll = true;
+          consoleSetScrollHint(false);
+          if (consoleTerminal) consoleTerminal.scrollTop = consoleTerminal.scrollHeight;
+        });
+      }
+
+      // Console clear button
+      const consoleClearBtn = $('consoleClearBtn');
+      if (consoleClearBtn) {
+        consoleClearBtn.addEventListener('click', () => {
+          if (consoleActiveId) {
+            consoleBuffer[consoleActiveId] = [];
+          }
+          if (consoleTerminal) consoleTerminal.innerHTML = '<span class="console-empty-hint">지워졌습니다. 다음 로그 수신 시 표시됩니다.</span>';
+        });
+      }
 
       // Audit "더 보기"
       const loadMoreBtn = $('auditLoadMoreBtn');

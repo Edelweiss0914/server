@@ -276,6 +276,22 @@ class Handler(BaseHTTPRequestHandler):
       self.forward_or_error("/services")
       return
 
+    if self.path.startswith("/services/") and self.path.split("?", 1)[0].endswith("/console"):
+      path_no_qs = self.path.split("?", 1)[0]
+      parts = path_no_qs.split("/")
+      if len(parts) >= 4:
+        service_id = parts[2]
+        if not valid_service_id(service_id):
+          self.respond_json(400, {"error": "invalid_service_id"})
+          return
+        error_status, error_payload = authorize_admin(self.headers)
+        if error_status is not None:
+          self.respond_json(error_status, error_payload)
+          return
+        query = ("?" + self.path.split("?", 1)[1]) if "?" in self.path else ""
+        self.forward_or_error(f"/services/{service_id}/console{query}")
+        return
+
     if self.path.startswith("/services/"):
       service_id = self.path.split("/", 2)[2]
       if not valid_service_id(service_id):
