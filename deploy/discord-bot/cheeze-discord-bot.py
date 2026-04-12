@@ -4,7 +4,7 @@ Discord bot for CHEEZE game control.
 
 Initial scope:
 - Guild-scoped slash commands
-- Multi-server status/start/stop for the managed game server list
+- Multi-server status/start/stop across configured game servers
 - Direct control via the public portal facade
 """
 
@@ -54,31 +54,13 @@ class BotConfig:
   admin_role_ids: set[int]
   member_role_ids: set[int]
   portal_api_base: str
-  start_control_token: str
-  stop_control_token: str
+  control_token: str
   control_header: str
   request_timeout: int
   managed_servers: list[str]
 
 
-DEFAULT_MANAGED_SERVERS = [
-  "minecraft-vanilla",
-  "minecraft-cobbleverse",
-]
-
-
-def resolve_control_token(name: str, fallback: str) -> str:
-  value = os.environ.get(name, fallback).strip()
-  if not value:
-    raise KeyError(name)
-  return value
-
-
 def load_config() -> BotConfig:
-  legacy_control_token = os.environ.get("CHEEZE_BOT_CONTROL_TOKEN", "").strip()
-  managed_servers = parse_csv(
-    os.environ.get("CHEEZE_MANAGED_GAME_SERVERS", ",".join(DEFAULT_MANAGED_SERVERS))
-  ) or DEFAULT_MANAGED_SERVERS.copy()
   return BotConfig(
     bot_token=os.environ["DISCORD_BOT_TOKEN"].strip(),
     application_id=int(os.environ["DISCORD_APPLICATION_ID"]),
@@ -86,11 +68,10 @@ def load_config() -> BotConfig:
     admin_role_ids=parse_id_set(os.environ.get("DISCORD_ADMIN_ROLE_IDS", "")),
     member_role_ids=parse_id_set(os.environ.get("DISCORD_MEMBER_ROLE_IDS", "")),
     portal_api_base=os.environ.get("CHEEZE_PORTAL_API_BASE", "http://127.0.0.1:11437").strip(),
-    start_control_token=resolve_control_token("CHEEZE_BOT_START_CONTROL_TOKEN", legacy_control_token),
-    stop_control_token=resolve_control_token("CHEEZE_BOT_STOP_CONTROL_TOKEN", legacy_control_token),
+    control_token=os.environ["CHEEZE_BOT_CONTROL_TOKEN"].strip(),
     control_header=os.environ.get("CHEEZE_PORTAL_CONTROL_HEADER", "X-Cheeze-Control-Token").strip(),
     request_timeout=int(os.environ.get("CHEEZE_BOT_REQUEST_TIMEOUT", "30")),
-    managed_servers=managed_servers,
+    managed_servers=parse_managed_servers(os.environ.get("CHEEZE_MANAGED_GAME_SERVERS")),
   )
 
 
@@ -129,25 +110,11 @@ def service_allowed(service_id: str, config: BotConfig) -> bool:
   return service_id in config.managed_servers
 
 
-def control_token_for_action(action: str, config: BotConfig) -> str:
-  if action == "stop":
-    return config.stop_control_token
-  return config.start_control_token
-
-
-def http_fetch(
-  config: BotConfig,
-  path: str,
-  method: str = "GET",
-  payload: dict | None = None,
-  control_token: str | None = None,
-) -> dict:
+def http_fetch(config: BotConfig, path: str, method: str = "GET", payload: dict | None = None) -> dict:
   url = f"{config.portal_api_base.rstrip('/')}{path}"
   headers = {"Content-Type": "application/json"}
   if method != "GET":
-    if not control_token:
-      raise ValueError("control token required for mutating requests")
-    headers[config.control_header] = control_token
+    headers[config.control_header] = config.control_token
 
   request = urllib.request.Request(
     url,
@@ -206,14 +173,12 @@ class GameControlCog(commands.Cog):
     return result["payload"]
 
   async def control_action(self, service_id: str, action: str) -> dict:
-    control_token = control_token_for_action(action, self.bot.config)
     return await asyncio.to_thread(
       http_fetch,
       self.bot.config,
       f"/services/{service_id}/{action}",
       "POST",
       {},
-      control_token,
     )
 
   def configured_game_services(self, services: list[dict]) -> list[dict]:

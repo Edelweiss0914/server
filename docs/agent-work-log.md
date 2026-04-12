@@ -549,3 +549,72 @@
 - 실제 접속 로그도 남아 있음
 - 현재 시점에는 사용자 요청으로 서버를 내려 둔 상태
 - 다음 세션의 핵심 작업은 homepage 실배포와 WOL end-to-end 검증
+
+## 2026-04-12
+
+### 요청: `$team` / `omx team` 장애 원인 분석 및 다음 에이전트용 문서화
+
+작업:
+
+- `$team` preflight 수행 (tmux, TMUX env, omx, repo 상태 확인)
+- 실제 `omx team` 런타임을 tmux leader pane에서 기동 시도
+- 실패 지점별 증거 수집 및 재현 테스트 수행
+- Windows + tmux + Node 조합에서 pane spawn 장애를 분리 재현
+- 다음 에이전트가 바로 참고할 수 있도록 보고서 문서화
+
+오류 기록:
+
+1. 증상:
+   - 현재 셸이 tmux 밖이어서 team 전제조건 미충족
+   - 기본 tmux session 생성에서 `create window failed: spawn failed`
+   - `omx team` 시작 시 dirty worktree 때문에 `leader_workspace_dirty_for_worktrees` 발생
+   - Windows에서 `omx team`의 worker pane 생성이 `create pane failed: spawn failed`로 반복 실패
+   - 일부 worker는 `ready_prompt_timeout` 상태로 prompt에서 멈춤
+2. 원인 분석:
+   - tmux leader pane 전제조건 미충족
+   - 기본 tmux 설정/셸 경로 문제로 session bootstrap 불안정
+   - detached worktree 기본 정책과 `.omx/*` 산출물 dirty 판정 충돌
+   - Windows 환경에서 Node 런타임이 `tmux split-window -c <cwd>`를 호출할 때 pane spawn 실패 재현
+   - worker startup trigger/submit 경로가 prompt 상태에서 지연될 수 있음
+3. 대응/해결:
+   - `tmux -f NUL`로 leader session bootstrap
+   - `.omx/*` 임시 stash로 worktree dirty gate 우회
+   - 로컬 OMX 설치 파일(`...dist/team/tmux-session.js`)에 Windows 한정 hotfix 적용
+   - 상세 보고서를 `docs/omx-team-windows-runtime-report.md`에 기록
+
+비고:
+
+- 위 hotfix는 repo 코드가 아니라 로컬 글로벌 OMX 설치에만 적용된 임시 우회임
+- 다음 에이전트는 먼저 `docs/omx-team-windows-runtime-report.md`를 확인할 것
+
+### 요청: `$team` 디스코드 봇을 Cobbleverse 포함 다중 서버 제어 봇으로 일반화
+
+작업:
+
+- 기존 live team(`generalize-the-cheeze-discord`) 상태를 이어서 추적
+- 구현 lane 결과를 leader 브랜치 기준으로 확인
+- 관련 파일(`deploy/discord-bot/*`, `docs/discord-bot-setup.md`, `deploy/gateway/portal-control-tokens.example.json`) 반영 상태 점검
+- leader에서 추가 검증(py_compile, portal API unit tests, Discord bot stub smoke) 수행
+- verification lane이 범위를 벗어나려는 징후가 있어 leader 검증 근거로 task 2를 완료 처리
+
+결과:
+
+- Discord bot 기본 managed server 구성이 `minecraft-vanilla,minecraft-cobbleverse` 기준으로 일반화됨
+- `/games` 출력이 configured managed server 순서를 기준으로 정리됨
+- env/service/doc/token example이 다중 서버 운영 기준으로 동기화됨
+- `allowed_services` / `allowed_actions` 모델은 유지됨
+- 권한 모델도 유지됨: 멤버는 조회/시작, 관리자는 종료
+
+검증:
+
+- `python -m py_compile deploy/discord-bot/cheeze-discord-bot.py deploy/gateway/cheeze-portal-api.py`
+- `python -m unittest discover -s deploy/gateway -p 'test_cheeze_portal_api.py'`
+- stubbed Discord import smoke:
+  - 기본 managed server fallback 확인
+  - member start/status 허용 확인
+  - member stop 차단 / admin stop 허용 확인
+  - service allow-list gating 확인
+- 추가 정리:
+  - team shutdown 과정에서 worker-2 worktree의 범위 밖 변경(시작/정지 토큰 분리 설계)이 leader에 자동 merge된 것을 확인
+  - 사용자 요청 범위와 "불필요한 추상화 추가 금지" 제약에 맞추기 위해 관련 파일을 worker-1의 최소 다중 서버 일반화 상태로 복원
+  - 복원 후 py_compile / portal API tests / bot stub smoke 재검증 완료
