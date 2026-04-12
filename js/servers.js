@@ -128,6 +128,15 @@ function renderIcon(service) {
 }
 
 // --- Card renderer ---
+function renderPlayerCount(state) {
+  const pc = state.player_count;
+  if (pc === null || pc === undefined) return '';
+  const isEmpty = pc === 0;
+  return `<span class="server-card-player-count${isEmpty ? ' is-empty' : ''}">
+    <span class="player-dot"></span>${isEmpty ? '접속자 없음' : `접속자 ${pc}명`}
+  </span>`;
+}
+
 function renderServerCard(service, state = {}) {
   const cardState = state.state || 'offline';
   const bgVar = `--service-bg: ${service.bgColor || `${service.color}18`}`;
@@ -154,10 +163,13 @@ function renderServerCard(service, state = {}) {
       </div>
       ${service.category ? `<div class="server-card-details"><span class="server-detail-chip">${service.categoryIcon ? escapeHtml(service.categoryIcon) + ' ' : ''}${escapeHtml(service.category)}</span></div>` : ''}
       <div class="server-card-status">${escapeHtml(statusLine)}</div>
-      <div class="server-card-controls">
-        <button type="button" class="control-btn is-primary" data-action="start" ${canStart ? '' : 'disabled'}>시작</button>
-        <button type="button" class="control-btn is-danger" data-action="stop" ${canStop ? '' : 'disabled'}>종료</button>
-        <button type="button" class="control-btn" data-action="refresh" ${busy ? 'disabled' : ''}>새로고침</button>
+      <div class="server-card-footer">
+        ${renderPlayerCount(state)}
+        <div class="server-card-controls">
+          <button type="button" class="control-btn is-primary" data-action="start" ${canStart ? '' : 'disabled'}>시작</button>
+          <button type="button" class="control-btn is-danger" data-action="stop" ${canStop ? '' : 'disabled'}>종료</button>
+          <button type="button" class="control-btn" data-action="refresh" ${busy ? 'disabled' : ''}>새로고침</button>
+        </div>
       </div>
     </article>
   `;

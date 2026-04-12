@@ -953,6 +953,7 @@
             </div>
             <div class="admin-service-meta">
               프로세스: ${running} &nbsp;·&nbsp; 준비: ${ready}
+              ${svc.player_count !== null && svc.player_count !== undefined ? ` &nbsp;·&nbsp; 접속자 ${svc.player_count}명` : ''}
               ${svc.message ? `<br><span style="opacity:0.8">${esc(svc.message)}</span>` : ''}
             </div>
           </div>
@@ -980,6 +981,7 @@
               <span class="admin-service-name">${name}</span>
               <span class="server-state-badge ${stateClass(state)}">${stateLabel(state)}</span>
             </div>
+            ${svc.player_count !== null && svc.player_count !== undefined ? `<div class="admin-service-meta">접속자 ${svc.player_count}명</div>` : ''}
             <div class="admin-service-actions">
               <button type="button" class="control-btn is-primary" data-ctrl-action="start" data-ctrl-id="${id}" ${canStart && !busy ? '' : 'disabled'}>시작</button>
               <button type="button" class="control-btn is-danger" data-ctrl-action="stop" data-ctrl-id="${id}" ${canStop && !busy ? '' : 'disabled'}>종료</button>

@@ -691,7 +691,10 @@ class Handler(BaseHTTPRequestHandler):
       if not service:
         self.respond_json(404, {"error": "not_found"})
         return
-      self.respond_json(200, service_status(service))
+      status = service_status(service)
+      with _watchdog_lock:
+        status["player_count"] = _last_player_count.get(service_id)
+      self.respond_json(200, status)
       return
 
     if self.path == "/idle/status":
