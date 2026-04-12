@@ -4,7 +4,7 @@ Discord bot for CHEEZE game control.
 
 Initial scope:
 - Guild-scoped slash commands
-- minecraft-vanilla status/start/stop
+- Multi-server status/start/stop across configured game servers
 - Direct control via the public portal facade
 """
 
@@ -36,6 +36,16 @@ def parse_csv(raw: str) -> list[str]:
   return [item.strip() for item in (raw or "").split(",") if item.strip()]
 
 
+DEFAULT_MANAGED_GAME_SERVERS = [
+  "minecraft-vanilla",
+  "minecraft-cobbleverse",
+]
+
+
+def parse_managed_servers(raw: str | None) -> list[str]:
+  return parse_csv(raw or "") or DEFAULT_MANAGED_GAME_SERVERS.copy()
+
+
 @dataclass
 class BotConfig:
   bot_token: str
@@ -61,7 +71,7 @@ def load_config() -> BotConfig:
     control_token=os.environ["CHEEZE_BOT_CONTROL_TOKEN"].strip(),
     control_header=os.environ.get("CHEEZE_PORTAL_CONTROL_HEADER", "X-Cheeze-Control-Token").strip(),
     request_timeout=int(os.environ.get("CHEEZE_BOT_REQUEST_TIMEOUT", "30")),
-    managed_servers=parse_csv(os.environ.get("CHEEZE_MANAGED_GAME_SERVERS", "minecraft-vanilla")),
+    managed_servers=parse_managed_servers(os.environ.get("CHEEZE_MANAGED_GAME_SERVERS")),
   )
 
 
@@ -171,6 +181,18 @@ class GameControlCog(commands.Cog):
       {},
     )
 
+  def configured_game_services(self, services: list[dict]) -> list[dict]:
+    service_by_id = {
+      service.get("id"): service
+      for service in services
+      if service.get("id")
+    }
+    return [
+      service_by_id[service_id]
+      for service_id in self.bot.config.managed_servers
+      if service_id in service_by_id
+    ]
+
   def format_service_line(self, service: dict) -> str:
     message = service.get("message", "")
     suffix = f" | {message}" if message else ""
@@ -188,7 +210,7 @@ class GameControlCog(commands.Cog):
       return
 
     services = await self.fetch_services()
-    game_services = [service for service in services if service.get("id") in self.bot.config.managed_servers]
+    game_services = self.configured_game_services(services)
     if not game_services:
       await interaction.response.send_message("표시할 게임 서버가 없습니다.", ephemeral=True)
       return
