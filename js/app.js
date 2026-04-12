@@ -852,7 +852,7 @@ function showResults(query) {
   if (resultsCount) resultsCount.textContent = `${currentResults.length}개의 서비스`;
   if (resultsGrid) resultsGrid.innerHTML = currentResults.map(renderResultCard).join('');
 
-  requestAnimationFrame(syncResultDescOverflow);
+  requestAnimationFrame(() => syncResultDescOverflow());
 }
 
 function initQuickAccess() {

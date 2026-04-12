@@ -33,7 +33,7 @@
       "display_name": "Ollama",
       "enabled": true,
       "working_dir": "C:\\Users\\zoop7",
-      "start_command": "ollama serve",
+      "start_command": "C:\\Users\\zoop7\\AppData\\Local\\Programs\\Ollama\\ollama.exe serve",
       "stop_command": "taskkill /IM ollama.exe /F",
       "process_name": "ollama.exe",
       "ready_check": {
