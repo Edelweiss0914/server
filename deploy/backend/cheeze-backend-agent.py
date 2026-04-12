@@ -640,7 +640,15 @@ class Handler(BaseHTTPRequestHandler):
       return
 
     if self.path == "/services":
-      statuses = [service_status(service) for service in config.get("services", []) if service.get("enabled", True)]
+      statuses = []
+      with _watchdog_lock:
+        lpc = dict(_last_player_count)
+      for service in config.get("services", []):
+        if not service.get("enabled", True):
+          continue
+        status = service_status(service)
+        status["player_count"] = lpc.get(service["id"])
+        statuses.append(status)
       self.respond_json(200, {"services": statuses})
       return
 
