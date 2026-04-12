@@ -37,6 +37,8 @@ const els = {
   aiPromptMeta: () => $('aiPromptMeta'),
   aiResponseCard: () => $('aiResponseCard'),
   aiResponseStatus: () => $('aiResponseStatus'),
+  aiProgressWrap: () => $('aiProgressWrap'),
+  aiProgressStage: () => $('aiProgressStage'),
   aiResponseBody: () => $('aiResponseBody'),
   followupForm: () => $('aiFollowupForm'),
   followupInput: () => $('aiFollowupInput'),
@@ -45,6 +47,7 @@ const els = {
 let currentResults = [];
 let currentQuery = '';
 let aiAbortController = null;
+let aiProgressInterval = null;
 const controlState = new Map();
 let controlRefreshHandle = null;
 const controlPendingActions = new Set();
@@ -362,6 +365,10 @@ function ensureAiSection() {
     </button>
     <div class="ai-response-card" id="aiResponseCard" hidden>
       <div class="ai-response-status" id="aiResponseStatus"></div>
+      <div class="ai-progress-wrap" id="aiProgressWrap" hidden>
+        <div class="ai-progress-bar"><div class="ai-progress-fill"></div></div>
+        <div class="ai-progress-stage" id="aiProgressStage"></div>
+      </div>
       <div class="ai-response-body" id="aiResponseBody"></div>
       <div class="ai-disclaimer">AI는 정확하지 않을 수 있습니다. 중요한 내용은 재차 검토해 주세요.</div>
       <form class="ai-followup-form" id="aiFollowupForm" autocomplete="off">
@@ -466,6 +473,7 @@ async function requestAiAnswer(query) {
   if (responseCard) responseCard.hidden = false;
   if (status) status.textContent = ollamaReady ? 'AI가 답변을 생성하는 중입니다...' : 'AI를 호출 중이에요 · 잠시만 기다려주세요';
   if (body) body.innerHTML = '';
+  if (!ollamaReady) startProgressIndicator();
 
   syncQueryInputs(query);
   hideEmptyResultsAfterAiRequest();
@@ -502,6 +510,7 @@ async function requestAiAnswer(query) {
     const payload = await response.json();
     const text = payload.response || '응답이 비어 있습니다.';
 
+    stopProgressIndicator();
     if (status) status.textContent = 'CHEEZE AI 응답';
     if (body) body.innerHTML = renderAiAnswer(text);
 
@@ -517,6 +526,7 @@ async function requestAiAnswer(query) {
     if (status) status.textContent = 'AI 요청 실패';
     if (body) body.textContent = message;
   } finally {
+    stopProgressIndicator();
     window.clearTimeout(timeoutId);
     aiAbortController = null;
   }
@@ -979,6 +989,34 @@ function initEventListeners() {
 }
 
 let ollamaCurrentState = null;
+
+function startProgressIndicator() {
+  const wrap = els.aiProgressWrap();
+  const stage = els.aiProgressStage();
+  if (wrap) wrap.hidden = false;
+  let elapsed = 0;
+  aiProgressInterval = setInterval(() => {
+    elapsed += 2;
+    refreshOllamaStatus();
+    if (!stage) return;
+    if (ollamaCurrentState === 'running') {
+      stage.textContent = '답변을 생성하는 중입니다...';
+    } else if (elapsed < 10) {
+      stage.textContent = 'Ollama 시작 요청 중...';
+    } else if (elapsed < 60) {
+      stage.textContent = `Ollama 가동 중... (${elapsed}초 경과)`;
+    } else {
+      const m = Math.floor(elapsed / 60), s = elapsed % 60;
+      stage.textContent = `대기 중... ${m}분 ${s}초 경과`;
+    }
+  }, 2000);
+}
+
+function stopProgressIndicator() {
+  if (aiProgressInterval) { clearInterval(aiProgressInterval); aiProgressInterval = null; }
+  const wrap = els.aiProgressWrap();
+  if (wrap) wrap.hidden = true;
+}
 
 function renderOllamaStatusChip(state) {
   const bar = $('ollamaStatus');

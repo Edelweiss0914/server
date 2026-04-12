@@ -596,6 +596,36 @@ kbd {
   line-height: 1.5;
 }
 
+.ai-progress-wrap {
+  margin: 8px 0 4px;
+}
+
+.ai-progress-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.ai-progress-fill {
+  height: 100%;
+  width: 35%;
+  background: var(--accent, #4f7fff);
+  border-radius: 99px;
+  animation: ai-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes ai-shimmer {
+  0%   { transform: translateX(-200%); }
+  100% { transform: translateX(380%); }
+}
+
+.ai-progress-stage {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
 .ai-disclaimer {
   margin-top: 4px;
   font-size: 0.78rem;
