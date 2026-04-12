@@ -29,3 +29,7 @@ location /api/control/ {
     proxy_send_timeout 210s;
     proxy_read_timeout 210s;
 }
+
+# Admin surfaces are intentionally excluded from the public domain location.
+# Serve them from a separate Tailscale-only server block instead.
+# See: deploy/gateway/home-admin-tailscale.conf.example

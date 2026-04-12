@@ -44,7 +44,14 @@ DEFAULT_MANAGED_GAME_SERVERS = [
 
 
 def parse_managed_servers(raw: str | None) -> list[str]:
-  return parse_csv(raw or "") or DEFAULT_MANAGED_GAME_SERVERS.copy()
+  seen = set()
+  ordered = []
+  for server_id in parse_csv(raw or "") or DEFAULT_MANAGED_GAME_SERVERS.copy():
+    if server_id in seen:
+      continue
+    seen.add(server_id)
+    ordered.append(server_id)
+  return ordered
 
 
 @dataclass
@@ -55,13 +62,17 @@ class BotConfig:
   admin_role_ids: set[int]
   member_role_ids: set[int]
   portal_api_base: str
-  control_token: str
+  start_control_token: str
+  stop_control_token: str
   control_header: str
   request_timeout: int
   managed_servers: list[str]
 
 
 def load_config() -> BotConfig:
+  legacy_control_token = os.environ.get("CHEEZE_BOT_CONTROL_TOKEN", "").strip()
+  start_control_token = os.environ.get("CHEEZE_BOT_START_CONTROL_TOKEN", "").strip() or legacy_control_token
+  stop_control_token = os.environ.get("CHEEZE_BOT_STOP_CONTROL_TOKEN", "").strip() or legacy_control_token
   return BotConfig(
     bot_token=os.environ["DISCORD_BOT_TOKEN"].strip(),
     application_id=int(os.environ["DISCORD_APPLICATION_ID"]),
@@ -69,7 +80,8 @@ def load_config() -> BotConfig:
     admin_role_ids=parse_id_set(os.environ.get("DISCORD_ADMIN_ROLE_IDS", "")),
     member_role_ids=parse_id_set(os.environ.get("DISCORD_MEMBER_ROLE_IDS", "")),
     portal_api_base=os.environ.get("CHEEZE_PORTAL_API_BASE", "http://127.0.0.1:11437").strip(),
-    control_token=os.environ["CHEEZE_BOT_CONTROL_TOKEN"].strip(),
+    start_control_token=start_control_token,
+    stop_control_token=stop_control_token,
     control_header=os.environ.get("CHEEZE_PORTAL_CONTROL_HEADER", "X-Cheeze-Control-Token").strip(),
     request_timeout=int(os.environ.get("CHEEZE_BOT_REQUEST_TIMEOUT", "30")),
     managed_servers=parse_managed_servers(os.environ.get("CHEEZE_MANAGED_GAME_SERVERS")),
@@ -111,11 +123,23 @@ def service_allowed(service_id: str, config: BotConfig) -> bool:
   return service_id in config.managed_servers
 
 
-def http_fetch(config: BotConfig, path: str, method: str = "GET", payload: dict | None = None) -> dict:
+def control_token_for_action(action: str, config: BotConfig) -> str:
+  if action == "stop":
+    return config.stop_control_token
+  return config.start_control_token
+
+
+def http_fetch(
+  config: BotConfig,
+  path: str,
+  method: str = "GET",
+  payload: dict | None = None,
+  control_token: str | None = None,
+) -> dict:
   url = f"{config.portal_api_base.rstrip('/')}{path}"
   headers = {"Content-Type": "application/json"}
-  if method != "GET":
-    headers[config.control_header] = config.control_token
+  if method != "GET" and control_token:
+    headers[config.control_header] = control_token
 
   request = urllib.request.Request(
     url,
@@ -190,6 +214,7 @@ class GameControlCog(commands.Cog):
       f"/services/{service_id}/{action}",
       "POST",
       {},
+      control_token_for_action(action, self.bot.config),
     )
 
   def result_message(self, result: dict, fallback: str) -> str:

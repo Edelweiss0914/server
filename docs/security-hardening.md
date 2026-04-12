@@ -489,6 +489,21 @@ job 모델:
 - 웹 UI에서 웹서비스, 게임서버, AI, 각종 API 상태를 모니터링
 - 제어 작업과 감사 로그도 함께 확인
 
+권장 노출 방식:
+
+- 관리자 페이지는 공개 홈페이지의 일부처럼 운영하지 않는다.
+- `admin.html` 과 `/api/control/admin/*` 는 공개 도메인에서 직접 제공하지 않는다.
+- 관리자 표면은 별도 Tailscale 전용 서버 블록 또는 tailnet 전용 호스트/IP에서만 제공한다.
+- 그 위에 관리자 토큰을 추가로 요구해 네트워크 접근과 애플리케이션 권한을 분리한다.
+- 공개 홈에서는 관리자 링크를 기본 노출하지 않는다.
+
+권장 이유:
+
+- 공개 웹에서 admin 표면을 숨기면 스캐닝과 인증 우회 시도를 크게 줄일 수 있다.
+- Tailscale이 1차 접근 제어, 관리자 토큰이 2차 권한 검증 역할을 한다.
+- 현재 규모에서는 Cloudflare Access/OAuth보다 단순하고 운영 부담이 낮다.
+- 공개 도메인에서 Tailscale 여부를 완전히 구분하기 어렵기 때문에, admin는 같은 공개 vhost에 섞지 않는 편이 안전하다.
+
 권장 화면 구성:
 
 1. Host 요약
@@ -619,7 +634,7 @@ job 모델:
 1. `/games`
 - 게임 서버 상태 종합 출력
 
-2. `/start minecraft-vanilla`
+2. `/start <configured-game-server>`
 - 권한 확인
 - DM 으로 승인/결과 전달
 - 봇이 직접 portal facade 에 제어 요청
@@ -680,7 +695,9 @@ job 모델:
 - 관리자 역할 ID: `1492517995711561910`
 - 멤버 역할 ID: `1492518234878906459`
 - Application ID: `1492519354129055939`
-- 초기 대상 서버: `minecraft-vanilla`
+- 기본 대상 서버:
+  - `minecraft-vanilla`
+  - `minecraft-cobbleverse`
 
 ## 7. 문서 운영 규칙
 
@@ -692,7 +709,7 @@ job 모델:
 
 2026-04-11 보안 조치:
 
-- `DISCORD_BOT_TOKEN` 과 `CHEEZE_BOT_CONTROL_TOKEN` 은 systemd unit 파일 본문에 직접 두지 않는다.
+- `DISCORD_BOT_TOKEN`, `CHEEZE_BOT_START_CONTROL_TOKEN`, `CHEEZE_BOT_STOP_CONTROL_TOKEN` 은 systemd unit 파일 본문에 직접 두지 않는다.
 - 비밀값은 `/etc/cheeze-bot/cheeze-discord-bot.env` 로 분리한다.
 - 권한은 `root:root`, `chmod 600` 을 기본으로 한다.
 - 배포 예시는 `EnvironmentFile=/etc/cheeze-bot/cheeze-discord-bot.env` 방식으로 유지한다.

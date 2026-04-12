@@ -1,7 +1,7 @@
 # Discord Bot Setup
 
 작성일: 2026-04-11
-목적: `gateway-lxc` 에 CHEEZE Discord 게임 제어 봇을 배포하기 위한 최소 설정 절차
+목적: `gateway-lxc` 에 CHEEZE Discord 범용 게임 서버 제어 봇을 배포하기 위한 최소 설정 절차
 
 ## 1. 현재 결정
 
@@ -53,24 +53,44 @@
 
 Discord 봇은 웹 토큰을 사용자에게 나눠주기보다, 봇이 직접 portal facade 를 호출하는 direct control 방식으로 시작한다.
 
-따라서 봇 전용 관리자 토큰 1개가 필요하다.
+권장 모델은 봇 전용 제어 토큰을 액션별로 분리하는 것이다.
 
 권장:
 
-- `portal-control-tokens.json` 에 `discord-bot-admin` 항목 추가
+- `portal-control-tokens.json` 에 `discord-bot-start`, `discord-bot-stop` 항목 추가
 - `allowed_services`: `["minecraft-vanilla", "minecraft-cobbleverse"]`
-- `allowed_actions`: `["start", "stop"]`
+- `allowed_actions`:
+  - start 토큰: `["start"]`
+  - stop 토큰: `["stop"]`
+
+하위 호환:
+
+- 기존 단일 `CHEEZE_BOT_CONTROL_TOKEN` 도 계속 사용할 수 있다.
+- 다만 새 배포는 `CHEEZE_BOT_START_CONTROL_TOKEN`, `CHEEZE_BOT_STOP_CONTROL_TOKEN` 분리를 권장한다.
 
 ## 6. 예시 토큰 항목
 
 ```json
 {
-  "token_id": "discord-bot-admin",
-  "label": "Discord Bot Multi-Server Control Token",
+  "token_id": "discord-bot-start",
+  "label": "Discord Bot Multi-Server Start Token",
   "role": "admin",
   "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
   "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
-  "allowed_actions": ["start", "stop"],
+  "allowed_actions": ["start"],
+  "expires_at": null,
+  "revoked_at": null
+}
+```
+
+```json
+{
+  "token_id": "discord-bot-stop",
+  "label": "Discord Bot Multi-Server Stop Token",
+  "role": "admin",
+  "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
+  "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
+  "allowed_actions": ["stop"],
   "expires_at": null,
   "revoked_at": null
 }
@@ -99,12 +119,13 @@ DISCORD_ADMIN_ROLE_IDS=1492517995711561910
 DISCORD_MEMBER_ROLE_IDS=1492518234878906459
 CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-CHEEZE_BOT_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_ADMIN_TOKEN
+CHEEZE_BOT_START_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_START_TOKEN
+CHEEZE_BOT_STOP_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_STOP_TOKEN
 CHEEZE_BOT_REQUEST_TIMEOUT=30
 CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
 
-`CHEEZE_BOT_CONTROL_TOKEN` 은 위 6번 항목의 평문 토큰 값이다.
+`CHEEZE_BOT_START_CONTROL_TOKEN` 과 `CHEEZE_BOT_STOP_CONTROL_TOKEN` 은 위 6번 항목의 평문 토큰 값이다.
 
 중요:
 
@@ -138,7 +159,8 @@ DISCORD_ADMIN_ROLE_IDS=1492517995711561910
 DISCORD_MEMBER_ROLE_IDS=1492518234878906459
 CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-CHEEZE_BOT_CONTROL_TOKEN=여기에_봇_전용_평문_제어_토큰
+CHEEZE_BOT_START_CONTROL_TOKEN=여기에_봇_전용_start_평문_토큰
+CHEEZE_BOT_STOP_CONTROL_TOKEN=여기에_봇_전용_stop_평문_토큰
 CHEEZE_BOT_REQUEST_TIMEOUT=30
 CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
@@ -180,7 +202,8 @@ sudo nano /etc/cheeze-bot/cheeze-discord-bot.env
 5. 값 채우기
 
 - `DISCORD_BOT_TOKEN`
-- `CHEEZE_BOT_CONTROL_TOKEN`
+- `CHEEZE_BOT_START_CONTROL_TOKEN`
+- `CHEEZE_BOT_STOP_CONTROL_TOKEN`
 
 6. 실행
 
@@ -210,7 +233,7 @@ journalctl -u cheeze-discord-bot -n 50 --no-pager
 - `/start` 는 멤버 이상 허용
 - `/stop` 는 관리자만 허용
 - 봇 전용 제어 토큰은 `allowed_services` / `allowed_actions` 로 게임 서버와 `start`/`stop` 범위를 명시적으로 제한한다.
+- 가능하면 `start` 와 `stop` 토큰을 분리해 least-privilege 구성을 유지한다.
 - 자동 종료 정책이 아직 없으므로 `stop` 은 보수적으로 관리자 전용 유지
 - 이미 봇이 서버에 올라가 있다면 이번 보안 수정의 핵심은 "service 파일에서 비밀값 제거, env 파일로 이동, 재시작 후 slash command 재검증" 이다.
-
-- Troubleshooting: if autocomplete only shows `minecraft-vanilla`, verify /etc/cheeze-bot/cheeze-discord-bot.env sets CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse and restart cheeze-discord-bot.
+- Troubleshooting: if autocomplete only shows `minecraft-vanilla`, verify `/etc/cheeze-bot/cheeze-discord-bot.env` sets `CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse` and restart `cheeze-discord-bot`.

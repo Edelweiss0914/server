@@ -95,6 +95,7 @@ install_discord_stub()
 MODULE_PATH = Path(__file__).with_name("cheeze-discord-bot.py")
 SPEC = importlib.util.spec_from_file_location("cheeze_discord_bot", MODULE_PATH)
 discord_bot = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = discord_bot
 SPEC.loader.exec_module(discord_bot)
 
 

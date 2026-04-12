@@ -656,6 +656,27 @@
   - 기본 managed servers = vanilla + cobbleverse
   - portal unreachable -> `status_code=599`, `error=portal_unreachable`
 
+### 요청: 관리자 페이지를 Tailscale + 관리자 토큰 모델로 정리
+
+작업:
+
+- 공개 메인 페이지(`index.html`)에서 `admin.html` 링크 제거
+- `admin.html` 상단에 "Tailscale 내부 접속 + 관리자 토큰 전제" 안내 배너 추가
+- `deploy/gateway/home-control-location.conf.example` 에서는 admin 표면을 공개 도메인에서 제외하도록 정리
+- `deploy/gateway/home-admin-tailscale.conf.example` 신규 추가
+  - Tailscale IP/MagicDNS 전용 server block
+  - `admin.html`
+  - `/api/control/admin/`
+- `docs/security-hardening.md` 에 관리자 표면 노출 원칙 추가
+  - 공개 홈에서 관리자 링크 기본 비노출
+  - 공개 도메인에서 admin 직접 제공 금지
+  - Tailscale 1차 + 관리자 토큰 2차
+
+판단:
+
+- 현재 구조에서 관리자 페이지를 공개 도메인과 같은 vhost에 억지로 섞는 것은 비권장
+- 공개 도메인과 분리된 Tailscale 전용 server block + 관리자 토큰 조합이 현재 운영 규모와 위험도에 맞음
+
 ---
 
 ## 2026-04-12
@@ -760,3 +781,10 @@
 - **job 모델**: 브라우저 요청 한 번에 wake+boot+start 전체를 묶지 않는 비동기 구조.
 - **Discord 봇 토큰 발급 내부 엔드포인트**: portal facade 에 `POST /internal/tokens` 추가.
 - **nginx admin 경로 IP 제한**: `allow 127.0.0.1; deny all;` 또는 Tailscale IP 허용.
+
+### 요청: 노출된 Discord bot token / portal control token 교체 절차 정리
+
+작업:
+- 저장소 helper와 보안 문서를 확인해 현재 운영 모델(레거시 환경변수 토큰 + registry 병행 가능)을 재확인
+- 현재 배포된 봇은 단일 `CHEEZE_BOT_CONTROL_TOKEN` 경로를 사용하므로, 즉시 회전은 Discord bot token + portal control token 동시 교체가 필요하다고 정리
+- systemd unit 본문에 비밀값을 직접 두지 말고 `/etc/cheeze-bot/cheeze-discord-bot.env` 및 portal 측 env 파일/override로 분리하는 절차를 제안

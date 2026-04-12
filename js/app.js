@@ -667,6 +667,20 @@ function normalizeControlActionError(error) {
     return '관리자 제어 토큰이 없거나 올바르지 않습니다. 다시 입력하세요.';
   }
 
+  if (message.includes('has been revoked') || message.includes('token has been revoked')) {
+    clearControlActionToken();
+    return '이 제어 토큰은 폐기되었습니다. 새 토큰을 다시 입력하세요.';
+  }
+
+  if (message.includes('has expired') || message.includes('token has expired')) {
+    clearControlActionToken();
+    return '이 제어 토큰은 만료되었습니다. 새 토큰을 다시 입력하세요.';
+  }
+
+  if (message.includes('is not allowed to')) {
+    return '이 토큰은 요청한 서버 또는 동작 권한이 없습니다. 서버별 허용 범위를 확인하세요.';
+  }
+
   if (message.includes('control actions are disabled until a portal action token is configured')) {
     return '게이트웨이에 제어 토큰이 아직 설정되지 않았습니다. portal API 서비스 환경변수를 확인하세요.';
   }
