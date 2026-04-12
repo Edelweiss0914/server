@@ -358,6 +358,22 @@ def _time_in_inhibit_range(now: datetime.time, start_str: str, end_str: str) -> 
   return now >= start or now < end
 
 
+def get_user_idle_seconds() -> float | None:
+  """Return seconds since last keyboard/mouse input on Windows. None on error."""
+  try:
+    import ctypes
+    class LASTINPUTINFO(ctypes.Structure):
+      _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+    info = LASTINPUTINFO()
+    info.cbSize = ctypes.sizeof(LASTINPUTINFO)
+    if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+      idle_ms = ctypes.windll.kernel32.GetTickCount() - info.dwTime
+      return idle_ms / 1000.0
+  except Exception:
+    pass
+  return None
+
+
 def _no_sleep_flag_path(hibernate_policy: dict) -> Path:
   raw = hibernate_policy.get("no_sleep_flag_path", "")
   if raw:
@@ -370,6 +386,15 @@ def _check_hibernate_conditions(config: dict) -> bool:
   hibernate_policy = config.get("hibernate_policy", {})
   if not hibernate_policy.get("enabled", False):
     return False
+
+  # 0. User activity guard
+  host_cfg = config.get("host", {})
+  activity_guard = host_cfg.get("user_activity_guard", {})
+  if activity_guard.get("enabled", False):
+    min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
+    idle_seconds = get_user_idle_seconds()
+    if idle_seconds is not None and idle_seconds < min_idle_minutes * 60:
+      return False
 
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
 
