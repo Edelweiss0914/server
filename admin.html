@@ -1227,9 +1227,19 @@
       if (btn)   btn.disabled   = !enabled;
     }
 
+    function transformConsoleCommand(command) {
+      const sayMatch = command.match(/^say\s+(.+)$/i);
+      if (sayMatch) {
+        const msg = sayMatch[1].replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        return `tellraw @a {"text":"[관리자] ${msg}","color":"gold"}`;
+      }
+      return command;
+    }
+
     async function sendConsoleCommand(command) {
       if (!consoleActiveId || !command.trim()) return;
       const terminal = $('consoleTerminal');
+      const actualCommand = transformConsoleCommand(command.trim());
 
       // Echo command in green
       const cmdEl = document.createElement('span');
@@ -1250,7 +1260,7 @@
         const res = await fetch(`${CONTROL_ENDPOINT}/services/${consoleActiveId}/console`, {
           method: 'POST',
           headers: { [CONTROL_TOKEN_HEADER]: token, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command }),
+          body: JSON.stringify({ command: actualCommand }),
         });
         const data = await res.json();
         if (data.response) {
