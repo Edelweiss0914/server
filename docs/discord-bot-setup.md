@@ -212,3 +212,5 @@ journalctl -u cheeze-discord-bot -n 50 --no-pager
 - 봇 전용 제어 토큰은 `allowed_services` / `allowed_actions` 로 게임 서버와 `start`/`stop` 범위를 명시적으로 제한한다.
 - 자동 종료 정책이 아직 없으므로 `stop` 은 보수적으로 관리자 전용 유지
 - 이미 봇이 서버에 올라가 있다면 이번 보안 수정의 핵심은 "service 파일에서 비밀값 제거, env 파일로 이동, 재시작 후 slash command 재검증" 이다.
+
+- Troubleshooting: if autocomplete only shows `minecraft-vanilla`, verify /etc/cheeze-bot/cheeze-discord-bot.env sets CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse and restart cheeze-discord-bot.

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -136,6 +137,16 @@ def http_fetch(config: BotConfig, path: str, method: str = "GET", payload: dict 
       "status_code": error.code,
       "payload": payload,
     }
+  except (urllib.error.URLError, TimeoutError, socket.timeout, OSError) as error:
+    reason = getattr(error, "reason", error)
+    message = str(reason or error).strip() or "request failed"
+    return {
+      "status_code": 599,
+      "payload": {
+        "error": "portal_unreachable",
+        "message": message,
+      },
+    }
 
 
 class CheezeDiscordBot(commands.Bot):
@@ -181,6 +192,10 @@ class GameControlCog(commands.Cog):
       {},
     )
 
+  def result_message(self, result: dict, fallback: str) -> str:
+    payload = result.get("payload", {})
+    return payload.get("message") or payload.get("error") or fallback
+
   def configured_game_services(self, services: list[dict]) -> list[dict]:
     service_by_id = {
       service.get("id"): service
@@ -198,26 +213,35 @@ class GameControlCog(commands.Cog):
     suffix = f" | {message}" if message else ""
     return f"- {service.get('display_name', service.get('id', 'unknown'))}: {state_label(service.get('state', 'offline'))}{suffix}"
 
-  @app_commands.command(name="games", description="현재 게임 서버 상태를 보여줍니다.")
+  @app_commands.command(name="games", description="Show the current game server status")
   async def games(self, interaction: discord.Interaction):
     member = await self.interaction_member(interaction)
     if member is None:
-      await interaction.response.send_message("허용된 서버에서만 사용할 수 있습니다.", ephemeral=True)
+      await interaction.response.send_message("This command can only be used in the configured guild.", ephemeral=True)
       return
 
     if not can_start(member, self.bot.config):
-      await interaction.response.send_message("이 명령을 사용할 권한이 없습니다.", ephemeral=True)
+      await interaction.response.send_message("You do not have permission to view game server status.", ephemeral=True)
       return
 
-    services = await self.fetch_services()
+    await interaction.response.defer(thinking=True)
+    result = await asyncio.to_thread(http_fetch, self.bot.config, "/services", "GET", None)
+    if not 200 <= result["status_code"] < 300:
+      await interaction.followup.send(
+        f"Game server status lookup failed: {self.result_message(result, 'Unable to reach the portal right now.')}",
+        ephemeral=True,
+      )
+      return
+
+    services = result["payload"].get("services", [])
     game_services = self.configured_game_services(services)
     if not game_services:
-      await interaction.response.send_message("표시할 게임 서버가 없습니다.", ephemeral=True)
+      await interaction.followup.send("No configured game servers are currently available.", ephemeral=True)
       return
 
-    lines = ["현재 게임 서버 상태:"]
+    lines = ["Current game server status:"]
     lines.extend(self.format_service_line(service) for service in game_services)
-    await interaction.response.send_message("\n".join(lines), ephemeral=False)
+    await interaction.followup.send("\n".join(lines), ephemeral=False)
 
   @app_commands.command(name="start", description="게임 서버를 시작합니다.")
   @app_commands.describe(server="시작할 게임 서버")
@@ -250,28 +274,36 @@ class GameControlCog(commands.Cog):
     message = payload.get("message") or payload.get("error") or "시작 요청에 실패했습니다."
     await interaction.followup.send(f"`{server}` 시작 실패: {message}", ephemeral=True)
 
-  @app_commands.command(name="status", description="특정 게임 서버 상태를 확인합니다.")
-  @app_commands.describe(server="상태를 볼 게임 서버")
+  @app_commands.command(name="status", description="Check a specific game server status")
+  @app_commands.describe(server="Game server to inspect")
   async def status(self, interaction: discord.Interaction, server: str):
     member = await self.interaction_member(interaction)
     if member is None:
-      await interaction.response.send_message("허용된 서버에서만 사용할 수 있습니다.", ephemeral=True)
+      await interaction.response.send_message("This command can only be used in the configured guild.", ephemeral=True)
       return
 
     if not can_start(member, self.bot.config):
-      await interaction.response.send_message("이 명령을 사용할 권한이 없습니다.", ephemeral=True)
+      await interaction.response.send_message("You do not have permission to view game server status.", ephemeral=True)
       return
 
     if not service_allowed(server, self.bot.config):
-      await interaction.response.send_message("이 서버는 현재 봇이 제어하지 않습니다.", ephemeral=True)
+      await interaction.response.send_message("That server is not enabled for this bot.", ephemeral=True)
       return
 
-    service = await self.fetch_service(server)
-    if service is None:
-      await interaction.response.send_message("해당 서버를 찾을 수 없습니다.", ephemeral=True)
+    await interaction.response.defer(thinking=True)
+    result = await asyncio.to_thread(http_fetch, self.bot.config, f"/services/{server}", "GET", None)
+    if result["status_code"] == 404:
+      await interaction.followup.send("That server could not be found.", ephemeral=True)
+      return
+    if not 200 <= result["status_code"] < 300:
+      await interaction.followup.send(
+        f"`{server}` status lookup failed: {self.result_message(result, 'Unable to reach the portal right now.')}",
+        ephemeral=True,
+      )
       return
 
-    await interaction.response.send_message(self.format_service_line(service), ephemeral=False)
+    service = result["payload"]
+    await interaction.followup.send(self.format_service_line(service), ephemeral=False)
 
   @app_commands.command(name="stop", description="게임 서버를 종료합니다. 관리자 전용입니다.")
   @app_commands.describe(server="종료할 게임 서버")

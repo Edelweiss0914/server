@@ -618,3 +618,145 @@
   - team shutdown 과정에서 worker-2 worktree의 범위 밖 변경(시작/정지 토큰 분리 설계)이 leader에 자동 merge된 것을 확인
   - 사용자 요청 범위와 "불필요한 추상화 추가 금지" 제약에 맞추기 위해 관련 파일을 worker-1의 최소 다중 서버 일반화 상태로 복원
   - 복원 후 py_compile / portal API tests / bot stub smoke 재검증 완료
+
+### 요청: `$team` 운영 장애 후속 - `/games` Unknown interaction, `/start` timeout, Cobbleverse 미노출 수정
+
+작업:
+
+- 사용자 제공 운영 로그를 기준으로 원인 재분석
+- 새 `omx team` 런타임(`fix-the-deployed-discord-bot-p`) 기동 및 상태 추적
+- worker dispatch가 반복적으로 startup evidence를 남기지 못해 leader가 직접 수정/검증 수행
+- Discord bot에 portal timeout/connection failure 보호 로직 추가
+- `/games`, `/status` 가 느린 portal 응답에서도 interaction 만료되지 않도록 defer 추가
+- 운영 문서에 autocomplete가 vanilla만 보일 때 env/restart 점검 메모 추가
+
+오류 기록:
+
+1. 증상:
+   - `/games` 가 응답하지 않고 Discord `Unknown interaction` 발생
+   - `/start` 가 `timeout: timed out` 예외로 실패
+   - `/status` `/start` `/stop` autocomplete에서 Cobbleverse가 보이지 않음
+2. 원인:
+   - `/games` 와 `/status` 가 portal 조회 전에 defer하지 않아 느린 응답에서 interaction 만료
+   - `http_fetch` 가 urllib timeout/connection failure를 결과로 변환하지 않고 예외로 터뜨림
+   - Cobbleverse 미노출은 repo 기본값 문제가 아니라 배포된 env 또는 배포된 bot 파일이 stale일 가능성이 높음
+3. 해결:
+   - `deploy/discord-bot/cheeze-discord-bot.py`
+     - `http_fetch` 에 timeout/URLError/OSError 보호 추가
+     - `/games`, `/status` 에 defer + followup 응답 적용
+     - timeout 시 사용자에게 실패 메시지를 반환하도록 정리
+   - `docs/discord-bot-setup.md`
+     - autocomplete가 vanilla만 보이면 env의 `CHEEZE_MANAGED_GAME_SERVERS` 와 서비스 재시작을 확인하라는 메모 추가
+
+검증:
+
+- `python -m py_compile deploy/discord-bot/cheeze-discord-bot.py deploy/gateway/cheeze-portal-api.py`
+- `python -m unittest discover -s deploy/gateway -p 'test_cheeze_portal_api.py'`
+- stub smoke:
+  - 기본 managed servers = vanilla + cobbleverse
+  - portal unreachable -> `status_code=599`, `error=portal_unreachable`
+
+---
+
+## 2026-04-12
+
+### 요청: 자동 절전/하이버네이트, 관리자 페이지, 아키텍처 보안 개선
+
+#### 1. 자동 절전/하이버네이트 (`deploy/backend/cheeze-backend-agent.py`)
+
+작업:
+
+- **Minecraft 서버 리스트 핑 구현**: 소켓으로 직접 서버에 연결해 접속자 수를 조회한다.
+  `encode_varint` / `read_varint` / `encode_string` 등 Handshake + Status Request 프로토콜 정확 구현.
+- **IdleWatchdog 백그라운드 스레드 추가**: `threading.Thread(daemon=True)` 로 매 N초마다 실행.
+  - 서비스별 `last_running_seen` / `last_player_count` 를 `threading.Lock` 으로 보호.
+  - `idle_policy.player_check.enabled == true` 인 경우 Minecraft 핑으로 접속자 수 확인.
+  - 접속자 존재 시 idle 타이머 리셋. 접속자 0 + idle 시간 초과 시 `stop_service()` 자동 호출.
+- **하이버네이트 조건 체크**: 모든 서비스 offline + 활성 콘솔/RDP 세션 없음 + 예약 금지 시간 외 + C: 여유공간 20GB 이상 + `no-sleep.flag` 없음 → `shutdown /h /f` 실행.
+  - 예약 금지 시간대 overnight 범위 처리 (예: 19:00–01:00).
+  - 세션 체크는 `query session` 명령 결과로 판단.
+- **새 HTTP 엔드포인트 추가**:
+  - `GET /idle/status`: watchdog 상태, 서비스별 idle 시간, 접속자 수 반환.
+  - `POST /no-sleep`: `no-sleep.flag` 생성 → `{"active": true}`.
+  - `DELETE /no-sleep`: `no-sleep.flag` 삭제 → `{"active": false}`.
+- **config 스키마 추가** (`cheeze-backend-agent-config.example.json`):
+  - 서비스별 `idle_policy`: `enabled`, `idle_timeout_minutes`, `player_check` (type, host, port).
+  - 최상위 `hibernate_policy`: `enabled`, `check_interval_seconds`, `min_free_space_gb`, `check_drive`, `no_sleep_flag_path`, `inhibit_schedule`.
+
+반영 파일:
+
+- `deploy/backend/cheeze-backend-agent.py`
+- `deploy/backend/cheeze-backend-agent-config.example.json`
+
+#### 2. 관리자 페이지 (`admin.html`, `cheeze-portal-api.py`)
+
+작업:
+
+- **`admin.html` 신규 생성**: CHEEZE 기존 스타일 그대로 (동일 CSS, theme toggle, brand header).
+  - 토큰 입력 게이트: `sessionStorage` 에 토큰 없으면 tokenDialog 표시. 401/403 시 재입력.
+  - **서비스 상태 섹션**: 10초 자동 갱신, state badge (`is-running` 등 동일 CSS 클래스).
+  - **감사 로그 섹션**: 최근 50건, "더 보기" 버튼으로 추가 조회.
+  - **제어 섹션**: 서비스별 시작/종료 버튼. 동일 `X-Cheeze-Control-Token` 헤더 사용.
+  - API 호출: `GET /api/control/admin/status`, `GET /api/control/admin/audit?limit=50`.
+- **`cheeze-portal-api.py` 관리자 엔드포인트 추가**:
+  - `authorize_admin()`: admin 역할 토큰만 통과.
+  - `GET /admin/status`: 내부 control API `/services` + `/healthz` 조합 응답.
+  - `GET /admin/audit?limit=N&offset=N`: JSONL 감사 로그 읽어 최근 N건 반환.
+  - `/healthz` 응답에 `internal_secret_configured` 필드 추가.
+- **`index.html` 푸터에 관리자 링크 추가**: 불투명도 낮춘 작은 텍스트로 노출.
+
+반영 파일:
+
+- `admin.html`
+- `deploy/gateway/cheeze-portal-api.py`
+- `index.html`
+
+#### 3. 내부 API 공유 비밀 (`cheeze-portal-api.py`, `cheeze-control-api.py`)
+
+작업:
+
+- `CHEEZE_INTERNAL_SECRET` 환경변수 추가.
+- portal API: `forward_fetch()` 에서 이 값을 `X-Cheeze-Internal-Token` 헤더로 전달.
+- control API: 요청 수신 시 헤더를 `hmac.compare_digest` 로 검증. 미설정 시 하위호환(개방).
+- 미완료 항목이었던 `[MEDIUM] 내부 control API 공유 비밀 인증` 완료.
+
+반영 파일:
+
+- `deploy/gateway/cheeze-portal-api.py`
+- `deploy/gateway/cheeze-control-api.py`
+
+#### 4. 검색 버그 수정 (`js/services.js`, `js/app.js`)
+
+증상:
+
+- "온디맨드", "마인크래프트" 검색 시 On-Demand 포털 카드 외 `minecraft-vanilla`, `minecraft-cobbleverse` 제어 카드도 함께 노출됨.
+
+원인:
+
+- `SERVICES` 배열에 포함된 개별 게임 서버 제어 항목이 검색 대상에 포함되었음.
+- 이 항목들은 제어 패널용이며 독립된 탐색 대상이 아님.
+
+해결:
+
+- `js/services.js`: `minecraft-vanilla`, `minecraft-cobbleverse` 에 `searchable: false` 추가.
+- `js/app.js`: `searchServices()` 에 `.filter(service => service.searchable !== false)` 추가.
+- `ondemand` 포털 카드(id: `ondemand`) 는 `searchable` 미설정 → 계속 검색됨.
+
+반영 파일:
+
+- `js/services.js`
+- `js/app.js`
+
+### 배포 후 운영자 확인 항목
+
+1. `cheeze-backend-agent-config.json` 에 `hibernate_policy.enabled: true` 설정 (실제 운영 파일).
+2. `cheeze-backend-agent.service` 에 변경사항 반영 후 재시작.
+3. `cheeze-portal-api.service` / `cheeze-control-api.service` 에 `CHEEZE_INTERNAL_SECRET=<난수값>` 추가.
+4. nginx `/api/control/admin/` 경로 접근 제어 검토 (현재는 포털 토큰 인증만 적용, nginx 레벨 IP 제한 추가 가능).
+5. `admin.html` SELinux 컨텍스트: `chcon -R -t httpd_sys_content_t /var/www/home/` 실행.
+
+### 다음 단계 후보
+
+- **job 모델**: 브라우저 요청 한 번에 wake+boot+start 전체를 묶지 않는 비동기 구조.
+- **Discord 봇 토큰 발급 내부 엔드포인트**: portal facade 에 `POST /internal/tokens` 추가.
+- **nginx admin 경로 IP 제한**: `allow 127.0.0.1; deny all;` 또는 Tailscale IP 허용.
