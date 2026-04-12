@@ -1,8 +1,19 @@
-# Rate limit zone: defined in nginx http {} block (e.g. nginx.conf or a conf.d snippet):
-#   limit_req_zone $binary_remote_addr zone=cheeze_control:10m rate=5r/m;
+# Rate limit zones + map: nginx http {} 블록에 추가 (nginx.conf 또는 conf.d 스니펫)
+#
+#   # POST(액션)만 키로 잡고, GET(상태 조회)은 빈 키로 우회
+#   map $request_method $cheeze_action_key {
+#       POST    $binary_remote_addr;
+#       default "";
+#   }
+#   limit_req_zone $binary_remote_addr  zone=cheeze_control_status:10m rate=30r/m;
+#   limit_req_zone $cheeze_action_key   zone=cheeze_control_action:10m rate=5r/m;
+#
+# cheeze_control_status : GET 상태 폴링용 — 30r/m (서비스 2개 × 10초 폴링 기준)
+# cheeze_control_action : POST 제어 액션용 — 5r/m (시작/종료 남용 방지, GET은 우회)
 
 location /api/control/ {
-    limit_req zone=cheeze_control burst=3 nodelay;
+    limit_req zone=cheeze_control_status burst=10 nodelay;
+    limit_req zone=cheeze_control_action burst=3  nodelay;
     limit_req_status 429;
 
     proxy_pass http://127.0.0.1:11437/;
