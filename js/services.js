@@ -274,7 +274,7 @@ window.APP_CONFIG = {
     enabled: true,
     endpoint: '/ai',
     model: 'huihui_ai/qwen3-vl-abliterated:8b-instruct',
-    timeoutMs: 90000,
+    timeoutMs: 360000,
   },
   control: {
     enabled: true,

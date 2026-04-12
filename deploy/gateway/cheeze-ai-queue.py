@@ -29,10 +29,10 @@ LISTEN_HOST = os.environ.get("CHEEZE_AI_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("CHEEZE_AI_LISTEN_PORT", "11435"))
 UPSTREAM_BASE = os.environ.get("CHEEZE_AI_UPSTREAM", "http://100.86.252.21:11434")
 MAX_QUEUE_SIZE = int(os.environ.get("CHEEZE_AI_MAX_QUEUE", "2"))
-REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_AI_TIMEOUT", "180"))
+REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_AI_TIMEOUT", "360"))
 BACKEND_BASE = os.environ.get("CHEEZE_AI_BACKEND_BASE", "http://100.86.252.21:5010")
 INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "")
-OLLAMA_START_TIMEOUT = int(os.environ.get("CHEEZE_AI_OLLAMA_START_TIMEOUT", "300"))
+OLLAMA_START_TIMEOUT = int(os.environ.get("CHEEZE_AI_OLLAMA_START_TIMEOUT", "120"))
 OLLAMA_POLL_INTERVAL = float(os.environ.get("CHEEZE_AI_OLLAMA_POLL_INTERVAL", "3"))
 
 ALLOWED_METHODS = {"GET", "POST"}
@@ -97,7 +97,7 @@ def ensure_ollama_running() -> bool:
     return False
 
   deadline = time.time() + OLLAMA_START_TIMEOUT
-  while time.time() < deadline:
+  while time.time() < deadline and not worker_should_stop.is_set():
     time.sleep(OLLAMA_POLL_INTERVAL)
     if _ollama_alive():
       print("[ollama-autostart] Ollama is ready")
