@@ -72,7 +72,7 @@
       "id": "minecraft-cobbleverse",
       "display_name": "Cobbleverse",
       "enabled": true,
-      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\COBBLEVERSE - Pokemon Adventure [Cobblemon]",
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\ssibal_cobbleverse_multi",
       "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\start.ps1",
       "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\stop.ps1",
       "process_name": "java.exe",

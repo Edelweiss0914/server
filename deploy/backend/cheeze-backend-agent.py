@@ -55,7 +55,7 @@ def load_config():
   if config_path is None:
     raise FileNotFoundError("No backend agent config file found.")
 
-  return json.loads(config_path.read_text(encoding="utf-8"))
+  return json.loads(config_path.read_text(encoding="utf-8-sig"))
 
 
 def json_bytes(payload):
@@ -438,12 +438,14 @@ def _watchdog_tick():
     state = status["state"]
 
     if state == "running":
-      with _watchdog_lock:
-        _last_running_seen[service_id] = time.time()
-
       # Player count check
       player_check = idle_policy.get("player_check", {})
       if player_check.get("enabled", False) and player_check.get("type") == "minecraft":
+        # Initialize idle clock on first detection
+        with _watchdog_lock:
+          if service_id not in _last_running_seen:
+            _last_running_seen[service_id] = time.time()
+
         host = player_check.get("host", "127.0.0.1")
         port = int(player_check.get("port", 25565))
         count = minecraft_player_count(host, port)
@@ -456,8 +458,14 @@ def _watchdog_tick():
             _last_running_seen[service_id] = time.time()
           continue
 
-        # count == 0 or None (server unreachable but still "running" by process check)
-        # Fall through to idle timeout check below
+        # count == 0 or None: fall through to idle timeout check
+        # Do NOT update last_running_seen here — let the idle clock accumulate
+
+      else:
+        # No player check configured: keep clock fresh (never auto-idles while running)
+        with _watchdog_lock:
+          _last_running_seen[service_id] = time.time()
+        continue
 
       # Check idle timeout
       idle_timeout_seconds = idle_policy.get("idle_timeout_minutes", 30) * 60
@@ -471,6 +479,12 @@ def _watchdog_tick():
           any_auto_stopped = True
         except Exception as exc:
           print(f"[IDLE] stop_service({service_id}) failed: {exc}")
+
+    else:
+      # Service not running: clear idle tracking so clock resets on next start
+      with _watchdog_lock:
+        _last_running_seen.pop(service_id, None)
+        _last_player_count.pop(service_id, None)
 
   # Hibernate check — only evaluate after potential auto-stops
   if any_auto_stopped or True:  # always check each tick; harmless extra check

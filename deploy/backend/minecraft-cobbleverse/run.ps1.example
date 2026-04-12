@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$ServerRoot = "D:\Servers\Minecraft\Modpacks\COBBLEVERSE - Pokemon Adventure [Cobblemon]"
+$ServerRoot = "D:\Servers\Minecraft\Modpacks\ssibal_cobbleverse_multi"
 $ControlRoot = "D:\Servers\Control\minecraft-cobbleverse"
 $JavaExe = "C:\Program Files (x86)\Minecraft Launcher\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe"
 $MinRam = "6G"
