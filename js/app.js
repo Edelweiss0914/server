@@ -786,6 +786,7 @@ async function invokeControlAction(serviceId, action) {
     scheduleControlRefresh();
   } finally {
     controlPendingActions.delete(serviceId);
+    refreshControlStates().then(() => scheduleControlRefresh());
   }
 }
 

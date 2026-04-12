@@ -285,6 +285,7 @@ async function invokeControlAction(serviceId, action) {
     scheduleRefresh();
   } finally {
     pendingActions.delete(serviceId);
+    refreshAllStates().then(() => scheduleRefresh());
   }
 }
 
