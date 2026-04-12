@@ -207,6 +207,7 @@ const SERVICES = [
       'vanilla', '바닐라', 'gaming', 'play', '플레이',
     ],
     featured: false,
+    searchable: false,
   },
   {
     id: 'minecraft-cobbleverse',
@@ -236,6 +237,7 @@ const SERVICES = [
       'game', '게임', 'server', '서버', 'pixelmon-like',
     ],
     featured: false,
+    searchable: false,
   },
 ];
 

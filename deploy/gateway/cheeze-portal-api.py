@@ -40,6 +40,7 @@ AUDIT_LOG_PATH = Path(os.environ.get(
   "CHEEZE_PORTAL_AUDIT_LOG",
   "/opt/cheeze-control/portal-control-audit.log",
 ))
+CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
 
 
 def now_utc():
@@ -71,6 +72,8 @@ def forward_fetch(path, method="GET", payload=None, headers=None):
   request_headers = {"Content-Type": "application/json"}
   if headers:
     request_headers.update(headers)
+  if CHEEZE_INTERNAL_SECRET:
+    request_headers["X-Cheeze-Internal-Token"] = CHEEZE_INTERNAL_SECRET
 
   request = urllib.request.Request(
     url,
@@ -164,6 +167,25 @@ def audit_log(payload):
     handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def authorize_admin(headers):
+  """Returns (error_status, error_payload) or (None, None) if admin."""
+  supplied = headers.get(CONTROL_ACTION_HEADER, "").strip()
+  if not supplied:
+    return 401, {"error": "unauthorized", "message": "admin token required"}
+  # Check legacy env token
+  if CONTROL_ACTION_TOKEN and hmac.compare_digest(supplied, CONTROL_ACTION_TOKEN):
+    return None, None
+  # Check registry for admin role
+  token_record = find_token_record(supplied)
+  if token_record is None:
+    return 401, {"error": "unauthorized", "message": "invalid token"}
+  if token_revoked(token_record) or token_expired(token_record):
+    return 403, {"error": "forbidden", "message": "token revoked or expired"}
+  if token_record.get("role") != "admin":
+    return 403, {"error": "forbidden", "message": "admin role required"}
+  return None, None
+
+
 def authorize_action(headers, service_id, action):
   supplied = headers.get(CONTROL_ACTION_HEADER, "").strip()
   if not CONTROL_ACTION_TOKEN and not token_registry_configured():
@@ -246,6 +268,7 @@ class Handler(BaseHTTPRequestHandler):
         "ok": True,
         "action_token_configured": action_token_configured(),
         "token_registry_configured": token_registry_configured(),
+        "internal_secret_configured": bool(CHEEZE_INTERNAL_SECRET),
       })
       return
 
@@ -259,6 +282,14 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(400, {"error": "invalid_service_id"})
         return
       self.forward_or_error(f"/services/{service_id}")
+      return
+
+    if self.path == "/admin/status":
+      self.handle_admin_status()
+      return
+
+    if self.path.startswith("/admin/audit"):
+      self.handle_admin_audit()
       return
 
     self.respond_json(404, {"error": "not_found"})
@@ -285,6 +316,100 @@ class Handler(BaseHTTPRequestHandler):
       return
 
     self.respond_json(404, {"error": "not_found"})
+
+  def handle_admin_status(self):
+    error_status, error_payload = authorize_admin(self.headers)
+    if error_status is not None:
+      self.respond_json(error_status, error_payload)
+      return
+
+    # Fetch /services from control API
+    services = None
+    try:
+      status_code, body = forward_fetch("/services")
+      parsed = decode_json_body(body)
+      services = parsed.get("services", parsed) if isinstance(parsed, dict) else parsed
+    except Exception:
+      services = None
+
+    # Fetch /healthz from control API
+    control_api_info = {"reachable": False}
+    try:
+      status_code, body = forward_fetch("/healthz")
+      if status_code == 200:
+        parsed = decode_json_body(body)
+        parsed["reachable"] = True
+        control_api_info = parsed
+      else:
+        control_api_info = {"reachable": False, "status_code": status_code}
+    except Exception as error:
+      control_api_info = {"reachable": False, "error": str(error)}
+
+    self.respond_json(200, {
+      "services": services,
+      "control_api": control_api_info,
+      "portal": {
+        "action_token_configured": action_token_configured(),
+        "token_registry_configured": token_registry_configured(),
+      },
+    })
+
+  def handle_admin_audit(self):
+    error_status, error_payload = authorize_admin(self.headers)
+    if error_status is not None:
+      self.respond_json(error_status, error_payload)
+      return
+
+    # Parse query params
+    query = ""
+    if "?" in self.path:
+      query = self.path.split("?", 1)[1]
+
+    params = {}
+    for part in query.split("&"):
+      if "=" in part:
+        k, v = part.split("=", 1)
+        params[k] = v
+
+    try:
+      limit = min(int(params.get("limit", "100")), 500)
+    except (ValueError, TypeError):
+      limit = 100
+    try:
+      offset = max(int(params.get("offset", "0")), 0)
+    except (ValueError, TypeError):
+      offset = 0
+
+    if not AUDIT_LOG_PATH.exists():
+      self.respond_json(200, {"entries": [], "total": 0, "limit": limit, "offset": offset})
+      return
+
+    entries = []
+    with AUDIT_LOG_PATH.open("r", encoding="utf-8") as handle:
+      for line in handle:
+        line = line.strip()
+        if not line:
+          continue
+        try:
+          entries.append(json.loads(line))
+        except json.JSONDecodeError:
+          pass
+
+    total = len(entries)
+    # Return last `limit` entries starting from `offset` (from end)
+    start = max(total - offset - limit, 0)
+    end = total - offset
+    if end <= 0:
+      page = []
+    else:
+      page = entries[start:end]
+
+    self.respond_json(200, {
+      "entries": page,
+      "total": total,
+      "limit": limit,
+      "offset": offset,
+    })
 
   def require_auth_then_forward(self, path, *, service_id, action, payload=None):
     status_code, error_payload, token_record = authorize_action(self.headers, service_id, action)

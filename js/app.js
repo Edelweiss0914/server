@@ -235,6 +235,7 @@ function searchServices(query) {
   if (!query.trim()) return [];
 
   return SERVICES
+    .filter((service) => service.searchable !== false)
     .map((service) => ({ service, score: scoreService(service, query) }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)

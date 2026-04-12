@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CHEEZE 관리자 대시보드">
+  <title>CHEEZE — 관리자</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css?v=20260412-admin">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%234f7fff'/%3E%3Ctext y='.9em' x='50%25' text-anchor='middle' font-size='60' dy='10'%3E✿%3C/text%3E%3C/svg%3E">
+
+  <style>
+    /* ── Admin-specific table styles ── */
+    .admin-section {
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto 40px;
+    }
+
+    .admin-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .admin-section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .admin-refresh-note {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* Service status cards */
+    .admin-service-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .admin-service-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      transition: box-shadow var(--t-normal), border-color var(--t-normal);
+    }
+
+    .admin-service-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--accent);
+    }
+
+    .admin-service-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .admin-service-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .admin-service-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .admin-service-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Audit log table */
+    .admin-table-wrap {
+      overflow-x: auto;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .admin-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      background: var(--bg-alt);
+      border-bottom: 1.5px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .admin-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+    }
+
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .admin-table tr:hover td {
+      background: var(--surface-hover);
+    }
+
+    .admin-table .col-ts {
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .admin-table .col-action {
+      font-weight: 600;
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+
+    .admin-result-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 0.7rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .admin-result-badge.is-forwarded { background: #e6f4ea; color: #137333; }
+    .admin-result-badge.is-rejected  { background: #fce8e6; color: #c5221f; }
+    .admin-result-badge.is-failed    { background: #fbe9d6; color: #8a4e0f; }
+    .admin-result-badge.is-error     { background: #fce8e6; color: #c5221f; }
+
+    [data-theme="dark"] .admin-result-badge.is-forwarded { background: #0d2b1d; color: #4caf71; }
+    [data-theme="dark"] .admin-result-badge.is-rejected  { background: #2d0f0d; color: #e57373; }
+    [data-theme="dark"] .admin-result-badge.is-failed    { background: #2d1500; color: #f4a642; }
+    [data-theme="dark"] .admin-result-badge.is-error     { background: #2d0f0d; color: #e57373; }
+
+    .admin-load-more {
+      margin-top: 12px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .admin-empty {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .admin-error-banner {
+      background: #fce8e6;
+      color: #c5221f;
+      border: 1px solid #f3b5b5;
+      border-radius: var(--radius-md);
+      padding: 10px 16px;
+      font-size: 0.84rem;
+      margin-bottom: 16px;
+    }
+
+    [data-theme="dark"] .admin-error-banner {
+      background: #2d0f0d;
+      color: #e57373;
+      border-color: #5a1a1a;
+    }
+
+    /* Container override for wider admin layout */
+    .admin-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 32px 24px 80px;
+      max-width: 920px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .admin-page-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .admin-page-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .admin-page-sub {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 600px) {
+      .admin-container { padding: 20px 14px 60px; }
+      .admin-service-grid { grid-template-columns: 1fr; }
+      .admin-table th, .admin-table td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── 상단 바 ─────────────────────────────────── -->
+  <div class="top-bar">
+    <button id="themeToggle" class="theme-toggle" aria-label="다크 모드로 전환">
+      <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           style="display:none" aria-hidden="true">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1"  x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22"   x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1"  y1="12" x2="3"  y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78"  x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+      </svg>
+      <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ── 브랜드 헤더 ─────────────────────────────── -->
+  <header class="brand" style="padding-top:8px">
+    <div class="brand-logo-wrap">
+      <div class="brand-logo-bg"></div>
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
+           aria-label="Edelweiss 로고" role="img">
+        <circle cx="50" cy="50" r="11" fill="#4f7fff"/>
+        <ellipse cx="50" cy="24" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"/>
+        <ellipse cx="50" cy="76" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(180 50 50)"/>
+        <ellipse cx="50" cy="24" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(60 50 50)"/>
+        <ellipse cx="50" cy="24" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(120 50 50)"/>
+        <ellipse cx="50" cy="24" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(240 50 50)"/>
+        <ellipse cx="50" cy="24" rx="7" ry="13" fill="#a0b8ff" opacity="0.85"
+                 transform="rotate(300 50 50)"/>
+        <circle cx="50" cy="50" r="13" fill="#4f7fff"/>
+        <circle cx="50" cy="50" r="7"  fill="white" opacity="0.9"/>
+      </svg>
+    </div>
+    <div class="brand-wordmark">
+      <h1 class="brand-name">CHEEZE</h1>
+      <p class="brand-sub">관리자 대시보드</p>
+    </div>
+  </header>
+
+  <!-- ── 메인 ───────────────────────────────────── -->
+  <main class="admin-container">
+    <div class="admin-page-header">
+      <a href="/" class="server-back-link" style="margin:0">← 메인으로</a>
+      <span class="admin-page-title">관리자</span>
+      <span class="admin-page-sub" id="adminLastRefresh"></span>
+    </div>
+
+    <div id="adminErrorBanner" class="admin-error-banner" style="display:none"></div>
+
+    <!-- 1. 서비스 상태 -->
+    <section class="admin-section" aria-label="서비스 상태">
+      <div class="admin-section-header">
+        <span class="admin-section-title">서비스 상태</span>
+        <span class="admin-refresh-note" id="statusRefreshNote">자동 새로고침 10초</span>
+      </div>
+      <div class="admin-service-grid" id="adminServiceGrid">
+        <div class="admin-empty">불러오는 중...</div>
+      </div>
+    </section>
+
+    <!-- 2. 감사 로그 -->
+    <section class="admin-section" aria-label="감사 로그">
+      <div class="admin-section-header">
+        <span class="admin-section-title">감사 로그</span>
+        <span class="admin-refresh-note" id="auditTotalNote"></span>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="auditTable">
+          <thead>
+            <tr>
+              <th>시각</th>
+              <th>서비스</th>
+              <th>액션</th>
+              <th>결과</th>
+              <th>토큰</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody">
+            <tr><td colspan="6" class="admin-empty">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="admin-load-more" id="auditLoadMoreWrap" style="display:none">
+        <button type="button" class="control-btn" id="auditLoadMoreBtn">더 보기</button>
+      </div>
+    </section>
+
+    <!-- 3. 제어 -->
+    <section class="admin-section" aria-label="서비스 제어">
+      <div class="admin-section-header">
+        <span class="admin-section-title">제어</span>
+      </div>
+      <div class="admin-service-grid" id="adminControlGrid">
+        <div class="admin-empty">불러오는 중...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── 푸터 ────────────────────────────────────── -->
+  <footer class="footer">
+    <span>edelweiss0297.cloud</span>
+    &nbsp;·&nbsp;
+    <span>Proxmox &amp; Cloudflare</span>
+  </footer>
+
+  <!-- 스크립트 -->
+  <script src="js/services.js?v=20260412-admin"></script>
+
+  <!-- ── 토큰 입력 모달 ────────────────────────────────── -->
+  <dialog class="token-dialog" id="tokenDialog" aria-modal="true" aria-labelledby="tokenDialogTitle">
+    <div class="token-dialog-header">
+      <div class="token-dialog-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <div class="token-dialog-title-group">
+        <h2 class="token-dialog-title" id="tokenDialogTitle">관리자 토큰 확인</h2>
+        <p class="token-dialog-sub" id="tokenDialogSub"></p>
+      </div>
+    </div>
+
+    <div class="token-dialog-body">
+      <div class="token-input-wrap">
+        <input
+          type="password"
+          class="token-input"
+          id="tokenInput"
+          placeholder="토큰을 입력하세요"
+          autocomplete="current-password"
+          aria-label="관리자 토큰"
+        >
+        <button
+          type="button"
+          class="token-eye-btn"
+          id="tokenEyeBtn"
+          aria-label="토큰 표시/숨김"
+          tabindex="-1"
+        >
+          <svg class="eye-off" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+          <svg class="eye-on" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true" style="display:none">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="token-dialog-footer">
+      <button type="button" class="control-btn" id="tokenCancelBtn">취소</button>
+      <button type="button" class="control-btn is-primary" id="tokenConfirmBtn">확인</button>
+    </div>
+  </dialog>
+
+  <script>
+    /* ── Admin dashboard inline JS ── */
+
+    const ADMIN_TOKEN_KEY = 'cheeze-admin-token';
+    const CONTROL_ENDPOINT = '/api/control';
+    const CONTROL_TOKEN_HEADER = 'X-Cheeze-Control-Token';
+
+    const $ = (id) => document.getElementById(id);
+
+    // ── Theme ──────────────────────────────────────────────
+    function initTheme() {
+      const saved = localStorage.getItem('edelweiss-theme');
+      const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      applyTheme(saved || sys);
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('edelweiss-theme', theme);
+      const btn = $('themeToggle');
+      if (!btn) return;
+      btn.setAttribute('aria-label', theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환');
+      const sun = btn.querySelector('.icon-sun');
+      const moon = btn.querySelector('.icon-moon');
+      if (sun) sun.style.display = theme === 'dark' ? 'block' : 'none';
+      if (moon) moon.style.display = theme === 'light' ? 'block' : 'none';
+    }
+
+    // ── Token storage ──────────────────────────────────────
+    function readAdminToken() {
+      try { return sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''; } catch(e) { return ''; }
+    }
+    function writeAdminToken(t) {
+      try { sessionStorage.setItem(ADMIN_TOKEN_KEY, t); } catch(e) {}
+    }
+    function clearAdminToken() {
+      try { sessionStorage.removeItem(ADMIN_TOKEN_KEY); } catch(e) {}
+    }
+
+    // ── HTML escape ────────────────────────────────────────
+    function esc(v) {
+      const m = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return String(v ?? '').replace(/[&<>"']/g, (c) => m[c]);
+    }
+
+    // ── Token dialog ───────────────────────────────────────
+    function showAdminTokenDialog(subtitle) {
+      return new Promise((resolve) => {
+        const dialog = $('tokenDialog');
+        const subEl = $('tokenDialogSub');
+        const input = $('tokenInput');
+        const eyeBtn = $('tokenEyeBtn');
+        const confirmBtn = $('tokenConfirmBtn');
+        const cancelBtn = $('tokenCancelBtn');
+
+        subEl.textContent = subtitle || '관리자 페이지 접근';
+        input.value = '';
+        input.type = 'password';
+        eyeBtn.querySelector('.eye-off').style.display = '';
+        eyeBtn.querySelector('.eye-on').style.display = 'none';
+
+        function finish(token) {
+          dialog.close();
+          confirmBtn.removeEventListener('click', onConfirm);
+          cancelBtn.removeEventListener('click', onCancel);
+          input.removeEventListener('keydown', onKeydown);
+          dialog.removeEventListener('cancel', onCancel);
+          eyeBtn.removeEventListener('click', onEyeToggle);
+          resolve(token);
+        }
+        function onConfirm() { finish(input.value.trim()); }
+        function onCancel() { finish(''); }
+        function onKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); onConfirm(); } }
+        function onEyeToggle() {
+          const isPassword = input.type === 'password';
+          input.type = isPassword ? 'text' : 'password';
+          eyeBtn.querySelector('.eye-off').style.display = isPassword ? 'none' : '';
+          eyeBtn.querySelector('.eye-on').style.display = isPassword ? '' : 'none';
+        }
+        confirmBtn.addEventListener('click', onConfirm);
+        cancelBtn.addEventListener('click', onCancel);
+        input.addEventListener('keydown', onKeydown);
+        dialog.addEventListener('cancel', onCancel, { once: true });
+        eyeBtn.addEventListener('click', onEyeToggle);
+        dialog.showModal();
+        setTimeout(() => input.focus(), 50);
+      });
+    }
+
+    // ── Error banner ───────────────────────────────────────
+    function showError(msg) {
+      const el = $('adminErrorBanner');
+      el.textContent = msg;
+      el.style.display = '';
+    }
+    function clearError() {
+      $('adminErrorBanner').style.display = 'none';
+    }
+
+    // ── State label/class (mirrors servers.js) ─────────────
+    function stateLabel(state) {
+      const labels = { offline: '꺼짐', waking: '깨우는 중', starting: '켜는 중', running: '가동 중', stopping: '종료 중', error: '오류' };
+      return labels[state] || '확인 중';
+    }
+    function stateClass(state) { return `is-${state || 'offline'}`; }
+
+    // ── Audit result badge ─────────────────────────────────
+    function resultBadge(result) {
+      const safe = esc(result || '');
+      const cls = `is-${(result || '').toLowerCase()}`;
+      return `<span class="admin-result-badge ${cls}">${safe}</span>`;
+    }
+
+    // ── Format timestamp ───────────────────────────────────
+    function fmtTs(ts) {
+      if (!ts) return '-';
+      try {
+        const d = new Date(ts);
+        return d.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch(e) { return esc(ts); }
+    }
+
+    // ── API fetch with token ───────────────────────────────
+    async function adminFetch(path) {
+      const token = readAdminToken();
+      const res = await fetch(`${CONTROL_ENDPOINT}${path}`, {
+        headers: { [CONTROL_TOKEN_HEADER]: token },
+      });
+      if (res.status === 401 || res.status === 403) {
+        throw Object.assign(new Error(`auth_error:${res.status}`), { authError: true, status: res.status });
+      }
+      return res;
+    }
+
+    async function adminPost(path) {
+      const token = readAdminToken();
+      const res = await fetch(`${CONTROL_ENDPOINT}${path}`, {
+        method: 'POST',
+        headers: { [CONTROL_TOKEN_HEADER]: token, 'Content-Type': 'application/json' },
+      });
+      if (res.status === 401 || res.status === 403) {
+        throw Object.assign(new Error(`auth_error:${res.status}`), { authError: true, status: res.status });
+      }
+      return res;
+    }
+
+    // ── Handle auth error: clear token, re-prompt ──────────
+    async function handleAuthError() {
+      clearAdminToken();
+      const token = await showAdminTokenDialog('토큰이 잘못됐거나 만료됐습니다. 다시 입력하세요.');
+      if (token) {
+        writeAdminToken(token);
+        await loadAll();
+      }
+    }
+
+    // ── Render service status cards ────────────────────────
+    function renderServiceGrid(services) {
+      const grid = $('adminServiceGrid');
+      if (!Array.isArray(services) || services.length === 0) {
+        grid.innerHTML = '<div class="admin-empty">서비스 정보 없음</div>';
+        return;
+      }
+      grid.innerHTML = services.map((svc) => {
+        const id = esc(svc.id || '');
+        const name = esc(svc.display_name || svc.id || '');
+        const state = svc.state || 'offline';
+        const running = svc.process_running ? '실행 중' : '미실행';
+        const ready = svc.ready ? '준비됨' : '준비 안 됨';
+        return `
+          <div class="admin-service-card">
+            <div class="admin-service-card-head">
+              <span class="admin-service-name">${name}</span>
+              <span class="server-state-badge ${stateClass(state)}">${stateLabel(state)}</span>
+            </div>
+            <div class="admin-service-meta">
+              프로세스: ${running} &nbsp;·&nbsp; 준비: ${ready}
+              ${svc.message ? `<br><span style="opacity:0.8">${esc(svc.message)}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ── Render control cards ───────────────────────────────
+    function renderControlGrid(services) {
+      const grid = $('adminControlGrid');
+      if (!Array.isArray(services) || services.length === 0) {
+        grid.innerHTML = '<div class="admin-empty">서비스 정보 없음</div>';
+        return;
+      }
+      grid.innerHTML = services.map((svc) => {
+        const id = esc(svc.id || '');
+        const name = esc(svc.display_name || svc.id || '');
+        const state = svc.state || 'offline';
+        const busy = state === 'starting' || state === 'waking' || state === 'stopping';
+        const canStart = state === 'offline' || state === 'error';
+        const canStop = state === 'running' || state === 'starting' || state === 'waking' || state === 'stopping';
+        return `
+          <div class="admin-service-card">
+            <div class="admin-service-card-head">
+              <span class="admin-service-name">${name}</span>
+              <span class="server-state-badge ${stateClass(state)}">${stateLabel(state)}</span>
+            </div>
+            <div class="admin-service-actions">
+              <button type="button" class="control-btn is-primary" data-ctrl-action="start" data-ctrl-id="${id}" ${canStart && !busy ? '' : 'disabled'}>시작</button>
+              <button type="button" class="control-btn is-danger" data-ctrl-action="stop" data-ctrl-id="${id}" ${canStop && !busy ? '' : 'disabled'}>종료</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ── Audit state ────────────────────────────────────────
+    let auditOffset = 0;
+    const AUDIT_PAGE = 50;
+    let auditTotal = 0;
+
+    function renderAuditRows(entries, append = false) {
+      const tbody = $('auditTableBody');
+      if (!append) tbody.innerHTML = '';
+
+      if (!entries || entries.length === 0) {
+        if (!append) tbody.innerHTML = '<tr><td colspan="6" class="admin-empty">감사 로그 없음</td></tr>';
+        return;
+      }
+
+      // Render newest-first for append=false, append new older entries at bottom
+      const rows = entries.map((e) => `
+        <tr>
+          <td class="col-ts">${fmtTs(e.timestamp)}</td>
+          <td>${esc(e.service_id || '-')}</td>
+          <td class="col-action">${esc(e.action || '-')}</td>
+          <td>${resultBadge(e.result)}</td>
+          <td>${esc(e.token_label || e.token_id || '-')}</td>
+          <td>${esc(e.remote_ip || '-')}</td>
+        </tr>
+      `).join('');
+      tbody.insertAdjacentHTML('beforeend', rows);
+    }
+
+    async function loadAuditLog(append = false) {
+      try {
+        const res = await adminFetch(`/admin/audit?limit=${AUDIT_PAGE}&offset=${auditOffset}`);
+        const data = await res.json();
+        auditTotal = data.total || 0;
+        $('auditTotalNote').textContent = `전체 ${auditTotal}건`;
+
+        // Reverse so newest entries appear first on initial load
+        const entries = append ? (data.entries || []) : (data.entries || []).slice().reverse();
+        renderAuditRows(entries, append);
+
+        const loadedSoFar = auditOffset + (data.entries || []).length;
+        const hasMore = loadedSoFar < auditTotal;
+        $('auditLoadMoreWrap').style.display = hasMore ? '' : 'none';
+      } catch (err) {
+        if (err.authError) { await handleAuthError(); return; }
+        $('auditTableBody').innerHTML = `<tr><td colspan="6" class="admin-empty">로드 실패: ${esc(String(err))}</td></tr>`;
+      }
+    }
+
+    // ── Load status ────────────────────────────────────────
+    let lastServices = null;
+
+    async function loadAdminStatus() {
+      try {
+        const res = await adminFetch('/admin/status');
+        const data = await res.json();
+        clearError();
+
+        const services = data.services;
+        if (Array.isArray(services)) {
+          lastServices = services;
+          renderServiceGrid(services);
+          renderControlGrid(services);
+        } else if (services && typeof services === 'object' && Array.isArray(services.services)) {
+          lastServices = services.services;
+          renderServiceGrid(services.services);
+          renderControlGrid(services.services);
+        }
+
+        const ts = new Date().toLocaleTimeString('ko-KR');
+        $('adminLastRefresh').textContent = `마지막 갱신: ${ts}`;
+      } catch (err) {
+        if (err.authError) { await handleAuthError(); return; }
+        showError(`상태 로드 실패: ${String(err)}`);
+      }
+    }
+
+    // ── Load everything ────────────────────────────────────
+    async function loadAll() {
+      await loadAdminStatus();
+      auditOffset = 0;
+      await loadAuditLog(false);
+    }
+
+    // ── Auto-refresh ───────────────────────────────────────
+    let refreshHandle = null;
+    function scheduleRefresh() {
+      if (refreshHandle) clearTimeout(refreshHandle);
+      refreshHandle = setTimeout(async () => {
+        try { await loadAdminStatus(); } finally { scheduleRefresh(); }
+      }, 10000);
+    }
+
+    // ── Control action ─────────────────────────────────────
+    async function invokeControlAction(serviceId, action) {
+      if (!confirm(`${serviceId} 서비스를 ${action === 'start' ? '시작' : '종료'}하시겠습니까?`)) return;
+
+      // Optimistic UI update
+      if (lastServices) {
+        const svc = lastServices.find((s) => s.id === serviceId);
+        if (svc) svc.state = action === 'start' ? 'waking' : 'stopping';
+        renderServiceGrid(lastServices);
+        renderControlGrid(lastServices);
+      }
+
+      try {
+        await adminPost(`/services/${serviceId}/${action}`);
+        await loadAdminStatus();
+        scheduleRefresh();
+      } catch (err) {
+        if (err.authError) { await handleAuthError(); return; }
+        showError(`제어 실패 (${serviceId} ${action}): ${String(err)}`);
+        await loadAdminStatus();
+      }
+    }
+
+    // ── DOMContentLoaded ───────────────────────────────────
+    document.addEventListener('DOMContentLoaded', async () => {
+      initTheme();
+
+      const themeToggle = $('themeToggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          const cur = document.documentElement.getAttribute('data-theme');
+          applyTheme(cur === 'dark' ? 'light' : 'dark');
+        });
+      }
+
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('edelweiss-theme')) applyTheme(e.matches ? 'dark' : 'light');
+      });
+
+      // Check for stored token; if none, prompt
+      let token = readAdminToken();
+      if (!token) {
+        token = await showAdminTokenDialog('관리자 페이지 로그인');
+        if (!token) {
+          $('adminServiceGrid').innerHTML = '<div class="admin-empty">토큰이 필요합니다.</div>';
+          $('adminControlGrid').innerHTML = '<div class="admin-empty">토큰이 필요합니다.</div>';
+          $('auditTableBody').innerHTML = '<tr><td colspan="6" class="admin-empty">토큰이 필요합니다.</td></tr>';
+          return;
+        }
+        writeAdminToken(token);
+      }
+
+      await loadAll();
+      scheduleRefresh();
+
+      // Control grid click delegation
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-ctrl-action]');
+        if (!btn) return;
+        const serviceId = btn.getAttribute('data-ctrl-id');
+        const action = btn.getAttribute('data-ctrl-action');
+        if (serviceId && action) invokeControlAction(serviceId, action);
+      });
+
+      // Audit "더 보기"
+      const loadMoreBtn = $('auditLoadMoreBtn');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async () => {
+          auditOffset += AUDIT_PAGE;
+          await loadAuditLog(true);
+        });
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          loadAdminStatus().then(() => scheduleRefresh());
+        }
+      });
+
+      window.addEventListener('focus', () => {
+        loadAdminStatus().then(() => scheduleRefresh());
+      });
+    });
+  </script>
+
+</body>
+</html>

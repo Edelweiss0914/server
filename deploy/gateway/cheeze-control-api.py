@@ -12,6 +12,7 @@ This is the generic control-plane sibling to the existing AI queue gateway.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import shlex
@@ -39,6 +40,7 @@ WOL_COMMAND = os.environ.get("CHEEZE_WOL_COMMAND", "").strip()
 WOL_BINARY = os.environ.get("CHEEZE_WOL_BINARY", "wakeonlan")
 WOL_TARGET_IP = os.environ.get("CHEEZE_WOL_TARGET_IP", "").strip()
 WOL_TARGET_PORT = int(os.environ.get("CHEEZE_WOL_TARGET_PORT", "9"))
+CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
 
 
 def normalized_wol_mac():
@@ -243,12 +245,23 @@ def ensure_backend_online():
 class Handler(BaseHTTPRequestHandler):
   server_version = "CHEEZE-Control/0.1"
 
+  def check_internal_auth(self):
+    if not CHEEZE_INTERNAL_SECRET:
+      return True  # not configured = open (backward compat)
+    supplied = self.headers.get("X-Cheeze-Internal-Token", "").strip()
+    return hmac.compare_digest(supplied, CHEEZE_INTERNAL_SECRET)
+
   def do_GET(self):
+    if not self.check_internal_auth():
+      self.respond_json(401, {"error": "unauthorized"})
+      return
+
     if self.path == "/healthz":
       registry = load_registry()
       self.respond_json(200, {
         "ok": True,
         "service_count": len(registry.get("services", [])),
+        "internal_secret_configured": bool(CHEEZE_INTERNAL_SECRET),
       })
       return
 
@@ -260,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
       try:
         status_code, body = backend_fetch("/services")
         self.respond_raw(status_code, body)
-      except Exception as error:
+      except Exception:
         self.respond_json(200, offline_services_payload())
       return
 
@@ -269,7 +282,7 @@ class Handler(BaseHTTPRequestHandler):
       try:
         status_code, body = backend_fetch(f"/services/{service_id}")
         self.respond_raw(status_code, body)
-      except Exception as error:
+      except Exception:
         service = find_registry_service(service_id)
         if service is None:
           self.respond_json(404, {"error": "not_found"})
@@ -280,6 +293,10 @@ class Handler(BaseHTTPRequestHandler):
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
+    if not self.check_internal_auth():
+      self.respond_json(401, {"error": "unauthorized"})
+      return
+
     if self.path == "/host/wake":
       result = run_wol()
       status_code = 202 if result["returncode"] == 0 else 500

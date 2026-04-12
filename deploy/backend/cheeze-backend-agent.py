@@ -6,22 +6,28 @@ Capabilities:
 - report service status
 - start services from a registry
 - stop services from a registry
+- auto-idle detection with player count checks (Minecraft)
+- Windows hibernate when all services are idle and conditions are met
 
 This initial scaffold is intentionally conservative. It supports:
 - HTTP readiness checks
 - TCP readiness checks
 - simple command execution
 - process-name based best-effort stop fallback
-
-Hibernate policy enforcement is documented but not yet automated in this first scaffold.
+- IdleWatchdog background thread for auto-stop and hibernate
 """
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
+import shutil
 import socket
+import struct
 import subprocess
+import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -221,6 +227,297 @@ def stop_service(service):
   }
 
 
+# ---------------------------------------------------------------------------
+# Minecraft server list ping (modern Handshake + Status Request protocol)
+# ---------------------------------------------------------------------------
+
+def encode_varint(n: int) -> bytes:
+  """Encode a non-negative integer as a Minecraft-protocol varint."""
+  buf = bytearray()
+  while True:
+    part = n & 0x7F
+    n >>= 7
+    if n:
+      buf.append(part | 0x80)
+    else:
+      buf.append(part)
+      break
+  return bytes(buf)
+
+
+def read_varint(sock: socket.socket) -> int:
+  """Read a varint from a socket, returning the decoded integer."""
+  result = 0
+  shift = 0
+  while True:
+    raw = sock.recv(1)
+    if not raw:
+      raise EOFError("Socket closed while reading varint")
+    byte = raw[0]
+    result |= (byte & 0x7F) << shift
+    if not (byte & 0x80):
+      break
+    shift += 7
+    if shift >= 35:
+      raise ValueError("Varint too long")
+  return result
+
+
+def encode_string(s: str) -> bytes:
+  """Encode a UTF-8 string as varint-length-prefixed bytes."""
+  encoded = s.encode("utf-8")
+  return encode_varint(len(encoded)) + encoded
+
+
+def build_handshake_packet(host: str, port: int) -> bytes:
+  """Build the Minecraft handshake packet (packet id 0x00, next state 1)."""
+  payload = (
+    encode_varint(0x00)          # packet id
+    + encode_varint(0)           # protocol version (0 = ping-only)
+    + encode_string(host)        # server address
+    + struct.pack(">H", port)    # server port (unsigned short big-endian)
+    + encode_varint(1)           # next state: status
+  )
+  return encode_varint(len(payload)) + payload
+
+
+def build_status_request_packet() -> bytes:
+  """Build the Minecraft status request packet (packet id 0x00, no payload)."""
+  payload = encode_varint(0x00)
+  return encode_varint(len(payload)) + payload
+
+
+def minecraft_player_count(host: str, port: int, timeout: int = 3) -> int | None:
+  """
+  Query a Minecraft server for its current online player count via server
+  list ping (modern protocol).  Returns None on any error.
+  """
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.settimeout(timeout)
+  try:
+    sock.connect((host, port))
+    sock.sendall(build_handshake_packet(host, port))
+    sock.sendall(build_status_request_packet())
+
+    # Read response packet length, then packet id, then string length + data
+    _packet_len = read_varint(sock)  # noqa: ignored, we read until JSON complete
+    _packet_id = read_varint(sock)
+    json_len = read_varint(sock)
+
+    # Read exactly json_len bytes (may require multiple recv calls)
+    data = bytearray()
+    while len(data) < json_len:
+      chunk = sock.recv(json_len - len(data))
+      if not chunk:
+        raise EOFError("Socket closed while reading status JSON")
+      data.extend(chunk)
+
+    status = json.loads(data.decode("utf-8"))
+    return int(status["players"]["online"])
+  except Exception:
+    return None
+  finally:
+    sock.close()
+
+
+# ---------------------------------------------------------------------------
+# Idle watchdog shared state
+# ---------------------------------------------------------------------------
+
+_watchdog_lock = threading.Lock()
+# Maps service_id -> unix timestamp of last time state == "running" was seen
+_last_running_seen: dict[str, float] = {}
+# Maps service_id -> last known player count (None if not checked / not applicable)
+_last_player_count: dict[str, int | None] = {}
+_watchdog_running = False
+
+
+def _time_in_inhibit_range(now: datetime.time, start_str: str, end_str: str) -> bool:
+  """Return True if now falls within [start, end) inhibit window.
+
+  Handles overnight ranges (e.g. 19:00 – 01:00) where start > end.
+  """
+  start = datetime.time.fromisoformat(start_str)
+  end = datetime.time.fromisoformat(end_str)
+  if start <= end:
+    return start <= now < end
+  # Overnight: in range if now >= start OR now < end
+  return now >= start or now < end
+
+
+def _no_sleep_flag_path(hibernate_policy: dict) -> Path:
+  raw = hibernate_policy.get("no_sleep_flag_path", "")
+  if raw:
+    return Path(raw)
+  return Path(__file__).with_name("no-sleep.flag")
+
+
+def _check_hibernate_conditions(config: dict) -> bool:
+  """Return True if all hibernate conditions are satisfied."""
+  hibernate_policy = config.get("hibernate_policy", {})
+  if not hibernate_policy.get("enabled", False):
+    return False
+
+  services = [s for s in config.get("services", []) if s.get("enabled", True)]
+
+  # 1. All services must be offline
+  active_states = {"running", "starting", "waking", "stopping"}
+  for service in services:
+    try:
+      status = service_status(service)
+      if status["state"] in active_states:
+        return False
+    except Exception:
+      pass
+
+  # 2. No active console/RDP sessions
+  try:
+    result = subprocess.run(
+      ["query", "session"],
+      text=True,
+      capture_output=True,
+      check=False,
+    )
+    if "Active" in result.stdout:
+      return False
+  except Exception:
+    pass  # Skip check if query session is unavailable
+
+  # 3. Not within inhibit schedule
+  now_time = datetime.datetime.now().time()
+  for window in hibernate_policy.get("inhibit_schedule", []):
+    try:
+      if _time_in_inhibit_range(now_time, window["start"], window["end"]):
+        return False
+    except Exception:
+      pass
+
+  # 4. Free space on check_drive >= min_free_space_gb
+  check_drive = hibernate_policy.get("check_drive", "C:\\")
+  min_free_gb = hibernate_policy.get("min_free_space_gb", 20)
+  try:
+    usage = shutil.disk_usage(check_drive)
+    free_gb = usage.free / (1024 ** 3)
+    if free_gb < min_free_gb:
+      return False
+  except Exception:
+    pass
+
+  # 5. No no-sleep.flag file
+  flag_path = _no_sleep_flag_path(hibernate_policy)
+  if flag_path.exists():
+    return False
+
+  return True
+
+
+def _watchdog_tick():
+  """Single tick of the idle watchdog: check each service and possibly hibernate."""
+  try:
+    config = load_config()
+  except Exception as exc:
+    print(f"[WATCHDOG] Failed to load config: {exc}")
+    return
+
+  services = [s for s in config.get("services", []) if s.get("enabled", True)]
+  any_auto_stopped = False
+
+  for service in services:
+    service_id = service["id"]
+    idle_policy = service.get("idle_policy", {})
+
+    if not idle_policy.get("enabled", False):
+      continue
+
+    try:
+      status = service_status(service)
+    except Exception as exc:
+      print(f"[WATCHDOG] service_status({service_id}) failed: {exc}")
+      continue
+
+    state = status["state"]
+
+    if state == "running":
+      with _watchdog_lock:
+        _last_running_seen[service_id] = time.time()
+
+      # Player count check
+      player_check = idle_policy.get("player_check", {})
+      if player_check.get("enabled", False) and player_check.get("type") == "minecraft":
+        host = player_check.get("host", "127.0.0.1")
+        port = int(player_check.get("port", 25565))
+        count = minecraft_player_count(host, port)
+        with _watchdog_lock:
+          _last_player_count[service_id] = count
+
+        if count is not None and count > 0:
+          # Players present: reset idle clock
+          with _watchdog_lock:
+            _last_running_seen[service_id] = time.time()
+          continue
+
+        # count == 0 or None (server unreachable but still "running" by process check)
+        # Fall through to idle timeout check below
+
+      # Check idle timeout
+      idle_timeout_seconds = idle_policy.get("idle_timeout_minutes", 30) * 60
+      with _watchdog_lock:
+        last_seen = _last_running_seen.get(service_id, time.time())
+
+      if time.time() - last_seen >= idle_timeout_seconds:
+        print(f"[IDLE] auto-stopping {service_id}")
+        try:
+          stop_service(service)
+          any_auto_stopped = True
+        except Exception as exc:
+          print(f"[IDLE] stop_service({service_id}) failed: {exc}")
+
+  # Hibernate check — only evaluate after potential auto-stops
+  if any_auto_stopped or True:  # always check each tick; harmless extra check
+    hibernate_policy = config.get("hibernate_policy", {})
+    if hibernate_policy.get("enabled", False):
+      if _check_hibernate_conditions(config):
+        print("[HIBERNATE] all conditions met, triggering Windows hibernate")
+        subprocess.run(["shutdown", "/h", "/f"], check=False)
+
+
+def _watchdog_loop(check_interval_seconds: int):
+  global _watchdog_running
+  _watchdog_running = True
+  print(f"[WATCHDOG] started (interval={check_interval_seconds}s)")
+  while True:
+    try:
+      _watchdog_tick()
+    except Exception as exc:
+      print(f"[WATCHDOG] unhandled error in tick: {exc}")
+    time.sleep(check_interval_seconds)
+
+
+def start_watchdog(config: dict):
+  """Start the IdleWatchdog daemon thread if warranted by the config."""
+  services = [s for s in config.get("services", []) if s.get("enabled", True)]
+  needs_watchdog = any(
+    s.get("idle_policy", {}).get("enabled", False) for s in services
+  ) or config.get("hibernate_policy", {}).get("enabled", False)
+
+  if not needs_watchdog:
+    return
+
+  check_interval = config.get("hibernate_policy", {}).get("check_interval_seconds", 60)
+
+  thread = threading.Thread(
+    target=_watchdog_loop,
+    args=(check_interval,),
+    daemon=True,
+    name="IdleWatchdog",
+  )
+  thread.start()
+
+
+# ---------------------------------------------------------------------------
+# HTTP handler
+# ---------------------------------------------------------------------------
+
 class Handler(BaseHTTPRequestHandler):
   server_version = "CHEEZE-Backend-Agent/0.1"
 
@@ -248,10 +545,24 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, service_status(service))
       return
 
+    if self.path == "/idle/status":
+      self.respond_json(200, self._build_idle_status(config))
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
     config = load_config()
+
+    if self.path == "/no-sleep":
+      flag_path = _no_sleep_flag_path(config.get("hibernate_policy", {}))
+      try:
+        flag_path.touch()
+      except Exception as exc:
+        self.respond_json(500, {"error": str(exc)})
+        return
+      self.respond_json(200, {"active": True})
+      return
 
     if self.path.startswith("/services/") and self.path.endswith("/start"):
       service_id = self.path.split("/")[2]
@@ -275,6 +586,49 @@ class Handler(BaseHTTPRequestHandler):
 
     self.respond_json(404, {"error": "not_found"})
 
+  def do_DELETE(self):
+    config = load_config()
+
+    if self.path == "/no-sleep":
+      flag_path = _no_sleep_flag_path(config.get("hibernate_policy", {}))
+      try:
+        flag_path.unlink(missing_ok=True)
+      except Exception as exc:
+        self.respond_json(500, {"error": str(exc)})
+        return
+      self.respond_json(200, {"active": False})
+      return
+
+    self.respond_json(404, {"error": "not_found"})
+
+  def _build_idle_status(self, config: dict) -> dict:
+    services_out = {}
+    now = time.time()
+    with _watchdog_lock:
+      lrs_snapshot = dict(_last_running_seen)
+      lpc_snapshot = dict(_last_player_count)
+
+    enabled_services = [s for s in config.get("services", []) if s.get("enabled", True)]
+    for service in enabled_services:
+      sid = service["id"]
+      last_ts = lrs_snapshot.get(sid)
+      last_ts_iso = (
+        datetime.datetime.utcfromtimestamp(last_ts).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if last_ts is not None else None
+      )
+      idle_seconds = int(now - last_ts) if last_ts is not None else None
+      services_out[sid] = {
+        "last_running_seen": last_ts_iso,
+        "last_player_count": lpc_snapshot.get(sid),
+        "idle_seconds": idle_seconds,
+      }
+
+    return {
+      "watchdog_running": _watchdog_running,
+      "services": services_out,
+      "hibernate_policy_enabled": config.get("hibernate_policy", {}).get("enabled", False),
+    }
+
   def respond_json(self, status_code, payload):
     body = json_bytes(payload)
     self.send_response(status_code)
@@ -288,6 +642,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+  config = load_config()
+  start_watchdog(config)
+
   server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
   print(f"CHEEZE backend agent listening on {LISTEN_HOST}:{LISTEN_PORT}")
   server.serve_forever()
