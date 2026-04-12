@@ -18,7 +18,7 @@
     }
   },
   "hibernate_policy": {
-    "enabled": false,
+    "enabled": true,
     "check_interval_seconds": 60,
     "min_free_space_gb": 20,
     "check_drive": "C:\\",
@@ -55,7 +55,7 @@
         "port": 25565
       },
       "idle_policy": {
-        "enabled": false,
+        "enabled": true,
         "idle_timeout_minutes": 20,
         "player_check": {
           "enabled": true,
@@ -71,8 +71,8 @@
     {
       "id": "minecraft-cobbleverse",
       "display_name": "Cobbleverse",
-      "enabled": false,
-      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\cobbleverse_server_1.7.3",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\COBBLEVERSE - Pokemon Adventure [Cobblemon]",
       "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\start.ps1",
       "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\stop.ps1",
       "process_name": "java.exe",
@@ -82,7 +82,7 @@
         "port": 25566
       },
       "idle_policy": {
-        "enabled": false,
+        "enabled": true,
         "idle_timeout_minutes": 20,
         "player_check": {
           "enabled": true,
