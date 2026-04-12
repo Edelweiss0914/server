@@ -241,7 +241,9 @@ class AiQueueHandler(BaseHTTPRequestHandler):
       })
       return
 
-    item.event.wait(timeout=REQUEST_TIMEOUT + 5)
+    deadline = time.time() + REQUEST_TIMEOUT + 5
+    while not item.event.is_set() and not worker_should_stop.is_set() and time.time() < deadline:
+      item.event.wait(timeout=1.0)
     if not item.event.is_set():
       self.respond_json(504, {
         "error": "gateway_timeout",
