@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/style.css?v=20260413b-admin">
+  <link rel="stylesheet" href="css/style.css?v=20260413c-admin">
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%234f7fff'/%3E%3Ctext y='.9em' x='50%25' text-anchor='middle' font-size='60' dy='10'%3E✿%3C/text%3E%3C/svg%3E">
 
@@ -953,9 +953,9 @@
             </div>
             <div class="admin-service-meta">
               프로세스: ${running} &nbsp;·&nbsp; 준비: ${ready}
-              ${svc.player_count !== null && svc.player_count !== undefined ? ` &nbsp;·&nbsp; 접속자 ${svc.player_count}명` : ''}
               ${svc.message ? `<br><span style="opacity:0.8">${esc(svc.message)}</span>` : ''}
             </div>
+            ${svc.player_count !== null && svc.player_count !== undefined ? `<div class="admin-service-meta" style="margin-top:4px">접속자 ${svc.player_count}명</div>` : ''}
           </div>
         `;
       }).join('');
