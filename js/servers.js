@@ -128,6 +128,20 @@ function renderIcon(service) {
 }
 
 // --- Card renderer ---
+function renderSpeedIndicator(service, state) {
+  if (!service.showSpeedIndicator) return '';
+  const cardState = state.state || 'offline';
+  let label, cls;
+  if (cardState === 'running') {
+    label = '현재 답변속도: 빠름'; cls = 'speed-fast';
+  } else if (cardState === 'offline' || cardState === 'starting') {
+    label = '현재 답변속도: 약간 시간 소요'; cls = 'speed-medium';
+  } else {
+    label = '현재 답변속도: 약 3~5분 소요'; cls = 'speed-slow';
+  }
+  return `<span class="server-speed-indicator ${cls}"><span class="speed-dot"></span>${label}</span>`;
+}
+
 function renderPlayerCount(state) {
   const pc = state.player_count;
   if (pc === null || pc === undefined) return '';
@@ -164,7 +178,7 @@ function renderServerCard(service, state = {}) {
       ${service.category ? `<div class="server-card-details"><span class="server-detail-chip">${service.categoryIcon ? escapeHtml(service.categoryIcon) + ' ' : ''}${escapeHtml(service.category)}</span></div>` : ''}
       <div class="server-card-status">${escapeHtml(statusLine)}</div>
       <div class="server-card-footer">
-        ${renderPlayerCount(state)}
+        ${service.showSpeedIndicator ? renderSpeedIndicator(service, state) : renderPlayerCount(state)}
         <div class="server-card-controls">
           <button type="button" class="control-btn is-primary" data-action="start" ${canStart ? '' : 'disabled'}>시작</button>
           <button type="button" class="control-btn is-danger" data-action="stop" ${canStop ? '' : 'disabled'}>종료</button>

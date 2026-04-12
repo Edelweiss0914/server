@@ -1189,6 +1189,30 @@ kbd {
   background: var(--border);
 }
 
+.server-speed-indicator {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.server-speed-indicator .speed-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.server-speed-indicator.speed-fast .speed-dot { background: #34a853; }
+.server-speed-indicator.speed-fast { color: #34a853; }
+.server-speed-indicator.speed-medium .speed-dot { background: #f9a825; }
+.server-speed-indicator.speed-medium { color: #f9a825; }
+.server-speed-indicator.speed-slow .speed-dot { background: var(--text-muted); }
+
 .server-card-controls {
   display: flex;
   gap: 8px;

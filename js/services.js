@@ -159,7 +159,7 @@ const SERVICES = [
     id: 'ondemand',
     name: 'On-Demand 서버',
     nameKo: '온디맨드 서비스',
-    description: 'Minecraft Vanilla · Cobbleverse — 필요할 때만 켜지는 게임 서버',
+    description: 'Minecraft Vanilla · Cobbleverse · Ollama AI — 필요할 때만 켜지는 온디맨드 서비스',
     url: 'servers.html',
     color: '#4f7fff',
     bgColor: '#ebf0ff',
@@ -239,6 +239,34 @@ const SERVICES = [
     featured: false,
     searchable: false,
   },
+  {
+    id: 'ollama',
+    name: 'Ollama AI',
+    nameKo: '로컬 AI',
+    description: '온디맨드 로컬 LLM 추론 서버. 필요할 때만 켜서 사용하는 AI 서비스입니다.',
+    category: 'AI',
+    categoryIcon: 'AI',
+    url: 'servers.html',
+    onDemand: true,
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="18" y="18" width="64" height="64" rx="16" fill="#e85d26"/>
+      <rect x="30" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="54" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="30" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="54" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="44" y="38" width="12" height="24" rx="3" fill="white" opacity="0.5"/>
+      <rect x="30" y="44" width="40" height="12" rx="3" fill="white" opacity="0.5"/>
+    </svg>`,
+    color: '#e85d26',
+    bgColor: '#fef0e8',
+    bgColorDark: '#2a1108',
+    keywords: [
+      'ollama', 'ai', 'llm', '인공지능', '로컬 ai', 'local ai',
+      'chat', '챗봇', 'language model', '언어모델', 'gpt', 'qwen',
+    ],
+    featured: false,
+    searchable: false,
+  },
 ];
 
 window.APP_CONFIG = {
@@ -296,6 +324,26 @@ window.APP_CONFIG = {
         </svg>`,
         color: '#c88b42',
         bgColor: '#fbf1e4',
+      },
+      {
+        id: 'ollama',
+        name: 'Ollama AI',
+        nameKo: '로컬 AI',
+        description: '온디맨드 로컬 LLM 추론 서버. 필요할 때만 켜서 사용합니다.',
+        category: 'AI',
+        categoryIcon: 'AI',
+        showSpeedIndicator: true,
+        icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="18" y="18" width="64" height="64" rx="16" fill="#e85d26"/>
+          <rect x="30" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+          <rect x="54" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+          <rect x="30" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+          <rect x="54" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+          <rect x="44" y="38" width="12" height="24" rx="3" fill="white" opacity="0.5"/>
+          <rect x="30" y="44" width="40" height="12" rx="3" fill="white" opacity="0.5"/>
+        </svg>`,
+        color: '#e85d26',
+        bgColor: '#fef0e8',
       }
     ],
   },
