@@ -966,28 +966,10 @@ function initEventListeners() {
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   ensureAiSection();
-  ensureControlSection();
   initQuickAccess();
   initEventListeners();
 
   if (window.innerWidth > 768 && els.input()) {
     els.input().focus();
   }
-
-  if (CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
-    renderControlGrid();
-    refreshControlStates().then(() => scheduleControlRefresh());
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
-      refreshControlStates().then(() => scheduleControlRefresh());
-    }
-  });
-
-  window.addEventListener('focus', () => {
-    if (CONTROL_CONFIG.enabled && CONTROL_CONFIG.services.length) {
-      refreshControlStates().then(() => scheduleControlRefresh());
-    }
-  });
 });
