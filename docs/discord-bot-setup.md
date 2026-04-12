@@ -7,7 +7,9 @@
 
 - 배치 위치: `gateway-lxc`
 - 언어: `Python`
-- 초기 대상: `minecraft-vanilla`
+- 기본 관리 대상:
+  - `minecraft-vanilla`
+  - `minecraft-cobbleverse`
 - 초기 명령:
   - `/games`
   - `/start`
@@ -56,7 +58,7 @@ Discord 봇은 웹 토큰을 사용자에게 나눠주기보다, 봇이 직접 p
 권장:
 
 - `portal-control-tokens.json` 에 `discord-bot-admin` 항목 추가
-- `allowed_services`: `["minecraft-vanilla"]`
+- `allowed_services`: `["minecraft-vanilla", "minecraft-cobbleverse"]`
 - `allowed_actions`: `["start", "stop"]`
 
 ## 6. 예시 토큰 항목
@@ -64,10 +66,10 @@ Discord 봇은 웹 토큰을 사용자에게 나눠주기보다, 봇이 직접 p
 ```json
 {
   "token_id": "discord-bot-admin",
-  "label": "Discord Bot Control Token",
+  "label": "Discord Bot Multi-Server Control Token",
   "role": "admin",
   "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
-  "allowed_services": ["minecraft-vanilla"],
+  "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
   "allowed_actions": ["start", "stop"],
   "expires_at": null,
   "revoked_at": null
@@ -99,7 +101,7 @@ CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
 CHEEZE_BOT_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_ADMIN_TOKEN
 CHEEZE_BOT_REQUEST_TIMEOUT=30
-CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla
+CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
 
 `CHEEZE_BOT_CONTROL_TOKEN` 은 위 6번 항목의 평문 토큰 값이다.
@@ -138,7 +140,7 @@ CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
 CHEEZE_BOT_CONTROL_TOKEN=여기에_봇_전용_평문_제어_토큰
 CHEEZE_BOT_REQUEST_TIMEOUT=30
-CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla
+CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
 
 ## 8-2. 실제 gateway-lxc 적용 순서
@@ -198,12 +200,15 @@ journalctl -u cheeze-discord-bot -n 50 --no-pager
 
 - Discord 서버에서 `/games`
 - `/status minecraft-vanilla`
+- `/status minecraft-cobbleverse`
 - `/start minecraft-vanilla`
+- `/start minecraft-cobbleverse`
 
 ## 9. 운영 메모
 
 - `/games` 와 `/status` 는 멤버 이상 허용
 - `/start` 는 멤버 이상 허용
 - `/stop` 는 관리자만 허용
+- 봇 전용 제어 토큰은 `allowed_services` / `allowed_actions` 로 게임 서버와 `start`/`stop` 범위를 명시적으로 제한한다.
 - 자동 종료 정책이 아직 없으므로 `stop` 은 보수적으로 관리자 전용 유지
 - 이미 봇이 서버에 올라가 있다면 이번 보안 수정의 핵심은 "service 파일에서 비밀값 제거, env 파일로 이동, 재시작 후 slash command 재검증" 이다.

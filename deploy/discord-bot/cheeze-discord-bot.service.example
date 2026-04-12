@@ -1,5 +1,5 @@
 [Unit]
-Description=CHEEZE Discord game control bot
+Description=CHEEZE Discord multi-server game control bot
 After=network-online.target cheeze-portal-api.service
 Wants=network-online.target
 
