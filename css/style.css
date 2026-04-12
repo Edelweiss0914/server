@@ -1189,6 +1189,37 @@ kbd {
   background: var(--border);
 }
 
+/* ── Ollama 상태 칩 (index.html 검색창 아래) ── */
+.ollama-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  margin: -8px auto 12px;
+  width: fit-content;
+  border-radius: 99px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: opacity 0.3s;
+}
+
+.ollama-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.ollama-status-dot.speed-fast  { background: #34a853; }
+.ollama-status-dot.speed-medium { background: #f9a825; }
+.ollama-status-dot.speed-slow  { background: var(--text-muted); }
+
+.ollama-status-label { white-space: nowrap; }
+
 .server-speed-indicator {
   font-size: 0.78rem;
   font-weight: 500;

@@ -977,10 +977,46 @@ function initEventListeners() {
   }
 }
 
+function renderOllamaStatusChip(state) {
+  const bar = $('ollamaStatus');
+  if (!bar) return;
+  if (!CONTROL_CONFIG.enabled) { bar.hidden = true; return; }
+
+  const cardState = (state && state.state) || 'offline';
+  let dotClass, label;
+  if (cardState === 'running') {
+    dotClass = 'speed-fast'; label = '현재 답변속도: 빠름';
+  } else if (cardState === 'offline' || cardState === 'starting') {
+    dotClass = 'speed-medium'; label = '현재 답변속도: 약간 시간 소요';
+  } else {
+    dotClass = 'speed-slow'; label = '현재 답변속도: 약 3~5분 소요';
+  }
+
+  bar.hidden = false;
+  bar.innerHTML = `<span class="ollama-status-dot ${dotClass}"></span><span class="ollama-status-label">AI · ${escapeHtml(label)}</span>`;
+}
+
+async function refreshOllamaStatus() {
+  try {
+    const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/ollama`;
+    const res = await fetch(endpoint);
+    renderOllamaStatusChip(res.ok ? await res.json() : null);
+  } catch (error) {
+    renderOllamaStatusChip(null);
+  }
+}
+
+function initOllamaStatus() {
+  if (!CONTROL_CONFIG.enabled) return;
+  refreshOllamaStatus();
+  setInterval(refreshOllamaStatus, 15000);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   ensureAiSection();
   initQuickAccess();
+  initOllamaStatus();
   initEventListeners();
 
   if (window.innerWidth > 768 && els.input()) {
