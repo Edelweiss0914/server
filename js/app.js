@@ -462,8 +462,9 @@ async function requestAiAnswer(query) {
   const body = els.aiResponseBody();
   const endpoint = `${AI_CONFIG.endpoint.replace(/\/$/, '')}/api/generate`;
 
+  const ollamaReady = ollamaCurrentState === 'running';
   if (responseCard) responseCard.hidden = false;
-  if (status) status.textContent = 'AI가 답변을 생성하는 중입니다...';
+  if (status) status.textContent = ollamaReady ? 'AI가 답변을 생성하는 중입니다...' : 'AI를 호출 중이에요 · 잠시만 기다려주세요';
   if (body) body.innerHTML = '';
 
   syncQueryInputs(query);
@@ -977,6 +978,8 @@ function initEventListeners() {
   }
 }
 
+let ollamaCurrentState = null;
+
 function renderOllamaStatusChip(state) {
   const bar = $('ollamaStatus');
   if (!bar) return;
@@ -1000,8 +1003,11 @@ async function refreshOllamaStatus() {
   try {
     const endpoint = `${CONTROL_CONFIG.endpoint.replace(/\/$/, '')}/services/ollama`;
     const res = await fetch(endpoint);
-    renderOllamaStatusChip(res.ok ? await res.json() : null);
+    const data = res.ok ? await res.json() : null;
+    ollamaCurrentState = data ? (data.state || 'offline') : 'offline';
+    renderOllamaStatusChip(data);
   } catch (error) {
+    ollamaCurrentState = 'offline';
     renderOllamaStatusChip(null);
   }
 }
