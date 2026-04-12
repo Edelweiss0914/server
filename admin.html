@@ -168,39 +168,95 @@
       justify-content: center;
     }
 
-    .audit-page-slots {
-      display: flex;
+    .audit-page-dropdown {
+      position: relative;
+      display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
 
     .audit-page-slot-label {
       font-size: 0.75rem;
       color: var(--text-muted);
-      margin-right: 4px;
+      white-space: nowrap;
     }
 
-    .audit-slot-btn {
+    .audit-slot-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 3px 10px;
       font-size: 0.75rem;
       font-weight: 600;
       border: 1.5px solid var(--border);
       border-radius: 6px;
       background: transparent;
-      color: var(--text-muted);
+      color: var(--text);
       cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      transition: border-color 0.15s, color 0.15s;
       line-height: 1.6;
+      white-space: nowrap;
     }
 
-    .audit-slot-btn:hover {
+    .audit-slot-trigger:hover {
       border-color: var(--accent);
       color: var(--accent);
     }
 
-    .audit-slot-btn.active {
+    .audit-slot-trigger .slot-arrow {
+      font-size: 0.6rem;
+      transition: transform 0.15s;
+      display: inline-block;
+    }
+
+    .audit-page-dropdown.open .slot-arrow {
+      transform: rotate(180deg);
+    }
+
+    .audit-slot-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      background: var(--card-bg, #fff);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      z-index: 200;
+      min-width: 72px;
+      overflow: hidden;
+    }
+
+    .audit-page-dropdown.open .audit-slot-menu {
+      display: block;
+    }
+
+    .audit-slot-item {
+      display: block;
+      width: 100%;
+      padding: 7px 18px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-align: right;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .audit-slot-item:hover {
       background: var(--accent);
-      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .audit-slot-item.active {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .audit-slot-item.active:hover {
+      background: var(--accent);
       color: #fff;
     }
 
@@ -565,11 +621,21 @@
         <span class="admin-section-title">감사 로그</span>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <span class="admin-refresh-note" id="auditTotalNote"></span>
-          <div class="audit-page-slots">
+          <div class="audit-page-dropdown" id="auditPageDropdown">
             <span class="audit-page-slot-label">더보기 단위</span>
-            <button type="button" class="audit-slot-btn" data-slot="5">5</button>
-            <button type="button" class="audit-slot-btn active" data-slot="10">10</button>
-            <button type="button" class="audit-slot-btn" data-slot="15">15</button>
+            <button type="button" class="audit-slot-trigger" id="auditSlotTrigger">
+              <span id="auditSlotLabel">10</span>
+              <span class="slot-arrow">▼</span>
+            </button>
+            <div class="audit-slot-menu" id="auditSlotMenu">
+              <button type="button" class="audit-slot-item" data-slot="5">5</button>
+              <button type="button" class="audit-slot-item active" data-slot="10">10</button>
+              <button type="button" class="audit-slot-item" data-slot="15">15</button>
+              <button type="button" class="audit-slot-item" data-slot="20">20</button>
+              <button type="button" class="audit-slot-item" data-slot="25">25</button>
+              <button type="button" class="audit-slot-item" data-slot="50">50</button>
+              <button type="button" class="audit-slot-item" data-slot="100">100</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1365,14 +1431,27 @@
         });
       }
 
-      // Audit page slot buttons
-      document.querySelectorAll('.audit-slot-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          auditPage = parseInt(btn.dataset.slot, 10);
-          document.querySelectorAll('.audit-slot-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+      // Audit page dropdown
+      const auditDropdown = $('auditPageDropdown');
+      const auditSlotTrigger = $('auditSlotTrigger');
+      if (auditDropdown && auditSlotTrigger) {
+        auditSlotTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          auditDropdown.classList.toggle('open');
         });
-      });
+        document.addEventListener('click', () => {
+          auditDropdown.classList.remove('open');
+        });
+        auditDropdown.querySelectorAll('.audit-slot-item').forEach(item => {
+          item.addEventListener('click', () => {
+            auditPage = parseInt(item.dataset.slot, 10);
+            auditDropdown.querySelectorAll('.audit-slot-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            $('auditSlotLabel').textContent = auditPage;
+            auditDropdown.classList.remove('open');
+          });
+        });
+      }
 
       // Audit "더 보기"
       const loadMoreBtn = $('auditLoadMoreBtn');
