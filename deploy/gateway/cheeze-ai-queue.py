@@ -30,6 +30,10 @@ LISTEN_PORT = int(os.environ.get("CHEEZE_AI_LISTEN_PORT", "11435"))
 UPSTREAM_BASE = os.environ.get("CHEEZE_AI_UPSTREAM", "http://100.86.252.21:11434")
 MAX_QUEUE_SIZE = int(os.environ.get("CHEEZE_AI_MAX_QUEUE", "2"))
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_AI_TIMEOUT", "180"))
+BACKEND_BASE = os.environ.get("CHEEZE_AI_BACKEND_BASE", "http://100.86.252.21:5010")
+INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "")
+OLLAMA_START_TIMEOUT = int(os.environ.get("CHEEZE_AI_OLLAMA_START_TIMEOUT", "300"))
+OLLAMA_POLL_INTERVAL = float(os.environ.get("CHEEZE_AI_OLLAMA_POLL_INTERVAL", "3"))
 
 ALLOWED_METHODS = {"GET", "POST"}
 ALLOWED_PATHS = {
@@ -62,6 +66,47 @@ def json_bytes(payload: Dict[str, object]) -> bytes:
   return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
+def _ollama_alive() -> bool:
+  try:
+    req = urllib.request.Request(f"{UPSTREAM_BASE.rstrip('/')}/api/version", method="GET")
+    with urllib.request.urlopen(req, timeout=3) as resp:
+      return resp.getcode() == 200
+  except Exception:
+    return False
+
+
+def ensure_ollama_running() -> bool:
+  """Ollama가 꺼져 있으면 backend agent에 start 명령 후 준비될 때까지 폴링. 준비되면 True 반환."""
+  if _ollama_alive():
+    return True
+
+  print("[ollama-autostart] Ollama offline — triggering start via backend agent")
+  try:
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    if INTERNAL_SECRET:
+      headers["X-Cheeze-Internal-Secret"] = INTERNAL_SECRET
+    start_req = urllib.request.Request(
+      f"{BACKEND_BASE.rstrip('/')}/services/ollama/start",
+      data=b"{}",
+      headers=headers,
+      method="POST",
+    )
+    urllib.request.urlopen(start_req, timeout=10)
+  except Exception as err:
+    print(f"[ollama-autostart] Start request failed: {err}")
+    return False
+
+  deadline = time.time() + OLLAMA_START_TIMEOUT
+  while time.time() < deadline:
+    time.sleep(OLLAMA_POLL_INTERVAL)
+    if _ollama_alive():
+      print("[ollama-autostart] Ollama is ready")
+      return True
+
+  print("[ollama-autostart] Timed out waiting for Ollama")
+  return False
+
+
 def sanitize_headers(source_headers: Dict[str, str]) -> Dict[str, str]:
   allowed = {}
   for key, value in source_headers.items():
@@ -91,6 +136,16 @@ def process_request(item: QueuedRequest) -> None:
     current_request = item
 
   try:
+    if item.method == "POST" and item.path == "/api/generate":
+      if not ensure_ollama_running():
+        item.status_code = 503
+        item.response_body = json_bytes({
+          "error": "ollama_unavailable",
+          "message": "Ollama을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
+        })
+        item.response_headers = {"Content-Type": "application/json; charset=utf-8"}
+        return
+
     upstream_url = f"{UPSTREAM_BASE.rstrip('/')}{item.path}"
     upstream_request = urllib.request.Request(
       upstream_url,
