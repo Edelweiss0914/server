@@ -168,6 +168,42 @@
       justify-content: center;
     }
 
+    .audit-page-slots {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .audit-page-slot-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .audit-slot-btn {
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      line-height: 1.6;
+    }
+
+    .audit-slot-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .audit-slot-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
     .admin-empty {
       padding: 32px 20px;
       text-align: center;
@@ -527,7 +563,15 @@
     <section class="admin-section" aria-label="감사 로그">
       <div class="admin-section-header">
         <span class="admin-section-title">감사 로그</span>
-        <span class="admin-refresh-note" id="auditTotalNote"></span>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span class="admin-refresh-note" id="auditTotalNote"></span>
+          <div class="audit-page-slots">
+            <span class="audit-page-slot-label">더보기 단위</span>
+            <button type="button" class="audit-slot-btn" data-slot="5">5</button>
+            <button type="button" class="audit-slot-btn active" data-slot="10">10</button>
+            <button type="button" class="audit-slot-btn" data-slot="15">15</button>
+          </div>
+        </div>
       </div>
       <div class="admin-table-wrap">
         <table class="admin-table" id="auditTable">
@@ -881,7 +925,7 @@
 
     // ── Audit state ────────────────────────────────────────
     let auditOffset = 0;
-    const AUDIT_PAGE = 50;
+    let auditPage = 10;
     let auditTotal = 0;
 
     function renderAuditRows(entries, append = false) {
@@ -909,7 +953,7 @@
 
     async function loadAuditLog(append = false) {
       try {
-        const res = await adminFetch(`/admin/audit?limit=${AUDIT_PAGE}&offset=${auditOffset}`);
+        const res = await adminFetch(`/admin/audit?limit=${auditPage}&offset=${auditOffset}`);
         const data = await res.json();
         auditTotal = data.total || 0;
         $('auditTotalNote').textContent = `전체 ${auditTotal}건`;
@@ -1321,11 +1365,20 @@
         });
       }
 
+      // Audit page slot buttons
+      document.querySelectorAll('.audit-slot-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          auditPage = parseInt(btn.dataset.slot, 10);
+          document.querySelectorAll('.audit-slot-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+
       // Audit "더 보기"
       const loadMoreBtn = $('auditLoadMoreBtn');
       if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', async () => {
-          auditOffset += AUDIT_PAGE;
+          auditOffset += auditPage;
           await loadAuditLog(true);
         });
       }
