@@ -320,6 +320,19 @@ def minecraft_player_count(host: str, port: int, timeout: int = 3) -> int | None
     sock.close()
 
 
+def ollama_active_model_count(url: str, timeout: int = 3) -> int | None:
+  """
+  Query Ollama /api/ps for number of currently loaded models.
+  Returns None on any error, 0 if no models are loaded.
+  """
+  try:
+    with urllib.request.urlopen(url, timeout=timeout) as resp:
+      data = json.loads(resp.read())
+      return len(data.get("models", []))
+  except Exception:
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Idle watchdog shared state
 # ---------------------------------------------------------------------------
@@ -460,6 +473,25 @@ def _watchdog_tick():
 
         # count == 0 or None: fall through to idle timeout check
         # Do NOT update last_running_seen here — let the idle clock accumulate
+
+      elif player_check.get("enabled", False) and player_check.get("type") == "ollama":
+        # Initialize idle clock on first detection
+        with _watchdog_lock:
+          if service_id not in _last_running_seen:
+            _last_running_seen[service_id] = time.time()
+
+        ps_url = player_check.get("url", "http://127.0.0.1:11434/api/ps")
+        count = ollama_active_model_count(ps_url)
+        with _watchdog_lock:
+          _last_player_count[service_id] = count
+
+        if count is not None and count > 0:
+          # Model active: reset idle clock
+          with _watchdog_lock:
+            _last_running_seen[service_id] = time.time()
+          continue
+
+        # count == 0 or None: fall through to idle timeout check
 
       else:
         # No player check configured: keep clock fresh (never auto-idles while running)

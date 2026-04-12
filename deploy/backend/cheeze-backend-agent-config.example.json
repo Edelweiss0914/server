@@ -39,6 +39,15 @@
       "ready_check": {
         "type": "http",
         "url": "http://127.0.0.1:11434/api/version"
+      },
+      "idle_policy": {
+        "enabled": true,
+        "idle_timeout_minutes": 5,
+        "player_check": {
+          "enabled": true,
+          "type": "ollama",
+          "url": "http://127.0.0.1:11434/api/ps"
+        }
       }
     },
     {
