@@ -53,27 +53,40 @@
 
 Discord 봇은 웹 토큰을 사용자에게 나눠주기보다, 봇이 직접 portal facade 를 호출하는 direct control 방식으로 시작한다.
 
-따라서 봇 전용 관리자 토큰 1개가 필요하다.
+따라서 봇에는 액션 범위를 분리한 토큰 2개가 필요하다.
 
 권장:
 
-- `portal-control-tokens.json` 에 `discord-bot-admin` 항목 추가
-- `allowed_services`: `["minecraft-vanilla", "minecraft-cobbleverse"]`
-- `allowed_actions`: `["start", "stop"]`
+- `portal-control-tokens.json` 에 `discord-bot-start`, `discord-bot-stop` 항목 추가
+- 두 토큰 모두 `allowed_services`: `["minecraft-vanilla", "minecraft-cobbleverse"]`
+- `discord-bot-start` 는 `allowed_actions`: `["start"]`
+- `discord-bot-stop` 는 `allowed_actions`: `["stop"]`
 
 ## 6. 예시 토큰 항목
 
 ```json
-{
-  "token_id": "discord-bot-admin",
-  "label": "Discord Bot Multi-Server Control Token",
-  "role": "admin",
-  "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
-  "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
-  "allowed_actions": ["start", "stop"],
-  "expires_at": null,
-  "revoked_at": null
-}
+[
+  {
+    "token_id": "discord-bot-start",
+    "label": "Discord Bot Multi-Server Start Token",
+    "role": "friend",
+    "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
+    "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
+    "allowed_actions": ["start"],
+    "expires_at": null,
+    "revoked_at": null
+  },
+  {
+    "token_id": "discord-bot-stop",
+    "label": "Discord Bot Multi-Server Stop Token",
+    "role": "admin",
+    "token_hash": "REPLACE_WITH_SHA256_HEX_OF_REAL_TOKEN",
+    "allowed_services": ["minecraft-vanilla", "minecraft-cobbleverse"],
+    "allowed_actions": ["stop"],
+    "expires_at": null,
+    "revoked_at": null
+  }
+]
 ```
 
 ## 7. systemd + env 파일 예시
@@ -99,12 +112,14 @@ DISCORD_ADMIN_ROLE_IDS=1492517995711561910
 DISCORD_MEMBER_ROLE_IDS=1492518234878906459
 CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-CHEEZE_BOT_CONTROL_TOKEN=CHANGE_ME_TO_A_REGISTRY_ADMIN_TOKEN
+CHEEZE_BOT_START_CONTROL_TOKEN=CHANGE_ME_TO_A_MULTI_SERVER_START_TOKEN
+CHEEZE_BOT_STOP_CONTROL_TOKEN=CHANGE_ME_TO_A_MULTI_SERVER_STOP_TOKEN
 CHEEZE_BOT_REQUEST_TIMEOUT=30
 CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
 
-`CHEEZE_BOT_CONTROL_TOKEN` 은 위 6번 항목의 평문 토큰 값이다.
+`CHEEZE_BOT_START_CONTROL_TOKEN`, `CHEEZE_BOT_STOP_CONTROL_TOKEN` 은 위 6번 항목의 평문 토큰 값이다.
+기존 단일 `CHEEZE_BOT_CONTROL_TOKEN` 도 하위 호환으로 남겨두었지만, 기본 권장 구성은 액션별 분리 토큰이다.
 
 중요:
 
@@ -138,7 +153,8 @@ DISCORD_ADMIN_ROLE_IDS=1492517995711561910
 DISCORD_MEMBER_ROLE_IDS=1492518234878906459
 CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
 CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-CHEEZE_BOT_CONTROL_TOKEN=여기에_봇_전용_평문_제어_토큰
+CHEEZE_BOT_START_CONTROL_TOKEN=여기에_시작_전용_평문_제어_토큰
+CHEEZE_BOT_STOP_CONTROL_TOKEN=여기에_정지_전용_평문_제어_토큰
 CHEEZE_BOT_REQUEST_TIMEOUT=30
 CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
 ```
@@ -180,7 +196,8 @@ sudo nano /etc/cheeze-bot/cheeze-discord-bot.env
 5. 값 채우기
 
 - `DISCORD_BOT_TOKEN`
-- `CHEEZE_BOT_CONTROL_TOKEN`
+- `CHEEZE_BOT_START_CONTROL_TOKEN`
+- `CHEEZE_BOT_STOP_CONTROL_TOKEN`
 
 6. 실행
 
@@ -202,6 +219,7 @@ journalctl -u cheeze-discord-bot -n 50 --no-pager
 - `/status minecraft-vanilla`
 - `/status minecraft-cobbleverse`
 - `/start minecraft-vanilla`
+- `/status minecraft-cobbleverse`
 - `/start minecraft-cobbleverse`
 
 ## 9. 운영 메모
