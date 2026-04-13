@@ -12,6 +12,7 @@ jobs:
       - name: Pull & deploy
         run: |
           set -euo pipefail
+          export HOME=/root
           git config --global --add safe.directory /var/www/home
           cd /var/www/home
 
@@ -54,7 +55,7 @@ jobs:
     runs-on: [self-hosted, homepc]
     steps:
       - name: Pull & deploy
-        shell: pwsh
+        shell: powershell
         run: |
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           Set-Location D:\Project
