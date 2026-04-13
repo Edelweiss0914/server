@@ -1,0 +1,125 @@
+{
+  "host": {
+    "name": "homepc",
+    "lan_ip": "192.168.50.85",
+    "tailscale_ip": "100.86.252.21",
+    "hibernate_guard": {
+      "enabled": true,
+      "min_c_free_gb": 20
+    },
+    "user_activity_guard": {
+      "enabled": true,
+      "input_idle_minutes": 20
+    },
+    "quiet_hours": {
+      "enabled": true,
+      "start": "19:00",
+      "end": "01:00"
+    }
+  },
+  "hibernate_policy": {
+    "enabled": true,
+    "check_interval_seconds": 60,
+    "min_free_space_gb": 20,
+    "check_drive": "C:\\",
+    "no_sleep_flag_path": "",
+    "inhibit_schedule": [
+      {"start": "19:00", "end": "01:00"}
+    ]
+  },
+  "services": [
+    {
+      "id": "ollama",
+      "display_name": "Ollama",
+      "enabled": true,
+      "working_dir": "C:\\Users\\zoop7",
+      "start_command": "cmd /c \"set OLLAMA_MODELS=C:\\Users\\zoop7\\.ollama\\models && C:\\Users\\zoop7\\AppData\\Local\\Programs\\Ollama\\ollama.exe serve\"",
+      "stop_command": "cmd /c \"taskkill /IM \\\"ollama app.exe\\\" /F /T 2>nul & taskkill /IM ollama.exe /F 2>nul\"",
+      "process_name": "ollama.exe",
+      "ready_check": {
+        "type": "http",
+        "url": "http://127.0.0.1:11434/api/version"
+      },
+      "idle_policy": {
+        "enabled": true,
+        "idle_timeout_minutes": 5,
+        "player_check": {
+          "enabled": true,
+          "type": "ollama",
+          "url": "http://127.0.0.1:11434/api/ps"
+        }
+      }
+    },
+    {
+      "id": "minecraft-vanilla",
+      "display_name": "Minecraft Vanilla",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Vanilla",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-vanilla\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-vanilla\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25565
+      },
+      "idle_policy": {
+        "enabled": true,
+        "idle_timeout_minutes": 20,
+        "player_check": {
+          "enabled": true,
+          "type": "minecraft",
+          "host": "127.0.0.1",
+          "port": 25565
+        }
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-vanilla"
+      }
+    },
+    {
+      "id": "minecraft-cobbleverse",
+      "display_name": "Cobbleverse",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\COBBLEVERSE - Pokemon Adventure [Cobblemon]",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-cobbleverse\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25566
+      },
+      "idle_policy": {
+        "enabled": true,
+        "idle_timeout_minutes": 20,
+        "player_check": {
+          "enabled": true,
+          "type": "minecraft",
+          "host": "127.0.0.1",
+          "port": 25566
+        }
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-cobbleverse"
+      }
+    },
+    {
+      "id": "minecraft-modpack-template",
+      "display_name": "Minecraft Modpack Template",
+      "enabled": false,
+      "working_dir": "D:\\Servers\\Minecraft\\Modpacks\\<modpack-name>",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-<modpack-name>\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-<modpack-name>\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25566
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-<modpack-name>"
+      }
+    }
+  ]
+}
