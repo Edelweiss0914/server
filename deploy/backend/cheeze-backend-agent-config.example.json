@@ -115,6 +115,38 @@
       }
     },
     {
+      "id": "minecraft-hardcore",
+      "display_name": "하드코어 바닐라",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Hardcore",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25567
+      },
+      "idle_policy": {
+        "enabled": true,
+        "idle_timeout_minutes": 20,
+        "player_check": {
+          "enabled": true,
+          "type": "minecraft",
+          "host": "127.0.0.1",
+          "port": 25567
+        }
+      },
+      "rcon": {
+        "host": "127.0.0.1",
+        "port": 25577,
+        "password": "<rcon-password>"
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-hardcore"
+      }
+    },
+    {
       "id": "minecraft-modpack-template",
       "display_name": "Minecraft Modpack Template",
       "enabled": false,
