@@ -13,6 +13,9 @@ Thumbs.db
 .omx/
 .claude/
 
+# GitHub Actions self-hosted runner
+actions-runner/
+
 # 로그
 *.log
 

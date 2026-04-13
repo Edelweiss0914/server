@@ -342,7 +342,78 @@ _watchdog_lock = threading.Lock()
 _last_running_seen: dict[str, float] = {}
 # Maps service_id -> last known player count (None if not checked / not applicable)
 _last_player_count: dict[str, int | None] = {}
+# Maps service_id -> set of warning thresholds (seconds-remaining) already sent
+_shutdown_warnings_sent: dict[str, set] = {}
+# Maps service_id -> timestamp of last auto-save
+_last_auto_save: dict[str, float] = {}
 _watchdog_running = False
+
+# ── RCON ────────────────────────────────────────────────────────────────────
+
+SHUTDOWN_WARNING_THRESHOLDS = [
+  (1800, "30분"),
+  (1200, "20분"),
+  (600,  "10분"),
+  (300,  "5분"),
+  (60,   "잠시"),
+]
+
+
+def _rcon_send(host: str, port: int, password: str, command: str, timeout: float = 5.0) -> bool:
+  """Send a single RCON command silently. Returns True on success."""
+  try:
+    rcon_command(host, port, password, command, int(timeout))
+    return True
+  except Exception as exc:
+    print(f"[RCON] {exc}")
+    return False
+
+
+def send_shutdown_warning(service: dict, idle_elapsed: float, idle_timeout: float) -> None:
+  """Send RCON shutdown warnings at configured thresholds."""
+  rcon = service.get("rcon")
+  if not rcon:
+    return
+  service_id = service["id"]
+  remaining = idle_timeout - idle_elapsed
+  with _watchdog_lock:
+    if service_id not in _shutdown_warnings_sent:
+      _shutdown_warnings_sent[service_id] = set()
+  for threshold, label in SHUTDOWN_WARNING_THRESHOLDS:
+    with _watchdog_lock:
+      already_sent = threshold in _shutdown_warnings_sent[service_id]
+    if already_sent or remaining > threshold:
+      continue
+    msg = (
+      "say 서버: 잠시 후 서버가 자동 종료됩니다."
+      if label == "잠시"
+      else f"say 서버: {label} 후 서버가 자동 종료됩니다."
+    )
+    if _rcon_send(rcon["host"], int(rcon["port"]), rcon.get("password", ""), msg):
+      with _watchdog_lock:
+        _shutdown_warnings_sent[service_id].add(threshold)
+      print(f"[RCON] {service_id}: {label} shutdown warning sent")
+
+
+def maybe_auto_save(service: dict) -> None:
+  """Send RCON save-all if auto_save interval has elapsed."""
+  rcon = service.get("rcon")
+  auto_save = service.get("auto_save", {})
+  if not rcon or not auto_save.get("enabled", False):
+    return
+  service_id = service["id"]
+  interval = auto_save.get("interval_minutes", 30) * 60
+  now = time.time()
+  with _watchdog_lock:
+    last = _last_auto_save.get(service_id, 0.0)
+  if now - last < interval:
+    return
+  host, port, pw = rcon["host"], int(rcon["port"]), rcon.get("password", "")
+  if _rcon_send(host, port, pw, "save-all"):
+    _rcon_send(host, port, pw, "say 서버: 월드가 저장되었습니다.")
+    with _watchdog_lock:
+      _last_auto_save[service_id] = now
+    print(f"[RCON] {service_id}: auto-save complete")
 
 
 def _time_in_inhibit_range(now: datetime.time, start_str: str, end_str: str) -> bool:
@@ -491,9 +562,11 @@ def _watchdog_tick():
           _last_player_count[service_id] = count
 
         if count is not None and count > 0:
-          # Players present: reset idle clock
+          # Players present: reset idle clock and warning state
           with _watchdog_lock:
             _last_running_seen[service_id] = time.time()
+            _shutdown_warnings_sent.pop(service_id, None)
+          maybe_auto_save(service)
           continue
 
         # count == 0 or None: fall through to idle timeout check
@@ -529,7 +602,13 @@ def _watchdog_tick():
       with _watchdog_lock:
         last_seen = _last_running_seen.get(service_id, time.time())
 
-      if time.time() - last_seen >= idle_timeout_seconds:
+      idle_elapsed = time.time() - last_seen
+      maybe_auto_save(service)
+      send_shutdown_warning(service, idle_elapsed, idle_timeout_seconds)
+
+      if idle_elapsed >= idle_timeout_seconds:
+        with _watchdog_lock:
+          _shutdown_warnings_sent.pop(service_id, None)
         print(f"[IDLE] auto-stopping {service_id}")
         try:
           stop_service(service)
@@ -542,6 +621,8 @@ def _watchdog_tick():
       with _watchdog_lock:
         _last_running_seen.pop(service_id, None)
         _last_player_count.pop(service_id, None)
+        _shutdown_warnings_sent.pop(service_id, None)
+        _last_auto_save.pop(service_id, None)
 
   # Hibernate check — only evaluate after potential auto-stops
   if any_auto_stopped or True:  # always check each tick; harmless extra check
