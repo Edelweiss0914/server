@@ -379,6 +379,7 @@
       font-family: inherit;
       white-space: nowrap;
       transition: background 0.12s, color 0.12s;
+      flex: 0 0 auto;
     }
     .console-tab-btn:hover  { background: #21262d; color: #c9d1d9; }
     .console-tab-btn.is-active {
@@ -393,6 +394,27 @@
       gap: 8px;
       margin-left: auto;
       flex-shrink: 0;
+    }
+
+    @media (max-width: 600px) {
+      .console-titlebar {
+        flex-wrap: wrap;
+        row-gap: 10px;
+      }
+
+      .console-tab-list {
+        order: 3;
+        flex: 0 0 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        padding-bottom: 2px;
+      }
+
+      .console-actions {
+        margin-left: 0;
+      }
     }
 
     .console-status-dot {
@@ -1353,7 +1375,16 @@
       ).join('');
       if (!consoleActiveId || !services.find((s) => s.id === consoleActiveId)) {
         startConsoleTab(services[0].id);
+      } else {
+        ensureConsoleTabVisible(consoleActiveId);
       }
+    }
+
+    function ensureConsoleTabVisible(serviceId) {
+      if (!serviceId || !window.CSS?.escape) return;
+      const activeTab = document.querySelector(`.console-tab-btn[data-console-id="${CSS.escape(serviceId)}"]`);
+      if (!activeTab) return;
+      activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
 
     async function startConsoleTab(serviceId) {
@@ -1361,6 +1392,7 @@
       document.querySelectorAll('.console-tab-btn').forEach((btn) => {
         btn.classList.toggle('is-active', btn.getAttribute('data-console-id') === serviceId);
       });
+      ensureConsoleTabVisible(serviceId);
       if (consoleBuffer[serviceId]) {
         renderConsoleLines(consoleBuffer[serviceId].slice(-CONSOLE_RENDER_MAX), false);
       } else {
