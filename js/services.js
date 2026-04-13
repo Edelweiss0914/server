@@ -342,6 +342,7 @@ window.APP_CONFIG = {
         description: '백엔드 PC를 깨워 여는 Cobblemon 모드팩 서버입니다.',
         category: 'Game Server',
         categoryIcon: 'GAME',
+        timeRestriction: '10:00 ~ 01:00',
         icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <rect x="12" y="14" width="76" height="22" rx="6" fill="#7d5330"/>
           <rect x="12" y="36" width="76" height="48" rx="8" fill="#c88b42"/>
