@@ -175,7 +175,7 @@ function renderServerCard(service, state = {}) {
           <p class="server-card-desc">${escapeHtml(service.description)}</p>
         </div>
       </div>
-      ${service.category ? `<div class="server-card-details"><span class="server-detail-chip">${service.categoryIcon ? escapeHtml(service.categoryIcon) + ' ' : ''}${escapeHtml(service.category)}</span></div>` : ''}
+      ${(service.category || service.timeRestriction) ? `<div class="server-card-details">${service.category ? `<span class="server-detail-chip">${service.categoryIcon ? escapeHtml(service.categoryIcon) + ' ' : ''}${escapeHtml(service.category)}</span>` : ''}${service.timeRestriction ? `<span class="server-detail-chip server-time-chip">🕙 ${escapeHtml(service.timeRestriction)}</span>` : ''}</div>` : ''}
       <div class="server-card-status">${escapeHtml(statusLine)}</div>
       <div class="server-card-footer">
         ${service.showSpeedIndicator ? renderSpeedIndicator(service, state) : renderPlayerCount(state)}

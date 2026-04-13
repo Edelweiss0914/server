@@ -216,6 +216,7 @@ const SERVICES = [
     description: 'Cobblemon 기반 온디맨드 모드팩 서버. 클릭하면 서버 시작·종료 패널로 이동합니다.',
     category: 'Game Server',
     categoryIcon: 'GAME',
+    timeRestriction: '10:00 ~ 01:00',
     url: 'servers.html',
     onDemand: true,
     icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

@@ -1187,6 +1187,16 @@ kbd {
   border-radius: var(--radius-pill);
   padding: 2px 10px;
 }
+.server-time-chip {
+  background: #fff8e1;
+  color: #7a5700;
+  border-color: #f9d96e;
+}
+[data-theme="dark"] .server-time-chip {
+  background: #2a1f00;
+  color: #f4c84a;
+  border-color: #5a4200;
+}
 
 .server-card-status {
   font-size: 0.8rem;
