@@ -42,6 +42,31 @@ AUDIT_LOG_PATH = Path(os.environ.get(
 ))
 CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
 
+# ── 서비스별 시작 가능 시간 제한 (KST = UTC+9) ──────────────────
+# blocked_start ~ blocked_end (시) 사이에 start 요청 차단
+KST_OFFSET_HOURS = 9
+SERVICE_TIME_RESTRICTIONS: dict = {
+  "minecraft-cobbleverse": {
+    "start": {
+      "blocked_start": 1,   # 01:00 KST
+      "blocked_end": 10,    # 10:00 KST
+      "allowed_window": "10:00 ~ 01:00 KST",
+    },
+  },
+}
+
+
+def is_action_time_blocked(service_id: str, action: str) -> bool:
+  restriction = SERVICE_TIME_RESTRICTIONS.get(service_id, {}).get(action)
+  if not restriction:
+    return False
+  kst_hour = (datetime.now(timezone.utc).hour + KST_OFFSET_HOURS) % 24
+  return restriction["blocked_start"] <= kst_hour < restriction["blocked_end"]
+
+
+def get_time_restriction(service_id: str, action: str) -> dict | None:
+  return SERVICE_TIME_RESTRICTIONS.get(service_id, {}).get(action)
+
 
 def now_utc():
   return datetime.now(timezone.utc)
@@ -457,6 +482,23 @@ class Handler(BaseHTTPRequestHandler):
         error=error_payload.get("error"),
       )
       self.respond_json(status_code, error_payload)
+      return
+
+    if is_action_time_blocked(service_id, action):
+      restriction = get_time_restriction(service_id, action)
+      self.record_audit(
+        service_id=service_id,
+        action=action,
+        result="rejected",
+        status_code=403,
+        token_record=token_record,
+        error="time_restriction",
+      )
+      self.respond_json(403, {
+        "error": "time_restriction",
+        "message": f"이 서버는 {restriction['allowed_window']} 사이에만 시작할 수 있습니다.",
+        "allowed_window": restriction["allowed_window"],
+      })
       return
 
     self.forward_or_error(path, method="POST", payload=payload, service_id=service_id, action=action, token_record=token_record)
