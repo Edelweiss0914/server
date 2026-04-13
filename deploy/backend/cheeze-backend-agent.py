@@ -396,23 +396,41 @@ def send_shutdown_warning(service: dict, idle_elapsed: float, idle_timeout: floa
 
 
 def maybe_auto_save(service: dict) -> None:
-  """Send RCON save-all if auto_save interval has elapsed."""
+  """Send RCON save-all based on scheduled_minutes or interval_minutes."""
   rcon = service.get("rcon")
   auto_save = service.get("auto_save", {})
   if not rcon or not auto_save.get("enabled", False):
     return
   service_id = service["id"]
-  interval = auto_save.get("interval_minutes", 30) * 60
-  now = time.time()
-  with _watchdog_lock:
-    last = _last_auto_save.get(service_id, 0.0)
-  if now - last < interval:
-    return
+
+  scheduled_minutes = auto_save.get("scheduled_minutes")
+  now_ts = time.time()
+
+  if scheduled_minutes is not None:
+    # Clock-aligned mode: save when current minute matches one of scheduled_minutes.
+    # Use epoch-minutes as a unique window to prevent duplicate saves within the same minute.
+    current_window = int(now_ts // 60)
+    if datetime.datetime.now().minute not in scheduled_minutes:
+      return
+    with _watchdog_lock:
+      last_window = int(_last_auto_save.get(service_id, 0.0))
+    if current_window == last_window:
+      return
+    save_window = current_window
+  else:
+    # Interval mode: save when enough time has elapsed since last save.
+    interval = auto_save.get("interval_minutes", 30) * 60
+    with _watchdog_lock:
+      last = _last_auto_save.get(service_id, 0.0)
+    if now_ts - last < interval:
+      return
+    save_window = now_ts
+
   host, port, pw = rcon["host"], int(rcon["port"]), rcon.get("password", "")
   if _rcon_send(host, port, pw, "save-all"):
     _rcon_send(host, port, pw, "say 서버: 월드가 저장되었습니다.")
     with _watchdog_lock:
-      _last_auto_save[service_id] = now
+      _last_auto_save[service_id] = float(save_window)
     print(f"[RCON] {service_id}: auto-save complete")
 
 
