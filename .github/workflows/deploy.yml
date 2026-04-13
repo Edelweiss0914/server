@@ -58,6 +58,7 @@ jobs:
         shell: powershell
         run: |
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          git config --global --add safe.directory D:/Project
           Set-Location D:\Project
 
           git fetch origin main
