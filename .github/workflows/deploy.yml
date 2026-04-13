@@ -1,0 +1,77 @@
+name: Deploy CHEEZE
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-gateway:
+    name: Gateway (Linux LXC)
+    runs-on: [self-hosted, gateway]
+    steps:
+      - name: Pull & deploy
+        run: |
+          set -euo pipefail
+          cd /var/www/home
+
+          git fetch origin main
+          CHANGED=$(git diff --name-only HEAD origin/main)
+          echo "=== Changed files ==="
+          echo "${CHANGED:-없음}"
+          echo "====================="
+
+          git pull origin main
+
+          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-portal-api\.py$"; then
+            cp deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/cheeze-portal-api.py
+            systemctl restart cheeze-portal-api
+            echo "✓ cheeze-portal-api restarted"
+          fi
+
+          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-control-api\.py$"; then
+            cp deploy/gateway/cheeze-control-api.py /opt/cheeze-control/cheeze-control-api.py
+            systemctl restart cheeze-control-api
+            echo "✓ cheeze-control-api restarted"
+          fi
+
+          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-ai-queue\.py$"; then
+            cp deploy/gateway/cheeze-ai-queue.py /opt/cheeze-ai/cheeze-ai-queue.py
+            systemctl restart cheeze-ai-queue
+            echo "✓ cheeze-ai-queue restarted"
+          fi
+
+          if echo "$CHANGED" | grep -q "^deploy/discord-bot/cheeze-discord-bot\.py$"; then
+            cp deploy/discord-bot/cheeze-discord-bot.py /opt/cheeze-bot/cheeze-discord-bot.py
+            systemctl restart cheeze-discord-bot
+            echo "✓ cheeze-discord-bot restarted"
+          fi
+
+          echo "Gateway deploy complete."
+
+  deploy-homepc:
+    name: Homepc (Windows)
+    runs-on: [self-hosted, homepc]
+    steps:
+      - name: Pull & deploy
+        shell: powershell
+        run: |
+          Set-Location D:\Project
+
+          git fetch origin main
+          $changed = git diff --name-only HEAD origin/main
+          Write-Host "=== Changed files ==="
+          Write-Host ($changed | Out-String)
+          Write-Host "====================="
+
+          git pull origin main
+
+          if ($changed -match "deploy/backend/cheeze-backend-agent\.py") {
+            Stop-ScheduledTask -TaskName "CHEEZE Backend Agent"
+            Start-Sleep -Seconds 2
+            Copy-Item "deploy\backend\cheeze-backend-agent.py" `
+              "C:\ProgramData\CHEEZE\backend-agent\cheeze-backend-agent.py" -Force
+            Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
+            Write-Host "✓ CHEEZE Backend Agent restarted"
+          }
+
+          Write-Host "Homepc deploy complete."

@@ -10,6 +10,8 @@ Thumbs.db
 
 # OMC 내부 상태 (버전관리 불필요)
 .omc/
+.omx/
+.claude/
 
 # 로그
 *.log

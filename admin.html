@@ -85,8 +85,15 @@
     .admin-service-actions {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: auto;
+      padding-top: 12px;
       flex-wrap: wrap;
+    }
+
+    /* Flex column so actions always anchor to bottom */
+    #adminControlGrid .admin-service-card {
+      display: flex;
+      flex-direction: column;
     }
 
     /* Audit log table */
@@ -531,6 +538,39 @@
       .console-terminal { height: 280px; font-size: 0.7rem; }
       .console-dot-group { display: none; }
     }
+
+    /* ── Admin state indicator dot ── */
+    .admin-state-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+    .admin-state-dot.is-running  { background: #1a7f37; }
+    .admin-state-dot.is-starting,
+    .admin-state-dot.is-waking   { background: #b06000; animation: admin-dot-blink 0.9s ease-in-out infinite; }
+    .admin-state-dot.is-stopping { background: #c5221f; animation: admin-dot-blink 0.9s ease-in-out infinite; }
+    .admin-state-dot.is-offline  { background: #9aa0ac; }
+    .admin-state-dot.is-error    { background: #c5221f; }
+    [data-theme="dark"] .admin-state-dot.is-running  { background: #4caf71; }
+    [data-theme="dark"] .admin-state-dot.is-starting,
+    [data-theme="dark"] .admin-state-dot.is-waking   { background: #f4b942; }
+    [data-theme="dark"] .admin-state-dot.is-stopping { background: #e57373; }
+    [data-theme="dark"] .admin-state-dot.is-offline  { background: #6b7280; }
+    @keyframes admin-dot-blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
+    }
+
+    /* ── Audit log new-entry flash ── */
+    @keyframes audit-row-flash {
+      from { background: rgba(79, 127, 255, 0.12); }
+      to   { background: transparent; }
+    }
+    .audit-row-new { animation: audit-row-flash 2s ease-out forwards; }
   </style>
 </head>
 
@@ -932,6 +972,12 @@
       }
     }
 
+    // ── State badge HTML helper ────────────────────────────
+    function stateBadgeHtml(state) {
+      const cls = stateClass(state);
+      return `<span class="server-state-badge ${cls}" data-admin-badge><span class="admin-state-dot ${cls}"></span>${stateLabel(state)}</span>`;
+    }
+
     // ── Render service status cards ────────────────────────
     function renderServiceGrid(services) {
       const grid = $('adminServiceGrid');
@@ -939,23 +985,57 @@
         grid.innerHTML = '<div class="admin-empty">서비스 정보 없음</div>';
         return;
       }
+      // In-place update on subsequent renders
+      if (grid.querySelector('[data-admin-svc]')) {
+        services.forEach((svc) => {
+          const card = grid.querySelector(`[data-admin-svc="${CSS.escape(svc.id || '')}"]`);
+          if (!card) return;
+          const state = svc.state || 'offline';
+          const cls = stateClass(state);
+          const badge = card.querySelector('[data-admin-badge]');
+          if (badge) {
+            badge.className = `server-state-badge ${cls}`;
+            badge.innerHTML = `<span class="admin-state-dot ${cls}"></span>${stateLabel(state)}`;
+          }
+          const meta = card.querySelector('[data-admin-meta]');
+          if (meta) {
+            const running = svc.process_running ? '실행 중' : '미실행';
+            const ready = svc.ready ? '준비됨' : '준비 안 됨';
+            meta.innerHTML = `프로세스: ${running} &nbsp;·&nbsp; 준비: ${ready}${svc.message ? `<br><span style="opacity:0.8">${esc(svc.message)}</span>` : ''}`;
+          }
+          const countEl = card.querySelector('[data-admin-count]');
+          if (countEl) {
+            if (svc.player_count !== null && svc.player_count !== undefined) {
+              countEl.textContent = `접속자 ${svc.player_count}명`;
+              countEl.style.display = '';
+            } else {
+              countEl.style.display = 'none';
+            }
+          }
+        });
+        return;
+      }
+      // First render
       grid.innerHTML = services.map((svc) => {
         const id = esc(svc.id || '');
         const name = esc(svc.display_name || svc.id || '');
         const state = svc.state || 'offline';
         const running = svc.process_running ? '실행 중' : '미실행';
         const ready = svc.ready ? '준비됨' : '준비 안 됨';
+        const hasCount = svc.player_count !== null && svc.player_count !== undefined;
         return `
-          <div class="admin-service-card">
+          <div class="admin-service-card" data-admin-svc="${id}">
             <div class="admin-service-card-head">
               <span class="admin-service-name">${name}</span>
-              <span class="server-state-badge ${stateClass(state)}">${stateLabel(state)}</span>
+              ${stateBadgeHtml(state)}
             </div>
-            <div class="admin-service-meta">
+            <div class="admin-service-meta" data-admin-meta>
               프로세스: ${running} &nbsp;·&nbsp; 준비: ${ready}
               ${svc.message ? `<br><span style="opacity:0.8">${esc(svc.message)}</span>` : ''}
             </div>
-            ${svc.player_count !== null && svc.player_count !== undefined ? `<div class="admin-service-meta" style="margin-top:4px">접속자 ${svc.player_count}명</div>` : ''}
+            <div class="admin-service-meta" data-admin-count style="${hasCount ? '' : 'display:none'}">
+              ${hasCount ? `접속자 ${svc.player_count}명` : ''}
+            </div>
           </div>
         `;
       }).join('');
@@ -968,6 +1048,38 @@
         grid.innerHTML = '<div class="admin-empty">서비스 정보 없음</div>';
         return;
       }
+      // In-place update on subsequent renders
+      if (grid.querySelector('[data-admin-ctrl]')) {
+        services.forEach((svc) => {
+          const card = grid.querySelector(`[data-admin-ctrl="${CSS.escape(svc.id || '')}"]`);
+          if (!card) return;
+          const state = svc.state || 'offline';
+          const cls = stateClass(state);
+          const busy = state === 'starting' || state === 'waking' || state === 'stopping';
+          const canStart = state === 'offline' || state === 'error';
+          const canStop = state === 'running' || state === 'starting' || state === 'waking' || state === 'stopping';
+          const badge = card.querySelector('[data-admin-badge]');
+          if (badge) {
+            badge.className = `server-state-badge ${cls}`;
+            badge.innerHTML = `<span class="admin-state-dot ${cls}"></span>${stateLabel(state)}`;
+          }
+          const countEl = card.querySelector('[data-admin-count]');
+          if (countEl) {
+            if (svc.player_count !== null && svc.player_count !== undefined) {
+              countEl.textContent = `접속자 ${svc.player_count}명`;
+              countEl.style.visibility = '';
+            } else {
+              countEl.style.visibility = 'hidden';
+            }
+          }
+          const startBtn = card.querySelector('[data-ctrl-action="start"]');
+          const stopBtn  = card.querySelector('[data-ctrl-action="stop"]');
+          if (startBtn) startBtn.disabled = !(canStart && !busy);
+          if (stopBtn)  stopBtn.disabled  = !(canStop && !busy);
+        });
+        return;
+      }
+      // First render
       grid.innerHTML = services.map((svc) => {
         const id = esc(svc.id || '');
         const name = esc(svc.display_name || svc.id || '');
@@ -975,13 +1087,16 @@
         const busy = state === 'starting' || state === 'waking' || state === 'stopping';
         const canStart = state === 'offline' || state === 'error';
         const canStop = state === 'running' || state === 'starting' || state === 'waking' || state === 'stopping';
+        const hasCount = svc.player_count !== null && svc.player_count !== undefined;
         return `
-          <div class="admin-service-card">
+          <div class="admin-service-card" data-admin-ctrl="${id}">
             <div class="admin-service-card-head">
               <span class="admin-service-name">${name}</span>
-              <span class="server-state-badge ${stateClass(state)}">${stateLabel(state)}</span>
+              ${stateBadgeHtml(state)}
             </div>
-            ${svc.player_count !== null && svc.player_count !== undefined ? `<div class="admin-service-meta">접속자 ${svc.player_count}명</div>` : ''}
+            <div class="admin-service-meta" data-admin-count style="${hasCount ? '' : 'visibility:hidden'}">
+              ${hasCount ? `접속자 ${svc.player_count}명` : ''}
+            </div>
             <div class="admin-service-actions">
               <button type="button" class="control-btn is-primary" data-ctrl-action="start" data-ctrl-id="${id}" ${canStart && !busy ? '' : 'disabled'}>시작</button>
               <button type="button" class="control-btn is-danger" data-ctrl-action="stop" data-ctrl-id="${id}" ${canStop && !busy ? '' : 'disabled'}>종료</button>
@@ -1030,6 +1145,12 @@
         const entries = append ? (data.entries || []) : (data.entries || []).slice().reverse();
         renderAuditRows(entries, append);
 
+        // Track newest known timestamp for polling
+        if (!append && (data.entries || []).length > 0) {
+          const maxTs = (data.entries || []).reduce((m, e) => (e.timestamp > m ? e.timestamp : m), '');
+          if (!latestAuditTs || maxTs > latestAuditTs) latestAuditTs = maxTs;
+        }
+
         const loadedSoFar = auditOffset + (data.entries || []).length;
         const hasMore = loadedSoFar < auditTotal;
         $('auditLoadMoreWrap').style.display = hasMore ? '' : 'none';
@@ -1076,13 +1197,67 @@
       await loadAuditLog(false);
     }
 
+    // ── Audit real-time polling ────────────────────────────
+    let latestAuditTs = null;
+    let auditPollHandle = null;
+
+    function scheduleAuditPoll() {
+      if (auditPollHandle) clearTimeout(auditPollHandle);
+      auditPollHandle = setTimeout(pollAuditNew, 5000);
+    }
+
+    async function pollAuditNew() {
+      try {
+        const res = await adminFetch('/admin/audit?limit=10&offset=0');
+        if (!res.ok) { scheduleAuditPoll(); return; }
+        const data = await res.json();
+        const newTotal = data.total || 0;
+
+        if (newTotal > auditTotal) {
+          const raw = data.entries || [];
+          // API returns oldest-first; new entries are the last `diff` in the response
+          const diff = Math.min(newTotal - auditTotal, raw.length);
+          const newEntries = raw.slice(raw.length - diff);
+
+          auditTotal = newTotal;
+          $('auditTotalNote').textContent = `전체 ${auditTotal}건`;
+
+          const tbody = $('auditTableBody');
+          const tmp = document.createElement('tbody');
+          // Reverse so newest appears first when prepended
+          tmp.innerHTML = newEntries.slice().reverse().map((e) => `
+            <tr class="audit-row-new">
+              <td class="col-ts">${fmtTs(e.timestamp)}</td>
+              <td>${esc(e.service_id || '-')}</td>
+              <td class="col-action">${esc(e.action || '-')}</td>
+              <td>${resultBadge(e.result)}</td>
+              <td>${esc(e.token_label || e.token_id || '-')}</td>
+              <td>${esc(e.remote_ip || '-')}</td>
+            </tr>
+          `).join('');
+          while (tmp.firstChild) tbody.insertBefore(tmp.firstChild, tbody.firstChild);
+        }
+      } catch (err) {
+        if (err.authError) { scheduleAuditPoll(); return; }
+      }
+      scheduleAuditPoll();
+    }
+
     // ── Auto-refresh ───────────────────────────────────────
     let refreshHandle = null;
+
+    function hasTransitioningService() {
+      return Array.isArray(lastServices) && lastServices.some((s) =>
+        s.state === 'starting' || s.state === 'waking' || s.state === 'stopping'
+      );
+    }
+
     function scheduleRefresh() {
       if (refreshHandle) clearTimeout(refreshHandle);
+      const delay = hasTransitioningService() ? 2000 : 10000;
       refreshHandle = setTimeout(async () => {
         try { await loadAdminStatus(); } finally { scheduleRefresh(); }
-      }, 10000);
+      }, delay);
     }
 
     // ── Control action ─────────────────────────────────────
@@ -1361,6 +1536,7 @@
 
       await loadAll();
       scheduleRefresh();
+      scheduleAuditPoll();
 
       // Control grid click delegation
       document.addEventListener('click', (e) => {
