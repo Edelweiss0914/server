@@ -1118,7 +1118,13 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  position: relative;
   transition: box-shadow var(--t-normal), border-color var(--t-normal);
+}
+.server-card .server-state-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
 }
 .server-card:hover {
   box-shadow: var(--shadow-md);
