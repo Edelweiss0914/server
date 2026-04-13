@@ -241,3 +241,4 @@ Get-ScheduledTask -TaskName "CHEEZE Backend Agent"
 
 > `config.json` 등 민감 정보가 담긴 설정 파일은 자동 배포 대상에서 제외됩니다.
 > 설정 변경 시 해당 머신에서 직접 수정 후 서비스를 재시작하세요.
+
