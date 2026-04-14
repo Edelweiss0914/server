@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import ctypes
 import datetime
+import hashlib
 import json
 import os
 import shutil
@@ -73,6 +74,31 @@ class _Tee:
         s.flush()
       except Exception:
         pass
+
+
+def _compute_script_hash() -> str:
+  try:
+    return hashlib.md5(Path(__file__).read_bytes()).hexdigest()
+  except Exception:
+    return ""
+
+
+_startup_script_hash: str = _compute_script_hash()
+
+
+def _check_self_update() -> None:
+  """Restart the agent process if the script file changed since startup."""
+  current_hash = _compute_script_hash()
+  if not current_hash or current_hash == _startup_script_hash:
+    return
+  print(f"[UPDATE] Script changed ({_startup_script_hash[:8]} → {current_hash[:8]}), restarting...")
+  subprocess.Popen(
+    [sys.executable] + sys.argv,
+    close_fds=True,
+    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+  )
+  time.sleep(2)  # Let the new process initialize before releasing the port
+  os._exit(0)
 
 
 def _setup_file_logging(config: dict) -> None:
@@ -921,6 +947,8 @@ def _hibernate_debug_info(config: dict) -> dict:
 
 def _watchdog_tick():
   """Single tick of the idle watchdog: check each service and possibly hibernate."""
+  _check_self_update()
+
   try:
     config = load_config()
   except Exception as exc:

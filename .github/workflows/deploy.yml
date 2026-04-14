@@ -64,30 +64,10 @@ jobs:
           git fetch origin main
           git pull origin main
 
-          # Scheduled task runs D:\Project\deploy\backend\cheeze-backend-agent.py directly
-          # No copy needed — just restart when the source file changes
+          # The agent watches its own file hash and self-restarts within one watchdog
+          # interval (~30s) when the script changes. No external process control needed.
           $src = "deploy\backend\cheeze-backend-agent.py"
           $srcHash = (Get-FileHash $src -Algorithm MD5).Hash
-          $agentHashFile = "D:\Project\deploy\backend\.agent-deployed-hash"
-          $deployedHash = if (Test-Path $agentHashFile) { Get-Content $agentHashFile -Raw } else { "" }
-
-          if ($srcHash.Trim() -ne $deployedHash.Trim()) {
-            Write-Host "Backend agent changed, redeploying..."
-            Stop-ScheduledTask -TaskName "CHEEZE Backend Agent" -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            $pid5010 = (Get-NetTCPConnection -LocalPort 5010 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -First 1
-            if ($pid5010) {
-              Stop-Process -Id $pid5010 -Force -ErrorAction SilentlyContinue
-              Write-Host "Killed process $pid5010 on port 5010"
-              Start-Sleep -Seconds 2
-            }
-            Start-Process -FilePath "C:\Program Files\Python312\python.EXE" `
-              -ArgumentList "D:\Project\deploy\backend\cheeze-backend-agent.py" `
-              -WindowStyle Hidden
-            Set-Content $agentHashFile $srcHash
-            Write-Host "✓ CHEEZE Backend Agent restarted"
-          } else {
-            Write-Host "Backend agent unchanged, skipping restart."
-          }
+          Write-Host "Backend agent deployed (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
 
           Write-Host "Homepc deploy complete."
