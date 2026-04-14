@@ -693,37 +693,19 @@ def has_active_user_session() -> bool | None:
 def get_user_idle_seconds() -> float | None:
   """Return seconds since last keyboard/mouse input on Windows. None on error.
 
-  When running in Session 0 (Windows service), GetLastInputInfo only reflects
-  Session 0 input and is not representative of user activity. In that case,
-  infer idle state from active user sessions: return 0.0 if a user session is
-  active (conservative — treat as not idle), float('inf') if no user is logged
-  in (treat as fully idle), or None if session state cannot be determined.
+  GetLastInputInfo is session/window-station specific and unreliable when
+  called from a background process (service, CI runner, hidden window).
+  Instead, proxy through WTS session detection:
+    - active user session present → 0.0  (treat as not idle)
+    - no active user session      → inf  (safe to treat as fully idle)
+    - WTS API failure             → None (block hibernation, safe default)
   """
-  # Detect whether this process is in Session 0
-  _session_id = ctypes.c_ulong(0)
-  _ok = ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(_session_id))
-  in_session0 = (not _ok) or (_session_id.value == 0)
-
-  if in_session0:
-    active = has_active_user_session()
-    if active is None:
-      return None       # WTS API failed; block hibernation
-    if active:
-      return 0.0        # User session present; treat as not idle
-    return float("inf") # No user logged in; treat as fully idle
-
-  # Interactive session: GetLastInputInfo is reliable here
-  try:
-    class LASTINPUTINFO(ctypes.Structure):
-      _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
-    info = LASTINPUTINFO()
-    info.cbSize = ctypes.sizeof(LASTINPUTINFO)
-    if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
-      idle_ms = ctypes.windll.kernel32.GetTickCount() - info.dwTime
-      return idle_ms / 1000.0
-  except Exception:
-    pass
-  return None
+  active = has_active_user_session()
+  if active is None:
+    return None
+  if active:
+    return 0.0
+  return float("inf")
 
 
 def _no_sleep_flag_path(hibernate_policy: dict) -> Path:
