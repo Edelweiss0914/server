@@ -15,6 +15,7 @@ This initial scaffold is intentionally conservative. It supports:
 - simple command execution
 - process-name based best-effort stop fallback
 - IdleWatchdog background thread for auto-stop and hibernate
+- /hibernate/debug endpoint for per-condition sleep diagnostics
 """
 
 from __future__ import annotations
