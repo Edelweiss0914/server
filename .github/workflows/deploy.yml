@@ -70,8 +70,15 @@ jobs:
           git pull origin main
 
           if ($changed -match "deploy/backend/cheeze-backend-agent\.py") {
-            Stop-ScheduledTask -TaskName "CHEEZE Backend Agent"
+            Stop-ScheduledTask -TaskName "CHEEZE Backend Agent" -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
+            # Kill any lingering Python process holding port 5010
+            $pid5010 = (Get-NetTCPConnection -LocalPort 5010 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -First 1
+            if ($pid5010) {
+              Stop-Process -Id $pid5010 -Force -ErrorAction SilentlyContinue
+              Write-Host "Killed process $pid5010 on port 5010"
+              Start-Sleep -Seconds 2
+            }
             Copy-Item "deploy\backend\cheeze-backend-agent.py" `
               "C:\ProgramData\CHEEZE\backend-agent\cheeze-backend-agent.py" -Force
             Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
