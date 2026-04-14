@@ -64,24 +64,25 @@ jobs:
           git fetch origin main
           git pull origin main
 
+          # Scheduled task runs D:\Project\deploy\backend\cheeze-backend-agent.py directly
+          # No copy needed — just restart when the source file changes
           $src = "deploy\backend\cheeze-backend-agent.py"
-          $dst = "C:\ProgramData\CHEEZE\backend-agent\cheeze-backend-agent.py"
           $srcHash = (Get-FileHash $src -Algorithm MD5).Hash
-          $dstHash = if (Test-Path $dst) { (Get-FileHash $dst -Algorithm MD5).Hash } else { "" }
+          $agentHashFile = "D:\Project\deploy\backend\.agent-deployed-hash"
+          $deployedHash = if (Test-Path $agentHashFile) { Get-Content $agentHashFile -Raw } else { "" }
 
-          if ($srcHash -ne $dstHash) {
-            Write-Host "Backend agent changed ($dstHash -> $srcHash), redeploying..."
+          if ($srcHash.Trim() -ne $deployedHash.Trim()) {
+            Write-Host "Backend agent changed, redeploying..."
             Stop-ScheduledTask -TaskName "CHEEZE Backend Agent" -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
-            # Kill any lingering Python process holding port 5010
             $pid5010 = (Get-NetTCPConnection -LocalPort 5010 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -First 1
             if ($pid5010) {
               Stop-Process -Id $pid5010 -Force -ErrorAction SilentlyContinue
               Write-Host "Killed process $pid5010 on port 5010"
               Start-Sleep -Seconds 2
             }
-            Copy-Item $src $dst -Force
             Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
+            Set-Content $agentHashFile $srcHash
             Write-Host "✓ CHEEZE Backend Agent restarted"
           } else {
             Write-Host "Backend agent unchanged, skipping restart."
