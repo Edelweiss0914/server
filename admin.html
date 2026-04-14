@@ -723,7 +723,33 @@
       </div>
     </section>
 
-    <!-- 3. 서버 콘솔 -->
+    <!-- 3. IP 라벨 -->
+    <section class="admin-section" aria-label="IP 라벨">
+      <div class="admin-section-header">
+        <span class="admin-section-title">IP 라벨</span>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="ipLabelTable">
+          <thead>
+            <tr>
+              <th>IP</th>
+              <th>이름</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ipLabelTableBody">
+            <tr><td colspan="3" class="admin-empty">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <input type="text" id="ipLabelInputIp" placeholder="IP 주소" style="padding:6px 10px;border:1px solid var(--border,#333);background:var(--bg2,#1a1a1a);color:inherit;border-radius:6px;font-size:13px;width:160px;">
+        <input type="text" id="ipLabelInputName" placeholder="이름" style="padding:6px 10px;border:1px solid var(--border,#333);background:var(--bg2,#1a1a1a);color:inherit;border-radius:6px;font-size:13px;width:160px;">
+        <button type="button" class="control-btn" id="ipLabelAddBtn">추가 / 수정</button>
+      </div>
+    </section>
+
+    <!-- 4. 서버 콘솔 -->
     <section class="admin-section" aria-label="서버 콘솔">
       <div class="admin-section-header">
         <span class="admin-section-title">서버 콘솔</span>
@@ -961,10 +987,11 @@
     }
 
     // ── API fetch with token ───────────────────────────────
-    async function adminFetch(path) {
+    async function adminFetch(path, opts = {}) {
       const token = readAdminToken();
       const res = await fetch(`${CONTROL_ENDPOINT}${path}`, {
-        headers: { [CONTROL_TOKEN_HEADER]: token },
+        ...opts,
+        headers: { [CONTROL_TOKEN_HEADER]: token, ...(opts.headers || {}) },
       });
       if (res.status === 401 || res.status === 403) {
         throw Object.assign(new Error(`auth_error:${res.status}`), { authError: true, status: res.status });
@@ -972,16 +999,12 @@
       return res;
     }
 
-    async function adminPost(path) {
-      const token = readAdminToken();
-      const res = await fetch(`${CONTROL_ENDPOINT}${path}`, {
+    async function adminPost(path, body) {
+      return adminFetch(path, {
         method: 'POST',
-        headers: { [CONTROL_TOKEN_HEADER]: token, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
       });
-      if (res.status === 401 || res.status === 403) {
-        throw Object.assign(new Error(`auth_error:${res.status}`), { authError: true, status: res.status });
-      }
-      return res;
     }
 
     // ── Handle auth error: clear token, re-prompt ──────────
@@ -1128,6 +1151,55 @@
       }).join('');
     }
 
+    // ── IP Labels ──────────────────────────────────────────
+    let ipLabels = {};
+
+    function resolveIp(ip) {
+      if (!ip) return '-';
+      const name = ipLabels[ip];
+      return name ? `${esc(ip)} <span style="color:var(--accent,#7eb8f7);font-size:11px">(${esc(name)})</span>` : esc(ip);
+    }
+
+    function renderIpLabelTable() {
+      const tbody = $('ipLabelTableBody');
+      const entries = Object.entries(ipLabels).sort(([a], [b]) => a.localeCompare(b));
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="admin-empty">등록된 라벨 없음</td></tr>';
+        return;
+      }
+      tbody.innerHTML = entries.map(([ip, name]) => `
+        <tr>
+          <td>${esc(ip)}</td>
+          <td>${esc(name)}</td>
+          <td><button type="button" class="control-btn" style="font-size:12px;padding:3px 10px" data-ip="${esc(ip)}" onclick="deleteIpLabel(this.dataset.ip)">삭제</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadIpLabels() {
+      try {
+        const res = await adminFetch('/admin/ip-labels');
+        ipLabels = await res.json();
+        renderIpLabelTable();
+        await loadAuditLog(false);
+      } catch (err) {
+        if (err.authError) { await handleAuthError(); return; }
+        if (err.authError) { await handleAuthError(); return; }
+        $('ipLabelTableBody').innerHTML = '<tr><td colspan="3" class="admin-empty">로드 실패</td></tr>';
+      }
+    }
+
+    async function deleteIpLabel(ip) {
+      if (!confirm(`"${ip}" 라벨을 삭제하시겠습니까?`)) return;
+      try {
+        await adminFetch(`/admin/ip-labels/${encodeURIComponent(ip)}`, { method: 'DELETE' });
+        delete ipLabels[ip];
+        renderIpLabelTable();
+      } catch (err) {
+        showError(`삭제 실패: ${String(err)}`);
+      }
+    }
+
     // ── Audit state ────────────────────────────────────────
     let auditOffset = 0;
     let auditPage = 10;
@@ -1150,7 +1222,7 @@
           <td class="col-action">${esc(e.action || '-')}</td>
           <td>${resultBadge(e.result)}</td>
           <td>${esc(e.token_label || e.token_id || '-')}</td>
-          <td>${esc(e.remote_ip || '-')}</td>
+          <td>${resolveIp(e.remote_ip)}</td>
         </tr>
       `).join('');
       tbody.insertAdjacentHTML('beforeend', rows);
@@ -1216,6 +1288,7 @@
     async function loadAll() {
       await loadAdminStatus();
       auditOffset = 0;
+      await loadIpLabels();
       await loadAuditLog(false);
     }
 
@@ -1254,7 +1327,7 @@
               <td class="col-action">${esc(e.action || '-')}</td>
               <td>${resultBadge(e.result)}</td>
               <td>${esc(e.token_label || e.token_id || '-')}</td>
-              <td>${esc(e.remote_ip || '-')}</td>
+              <td>${resolveIp(e.remote_ip)}</td>
             </tr>
           `).join('');
           while (tmp.firstChild) tbody.insertBefore(tmp.firstChild, tbody.firstChild);
@@ -1679,6 +1752,28 @@
         loadMoreBtn.addEventListener('click', async () => {
           auditOffset += auditPage;
           await loadAuditLog(true);
+        });
+      }
+
+      // IP label add/update
+      const ipLabelAddBtn = $('ipLabelAddBtn');
+      if (ipLabelAddBtn) {
+        ipLabelAddBtn.addEventListener('click', async () => {
+          const ip = $('ipLabelInputIp').value.trim();
+          const name = $('ipLabelInputName').value.trim();
+          if (!ip) { showError('IP 주소를 입력하세요.'); return; }
+          if (!name) { showError('이름을 입력하세요.'); return; }
+          try {
+            await adminPost('/admin/ip-labels', { ip, name });
+            ipLabels[ip] = name;
+            renderIpLabelTable();
+            $('ipLabelInputIp').value = '';
+            $('ipLabelInputName').value = '';
+            clearError();
+            await loadAuditLog(false);
+          } catch (err) {
+            showError(`추가 실패: ${String(err)}`);
+          }
         });
       }
 

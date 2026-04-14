@@ -40,6 +40,10 @@ AUDIT_LOG_PATH = Path(os.environ.get(
   "CHEEZE_PORTAL_AUDIT_LOG",
   "/opt/cheeze-control/portal-control-audit.log",
 ))
+IP_LABEL_PATH = Path(os.environ.get(
+  "CHEEZE_PORTAL_IP_LABELS",
+  "/opt/cheeze-control/portal-ip-labels.json",
+))
 CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
 
 # ── 서비스별 시작 가능 시간 제한 (KST = UTC+9) ──────────────────
@@ -190,6 +194,20 @@ def audit_log(payload):
   AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
   with AUDIT_LOG_PATH.open("a", encoding="utf-8") as handle:
     handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def load_ip_labels() -> dict:
+  try:
+    if IP_LABEL_PATH.exists():
+      return json.loads(IP_LABEL_PATH.read_text(encoding="utf-8"))
+  except Exception:
+    pass
+  return {}
+
+
+def save_ip_labels(labels: dict) -> None:
+  IP_LABEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+  IP_LABEL_PATH.write_text(json.dumps(labels, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def get_real_ip(handler) -> str:
@@ -346,6 +364,14 @@ class Handler(BaseHTTPRequestHandler):
       self.handle_admin_audit()
       return
 
+    if self.path == "/admin/ip-labels":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.respond_json(200, load_ip_labels())
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
@@ -385,6 +411,46 @@ class Handler(BaseHTTPRequestHandler):
       except Exception:
         payload = {}
       self.forward_or_error(f"/services/{service_id}/console", method="POST", payload=payload)
+      return
+
+    if self.path == "/admin/ip-labels":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      content_length = int(self.headers.get("Content-Length", 0))
+      try:
+        body = json.loads(self.rfile.read(content_length) if content_length else b"{}")
+      except Exception:
+        self.respond_json(400, {"error": "invalid_json"})
+        return
+      ip = str(body.get("ip", "")).strip()
+      name = str(body.get("name", "")).strip()
+      if not ip:
+        self.respond_json(400, {"error": "ip_required"})
+        return
+      labels = load_ip_labels()
+      if name:
+        labels[ip] = name
+      else:
+        labels.pop(ip, None)
+      save_ip_labels(labels)
+      self.respond_json(200, labels)
+      return
+
+    self.respond_json(404, {"error": "not_found"})
+
+  def do_DELETE(self):
+    if self.path.startswith("/admin/ip-labels/"):
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      ip = self.path[len("/admin/ip-labels/"):]
+      labels = load_ip_labels()
+      labels.pop(ip, None)
+      save_ip_labels(labels)
+      self.respond_json(200, labels)
       return
 
     self.respond_json(404, {"error": "not_found"})
