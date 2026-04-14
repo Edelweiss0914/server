@@ -723,7 +723,7 @@
       </div>
     </section>
 
-    <!-- 3. IP 라벨 -->
+    <!-- IP label management -->
     <section class="admin-section" aria-label="IP 라벨">
       <div class="admin-section-header">
         <span class="admin-section-title">IP 라벨</span>
@@ -1151,7 +1151,7 @@
       }).join('');
     }
 
-    // ── IP Labels ──────────────────────────────────────────
+    // IP label state and helpers
     let ipLabels = {};
 
     function resolveIp(ip) {
@@ -1181,9 +1181,7 @@
         const res = await adminFetch('/admin/ip-labels');
         ipLabels = await res.json();
         renderIpLabelTable();
-        await loadAuditLog(false);
       } catch (err) {
-        if (err.authError) { await handleAuthError(); return; }
         if (err.authError) { await handleAuthError(); return; }
         $('ipLabelTableBody').innerHTML = '<tr><td colspan="3" class="admin-empty">로드 실패</td></tr>';
       }
@@ -1200,7 +1198,7 @@
       }
     }
 
-    // ── Audit state ────────────────────────────────────────
+    // Audit table state
     let auditOffset = 0;
     let auditPage = 10;
     let auditTotal = 0;
@@ -1284,7 +1282,7 @@
       }
     }
 
-    // ── Load everything ────────────────────────────────────
+    // Initial dashboard load
     async function loadAll() {
       await loadAdminStatus();
       auditOffset = 0;
@@ -1755,7 +1753,7 @@
         });
       }
 
-      // IP label add/update
+      // IP label add or update
       const ipLabelAddBtn = $('ipLabelAddBtn');
       if (ipLabelAddBtn) {
         ipLabelAddBtn.addEventListener('click', async () => {
@@ -1772,6 +1770,7 @@
             clearError();
             await loadAuditLog(false);
           } catch (err) {
+            if (err.authError) { await handleAuthError(); return; }
             showError(`추가 실패: ${String(err)}`);
           }
         });
