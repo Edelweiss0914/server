@@ -691,7 +691,28 @@ def has_active_user_session() -> bool | None:
 
 
 def get_user_idle_seconds() -> float | None:
-  """Return seconds since last keyboard/mouse input on Windows. None on error."""
+  """Return seconds since last keyboard/mouse input on Windows. None on error.
+
+  When running in Session 0 (Windows service), GetLastInputInfo only reflects
+  Session 0 input and is not representative of user activity. In that case,
+  infer idle state from active user sessions: return 0.0 if a user session is
+  active (conservative — treat as not idle), float('inf') if no user is logged
+  in (treat as fully idle), or None if session state cannot be determined.
+  """
+  # Detect whether this process is in Session 0
+  _session_id = ctypes.c_ulong(0)
+  _ok = ctypes.windll.kernel32.ProcessIdToSessionId(os.getpid(), ctypes.byref(_session_id))
+  in_session0 = (not _ok) or (_session_id.value == 0)
+
+  if in_session0:
+    active = has_active_user_session()
+    if active is None:
+      return None       # WTS API failed; block hibernation
+    if active:
+      return 0.0        # User session present; treat as not idle
+    return float("inf") # No user logged in; treat as fully idle
+
+  # Interactive session: GetLastInputInfo is reliable here
   try:
     class LASTINPUTINFO(ctypes.Structure):
       _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
@@ -841,9 +862,15 @@ def _hibernate_debug_info(config: dict) -> dict:
   if activity_guard.get("enabled", False):
     min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
     idle_seconds = get_user_idle_seconds()
+    if idle_seconds is not None and idle_seconds == float("inf"):
+      idle_display = None  # no user session; infinity not JSON-serialisable
+    elif idle_seconds is not None:
+      idle_display = round(idle_seconds, 1)
+    else:
+      idle_display = None
     conditions["user_activity_guard"] = {
       "pass": idle_seconds is not None and idle_seconds >= min_idle_minutes * 60,
-      "idle_seconds": round(idle_seconds, 1) if idle_seconds is not None else None,
+      "idle_seconds": idle_display,
       "required_seconds": min_idle_minutes * 60,
     }
   else:
