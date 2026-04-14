@@ -1453,9 +1453,19 @@
 
     function ensureConsoleTabVisible(serviceId) {
       if (!serviceId || !window.CSS?.escape) return;
+      const tabs = $('consoleTabs');
       const activeTab = document.querySelector(`.console-tab-btn[data-console-id="${CSS.escape(serviceId)}"]`);
-      if (!activeTab) return;
-      activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      if (!tabs || !activeTab) return;
+
+      const tabLeft = activeTab.offsetLeft;
+      const tabRight = tabLeft + activeTab.offsetWidth;
+      const viewLeft = tabs.scrollLeft;
+      const viewRight = viewLeft + tabs.clientWidth;
+
+      if (tabLeft >= viewLeft && tabRight <= viewRight) return;
+
+      const centeredLeft = Math.max(0, tabLeft - Math.max(0, (tabs.clientWidth - activeTab.offsetWidth) / 2));
+      tabs.scrollTo({ left: centeredLeft, behavior: 'smooth' });
     }
 
     async function startConsoleTab(serviceId) {
