@@ -81,7 +81,9 @@ jobs:
               Write-Host "Killed process $pid5010 on port 5010"
               Start-Sleep -Seconds 2
             }
-            Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
+            Start-Process -FilePath "C:\Program Files\Python312\python.EXE" `
+              -ArgumentList "D:\Project\deploy\backend\cheeze-backend-agent.py" `
+              -WindowStyle Hidden
             Set-Content $agentHashFile $srcHash
             Write-Host "✓ CHEEZE Backend Agent restarted"
           } else {
