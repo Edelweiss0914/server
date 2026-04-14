@@ -62,14 +62,15 @@ jobs:
           Set-Location D:\Project
 
           git fetch origin main
-          $changed = git diff --name-only HEAD origin/main
-          Write-Host "=== Changed files ==="
-          Write-Host ($changed | Out-String)
-          Write-Host "====================="
-
           git pull origin main
 
-          if ($changed -match "deploy/backend/cheeze-backend-agent\.py") {
+          $src = "deploy\backend\cheeze-backend-agent.py"
+          $dst = "C:\ProgramData\CHEEZE\backend-agent\cheeze-backend-agent.py"
+          $srcHash = (Get-FileHash $src -Algorithm MD5).Hash
+          $dstHash = if (Test-Path $dst) { (Get-FileHash $dst -Algorithm MD5).Hash } else { "" }
+
+          if ($srcHash -ne $dstHash) {
+            Write-Host "Backend agent changed ($dstHash -> $srcHash), redeploying..."
             Stop-ScheduledTask -TaskName "CHEEZE Backend Agent" -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
             # Kill any lingering Python process holding port 5010
@@ -79,10 +80,11 @@ jobs:
               Write-Host "Killed process $pid5010 on port 5010"
               Start-Sleep -Seconds 2
             }
-            Copy-Item "deploy\backend\cheeze-backend-agent.py" `
-              "C:\ProgramData\CHEEZE\backend-agent\cheeze-backend-agent.py" -Force
+            Copy-Item $src $dst -Force
             Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
             Write-Host "✓ CHEEZE Backend Agent restarted"
+          } else {
+            Write-Host "Backend agent unchanged, skipping restart."
           }
 
           Write-Host "Homepc deploy complete."
