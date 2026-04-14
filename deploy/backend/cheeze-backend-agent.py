@@ -19,6 +19,7 @@ This initial scaffold is intentionally conservative. It supports:
 
 from __future__ import annotations
 
+import ctypes
 import datetime
 import json
 import os
@@ -26,10 +27,12 @@ import shutil
 import socket
 import struct
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+from ctypes import wintypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -45,6 +48,44 @@ DEFAULT_CONFIG_CANDIDATES = [
 
 CONFIG_PATH = Path(os.environ["CHEEZE_BACKEND_CONFIG"]) if "CHEEZE_BACKEND_CONFIG" in os.environ else None
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_REQUEST_TIMEOUT", "5"))
+
+WTS_ACTIVE = 0
+WTS_USERNAME = 5
+
+
+class _Tee:
+  """Write to multiple streams simultaneously (console + log file)."""
+  def __init__(self, *streams):
+    self._streams = streams
+
+  def write(self, data):
+    for s in self._streams:
+      try:
+        s.write(data)
+        s.flush()
+      except Exception:
+        pass
+
+  def flush(self):
+    for s in self._streams:
+      try:
+        s.flush()
+      except Exception:
+        pass
+
+
+def _setup_file_logging(config: dict) -> None:
+  log_path_str = config.get("log_file", "")
+  log_path = Path(log_path_str) if log_path_str else Path(__file__).with_name("agent.log")
+  try:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = log_path.open("a", encoding="utf-8", buffering=1)
+    tee = _Tee(sys.__stdout__, fh)
+    sys.stdout = tee
+    sys.stderr = tee
+    print(f"[LOG] file logging started → {log_path}")
+  except Exception as exc:
+    print(f"[LOG] failed to open log file {log_path}: {exc}")
 
 
 def load_config():
@@ -193,6 +234,15 @@ def start_service(service):
 
 
 def stop_service(service):
+  rcon = service.get("rcon")
+  if rcon:
+    _rcon_broadcast(
+      rcon["host"],
+      int(rcon["port"]),
+      rcon.get("password", ""),
+      "서버: 종료합니다...",
+    )
+
   stop_command = service.get("stop_command")
   if stop_command and stop_command != "__FILL_ME__":
     subprocess.Popen(
@@ -346,6 +396,14 @@ _last_player_count: dict[str, int | None] = {}
 _shutdown_warnings_sent: dict[str, set] = {}
 # Maps service_id -> timestamp of last auto-save
 _last_auto_save: dict[str, float] = {}
+# Maps service_id -> set of warning thresholds (seconds-remaining) already sent for time restriction
+_time_restriction_warnings_sent: dict[str, set] = {}
+# Maps service_id -> previous seconds-remaining snapshot for time restriction
+_last_time_restriction_remaining: dict[str, float] = {}
+# Maps service_id -> whether time restriction stop was already dispatched in the current window
+_time_restriction_stop_dispatched: set[str] = set()
+_hibernate_inhibit_until = 0.0
+_last_watchdog_wallclock: float | None = None
 _watchdog_running = False
 
 # ── RCON ────────────────────────────────────────────────────────────────────
@@ -358,6 +416,13 @@ SHUTDOWN_WARNING_THRESHOLDS = [
   (60,   "잠시"),
 ]
 
+def _current_warning_threshold(remaining: float) -> tuple[int, str] | None:
+  """Return the current warning band for the remaining seconds."""
+  for threshold, label in reversed(SHUTDOWN_WARNING_THRESHOLDS):
+    if remaining <= threshold:
+      return threshold, label
+  return None
+
 
 def _rcon_send(host: str, port: int, password: str, command: str, timeout: float = 5.0) -> bool:
   """Send a single RCON command silently. Returns True on success."""
@@ -367,6 +432,26 @@ def _rcon_send(host: str, port: int, password: str, command: str, timeout: float
   except Exception as exc:
     print(f"[RCON] {exc}")
     return False
+
+
+def _rcon_broadcast(host: str, port: int, password: str, message: str, color: str = "gold") -> bool:
+  """Broadcast a colored tellraw message to all players."""
+  safe_message = message.replace("\\", "\\\\").replace('"', '\\"')
+  command = f'tellraw @a {{"text":"{safe_message}","color":"{color}"}}'
+  return _rcon_send(host, port, password, command)
+
+
+def _save_before_shutdown(service: dict, reason: str) -> None:
+  """Persist world/player state once when the shutdown window reaches 5 minutes."""
+  rcon = service.get("rcon")
+  if not rcon:
+    return
+  host = rcon["host"]
+  port = int(rcon["port"])
+  password = rcon.get("password", "")
+  if _rcon_send(host, port, password, "save-all flush") or _rcon_send(host, port, password, "save-all"):
+    _rcon_broadcast(host, port, password, "서버: 월드가 저장되었습니다.")
+    print(f"[RCON] {service['id']}: pre-shutdown save complete ({reason})")
 
 
 def send_shutdown_warning(service: dict, idle_elapsed: float, idle_timeout: float) -> None:
@@ -379,20 +464,70 @@ def send_shutdown_warning(service: dict, idle_elapsed: float, idle_timeout: floa
   with _watchdog_lock:
     if service_id not in _shutdown_warnings_sent:
       _shutdown_warnings_sent[service_id] = set()
-  for threshold, label in SHUTDOWN_WARNING_THRESHOLDS:
-    with _watchdog_lock:
-      already_sent = threshold in _shutdown_warnings_sent[service_id]
-    if already_sent or remaining > threshold:
-      continue
-    msg = (
-      "say 서버: 잠시 후 서버가 자동 종료됩니다."
+  current = _current_warning_threshold(remaining)
+  if not current:
+    return
+  threshold, label = current
+  with _watchdog_lock:
+    already_sent = threshold in _shutdown_warnings_sent[service_id]
+  if already_sent:
+    return
+  msg = (
+      "서버: 잠시 후 서버가 자동 종료됩니다."
       if label == "잠시"
-      else f"say 서버: {label} 후 서버가 자동 종료됩니다."
+      else f"서버: {label} 후 서버가 자동 종료됩니다."
     )
-    if _rcon_send(rcon["host"], int(rcon["port"]), rcon.get("password", ""), msg):
-      with _watchdog_lock:
-        _shutdown_warnings_sent[service_id].add(threshold)
-      print(f"[RCON] {service_id}: {label} shutdown warning sent")
+  if threshold == 300:
+    _save_before_shutdown(service, "idle_timeout")
+  if _rcon_broadcast(rcon["host"], int(rcon["port"]), rcon.get("password", ""), msg):
+    with _watchdog_lock:
+      _shutdown_warnings_sent[service_id].add(threshold)
+    print(f"[RCON] {service_id}: {label} shutdown warning sent")
+
+
+def send_time_restriction_warning(service: dict) -> None:
+  """Send RCON warnings before a configured time_restriction end time."""
+  rcon = service.get("rcon")
+  time_restriction = service.get("time_restriction", {})
+  end_time = time_restriction.get("end")
+  if not rcon or not time_restriction.get("enabled", True) or not end_time:
+    return
+
+  remaining = _seconds_until_time(end_time)
+  if remaining is None:
+    return
+
+  service_id = service["id"]
+  max_threshold = SHUTDOWN_WARNING_THRESHOLDS[0][0]
+  with _watchdog_lock:
+    if service_id not in _time_restriction_warnings_sent:
+      _time_restriction_warnings_sent[service_id] = set()
+    if remaining > max_threshold:
+      _time_restriction_warnings_sent[service_id].clear()
+    last_remaining = _last_time_restriction_remaining.get(service_id)
+    _last_time_restriction_remaining[service_id] = remaining
+
+  current = _current_warning_threshold(remaining)
+  if not current:
+    return
+  threshold, label = current
+  if last_remaining is None or last_remaining <= threshold:
+    return
+  with _watchdog_lock:
+    already_sent = threshold in _time_restriction_warnings_sent[service_id]
+  if already_sent:
+    return
+  msg = (
+      f"서버: 운영 시간 종료가 가까워졌습니다. {end_time}에 자동 종료됩니다."
+      if threshold == 60
+      else f"서버: 운영 시간 종료 {label} 전입니다. {end_time}에 자동 종료됩니다."
+    )
+  if threshold == 300:
+    _save_before_shutdown(service, "time_restriction")
+  if _rcon_broadcast(rcon["host"], int(rcon["port"]), rcon.get("password", ""), msg):
+    with _watchdog_lock:
+      _time_restriction_warnings_sent[service_id].add(threshold)
+    print(f"[RCON] {service_id}: {label} time restriction warning sent")
 
 
 def maybe_auto_save(service: dict) -> None:
@@ -428,7 +563,7 @@ def maybe_auto_save(service: dict) -> None:
 
   host, port, pw = rcon["host"], int(rcon["port"]), rcon.get("password", "")
   if _rcon_send(host, port, pw, "save-all"):
-    _rcon_send(host, port, pw, "say 서버: 월드가 저장되었습니다.")
+    _rcon_broadcast(host, port, pw, "서버: 월드가 저장되었습니다.")
     with _watchdog_lock:
       _last_auto_save[service_id] = float(save_window)
     print(f"[RCON] {service_id}: auto-save complete")
@@ -447,10 +582,116 @@ def _time_in_inhibit_range(now: datetime.time, start_str: str, end_str: str) -> 
   return now >= start or now < end
 
 
+def _seconds_until_time(time_str: str) -> float | None:
+  """Return seconds until the next occurrence of time_str (HH:MM)."""
+  try:
+    now = datetime.datetime.now()
+    target = datetime.time.fromisoformat(time_str)
+    target_dt = datetime.datetime.combine(now.date(), target)
+    if target_dt <= now:
+      target_dt += datetime.timedelta(days=1)
+    return (target_dt - now).total_seconds()
+  except Exception:
+    return None
+
+
+def _seconds_since_most_recent_time(time_str: str) -> float | None:
+  """Return seconds since the most recent occurrence of time_str (HH:MM)."""
+  try:
+    now = datetime.datetime.now()
+    target = datetime.time.fromisoformat(time_str)
+    target_dt = datetime.datetime.combine(now.date(), target)
+    if target_dt > now:
+      target_dt -= datetime.timedelta(days=1)
+    return (now - target_dt).total_seconds()
+  except Exception:
+    return None
+
+
+def maybe_enforce_time_restriction_stop(service: dict, grace_seconds: int) -> bool:
+  """Stop a running service if it has just crossed its time restriction end."""
+  time_restriction = service.get("time_restriction", {})
+  end_time = time_restriction.get("end")
+  if not time_restriction.get("enabled", True) or not end_time:
+    return False
+
+  service_id = service["id"]
+  seconds_since = _seconds_since_most_recent_time(end_time)
+  if seconds_since is None or seconds_since < 0 or seconds_since > grace_seconds:
+    return False
+
+  with _watchdog_lock:
+    if service_id in _time_restriction_stop_dispatched:
+      return False
+    _time_restriction_stop_dispatched.add(service_id)
+
+  print(f"[TIME] auto-stopping {service_id} at restricted end time {end_time}")
+  try:
+    stop_service(service)
+    return True
+  except Exception as exc:
+    with _watchdog_lock:
+      _time_restriction_stop_dispatched.discard(service_id)
+    print(f"[TIME] stop_service({service_id}) failed: {exc}")
+    return False
+
+
+class WTS_SESSION_INFO(ctypes.Structure):
+  _fields_ = [
+    ("SessionId", wintypes.DWORD),
+    ("pWinStationName", wintypes.LPWSTR),
+    ("State", wintypes.DWORD),
+  ]
+
+
+def _wts_query_string(session_id: int, info_class: int) -> str:
+  buffer = wintypes.LPWSTR()
+  bytes_returned = wintypes.DWORD()
+  ok = ctypes.windll.Wtsapi32.WTSQuerySessionInformationW(
+    wintypes.HANDLE(0),
+    session_id,
+    info_class,
+    ctypes.byref(buffer),
+    ctypes.byref(bytes_returned),
+  )
+  if not ok:
+    return ""
+  try:
+    return ctypes.wstring_at(buffer) if buffer else ""
+  finally:
+    ctypes.windll.Wtsapi32.WTSFreeMemory(buffer)
+
+
+def has_active_user_session() -> bool | None:
+  """Return True when any real console/RDP user session is active."""
+  sessions_ptr = ctypes.POINTER(WTS_SESSION_INFO)()
+  count = wintypes.DWORD()
+  ok = ctypes.windll.Wtsapi32.WTSEnumerateSessionsW(
+    wintypes.HANDLE(0),
+    0,
+    1,
+    ctypes.byref(sessions_ptr),
+    ctypes.byref(count),
+  )
+  if not ok:
+    return None
+
+  try:
+    sessions = sessions_ptr[:count.value]
+    for session in sessions:
+      if session.State != WTS_ACTIVE:
+        continue
+      username = _wts_query_string(int(session.SessionId), WTS_USERNAME).strip()
+      if username:
+        return True
+    return False
+  finally:
+    ctypes.windll.Wtsapi32.WTSFreeMemory(sessions_ptr)
+
+
 def get_user_idle_seconds() -> float | None:
   """Return seconds since last keyboard/mouse input on Windows. None on error."""
   try:
-    import ctypes
     class LASTINPUTINFO(ctypes.Structure):
       _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
     info = LASTINPUTINFO()
@@ -470,10 +711,50 @@ def _no_sleep_flag_path(hibernate_policy: dict) -> Path:
   return Path(__file__).with_name("no-sleep.flag")
 
 
+def _get_hibernate_grace_seconds(hibernate_policy: dict, key: str, default: int) -> int:
+  raw = hibernate_policy.get(key, default)
+  try:
+    return max(0, int(raw))
+  except (TypeError, ValueError):
+    return default
+
+
+def _extend_hibernate_inhibit(seconds: int, reason: str) -> None:
+  if seconds <= 0:
+    return
+
+  global _hibernate_inhibit_until
+  deadline = time.time() + seconds
+  with _watchdog_lock:
+    if deadline <= _hibernate_inhibit_until:
+      return
+    _hibernate_inhibit_until = deadline
+  print(f"[HIBERNATE] inhibit armed for {seconds}s ({reason})")
+
+
+def _hibernate_inhibit_active() -> bool:
+  with _watchdog_lock:
+    return time.time() < _hibernate_inhibit_until
+
+
+def _arm_service_start_hibernate_inhibit(config: dict, service_id: str) -> None:
+  _extend_hibernate_inhibit(
+    _get_hibernate_grace_seconds(
+      config.get("hibernate_policy", {}),
+      "start_request_grace_seconds",
+      600,
+    ),
+    f"service_start:{service_id}",
+  )
+
+
 def _check_hibernate_conditions(config: dict) -> bool:
   """Return True if all hibernate conditions are satisfied."""
   hibernate_policy = config.get("hibernate_policy", {})
   if not hibernate_policy.get("enabled", False):
+    return False
+
+  if _hibernate_inhibit_active():
     return False
 
   # 0. User activity guard
@@ -482,7 +763,9 @@ def _check_hibernate_conditions(config: dict) -> bool:
   if activity_guard.get("enabled", False):
     min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
     idle_seconds = get_user_idle_seconds()
-    if idle_seconds is not None and idle_seconds < min_idle_minutes * 60:
+    if idle_seconds is None:
+      return False
+    if idle_seconds < min_idle_minutes * 60:
       return False
 
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
@@ -498,17 +781,11 @@ def _check_hibernate_conditions(config: dict) -> bool:
       pass
 
   # 2. No active console/RDP sessions
-  try:
-    result = subprocess.run(
-      ["query", "session"],
-      text=True,
-      capture_output=True,
-      check=False,
-    )
-    if "Active" in result.stdout:
-      return False
-  except Exception:
-    pass  # Skip check if query session is unavailable
+  active_session = has_active_user_session()
+  if active_session is None:
+    return False
+  if active_session:
+    return False
 
   # 3. Not within inhibit schedule
   now_time = datetime.datetime.now().time()
@@ -538,6 +815,100 @@ def _check_hibernate_conditions(config: dict) -> bool:
   return True
 
 
+def _hibernate_debug_info(config: dict) -> dict:
+  """Evaluate each hibernate condition individually and return pass/fail details."""
+  hibernate_policy = config.get("hibernate_policy", {})
+  conditions = {}
+
+  # policy enabled
+  enabled = hibernate_policy.get("enabled", False)
+  conditions["policy_enabled"] = {"pass": enabled}
+
+  # inhibit timer
+  with _watchdog_lock:
+    inhibit_until = _hibernate_inhibit_until
+  inhibit_active = time.time() < inhibit_until
+  conditions["inhibit_timer"] = {
+    "pass": not inhibit_active,
+    "inhibit_until": datetime.datetime.fromtimestamp(inhibit_until).strftime("%Y-%m-%dT%H:%M:%S") if inhibit_active else None,
+    "remaining_seconds": max(0, int(inhibit_until - time.time())) if inhibit_active else 0,
+  }
+
+  # user activity guard
+  host_cfg = config.get("host", {})
+  activity_guard = host_cfg.get("user_activity_guard", {})
+  if activity_guard.get("enabled", False):
+    min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
+    idle_seconds = get_user_idle_seconds()
+    conditions["user_activity_guard"] = {
+      "pass": idle_seconds is not None and idle_seconds >= min_idle_minutes * 60,
+      "idle_seconds": round(idle_seconds, 1) if idle_seconds is not None else None,
+      "required_seconds": min_idle_minutes * 60,
+    }
+  else:
+    conditions["user_activity_guard"] = {"pass": True, "enabled": False}
+
+  # all services offline
+  services = [s for s in config.get("services", []) if s.get("enabled", True)]
+  active_states = {"running", "starting", "waking", "stopping"}
+  services_detail = {}
+  all_offline = True
+  for svc in services:
+    try:
+      st = service_status(svc)
+      state = st["state"]
+      offline = state not in active_states
+      services_detail[svc["id"]] = {"state": state, "pass": offline}
+      if not offline:
+        all_offline = False
+    except Exception as exc:
+      services_detail[svc["id"]] = {"state": "check_error", "error": str(exc), "pass": True}
+  conditions["all_services_offline"] = {"pass": all_offline, "services": services_detail}
+
+  # no active user session
+  active_session = has_active_user_session()
+  conditions["no_active_user_session"] = {
+    "pass": active_session is False,
+    "raw_value": active_session,
+  }
+
+  # not in inhibit schedule
+  now_time = datetime.datetime.now().time()
+  in_schedule = False
+  matched_window = None
+  for window in hibernate_policy.get("inhibit_schedule", []):
+    try:
+      if _time_in_inhibit_range(now_time, window["start"], window["end"]):
+        in_schedule = True
+        matched_window = window
+        break
+    except Exception:
+      pass
+  conditions["not_in_inhibit_schedule"] = {
+    "pass": not in_schedule,
+    "current_time": now_time.strftime("%H:%M"),
+    "matched_window": matched_window,
+  }
+
+  # disk space
+  check_drive = hibernate_policy.get("check_drive", "C:\\")
+  min_free_gb = hibernate_policy.get("min_free_space_gb", 20)
+  try:
+    usage = shutil.disk_usage(check_drive)
+    free_gb = round(usage.free / (1024 ** 3), 2)
+    conditions["disk_space"] = {"pass": free_gb >= min_free_gb, "free_gb": free_gb, "required_gb": min_free_gb}
+  except Exception as exc:
+    conditions["disk_space"] = {"pass": False, "error": str(exc)}
+
+  # no-sleep flag
+  flag_path = _no_sleep_flag_path(hibernate_policy)
+  conditions["no_sleep_flag_absent"] = {"pass": not flag_path.exists(), "flag_path": str(flag_path)}
+
+  would_hibernate = all(v.get("pass", False) for v in conditions.values())
+  failing = [k for k, v in conditions.items() if not v.get("pass", False)]
+  return {"would_hibernate": would_hibernate, "failing_conditions": failing, "conditions": conditions}
+
+
 def _watchdog_tick():
   """Single tick of the idle watchdog: check each service and possibly hibernate."""
   try:
@@ -548,6 +919,23 @@ def _watchdog_tick():
 
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
   any_auto_stopped = False
+  hibernate_policy = config.get("hibernate_policy", {})
+  check_interval_seconds = hibernate_policy.get("check_interval_seconds", 60)
+  now_ts = time.time()
+
+  global _last_watchdog_wallclock
+  with _watchdog_lock:
+    previous_tick_ts = _last_watchdog_wallclock
+    _last_watchdog_wallclock = now_ts
+
+  resume_gap_threshold = max(check_interval_seconds * 2, 30)
+  if previous_tick_ts is not None:
+    wallclock_gap = now_ts - previous_tick_ts
+    if wallclock_gap > resume_gap_threshold:
+      _extend_hibernate_inhibit(
+        _get_hibernate_grace_seconds(hibernate_policy, "resume_grace_seconds", 180),
+        f"watchdog_resume_gap:{int(wallclock_gap)}s",
+      )
 
   for service in services:
     service_id = service["id"]
@@ -565,6 +953,11 @@ def _watchdog_tick():
     state = status["state"]
 
     if state == "running":
+      if maybe_enforce_time_restriction_stop(service, check_interval_seconds + 30):
+        any_auto_stopped = True
+        continue
+      send_time_restriction_warning(service)
+
       # Player count check
       player_check = idle_policy.get("player_check", {})
       if player_check.get("enabled", False) and player_check.get("type") == "minecraft":
@@ -641,10 +1034,12 @@ def _watchdog_tick():
         _last_player_count.pop(service_id, None)
         _shutdown_warnings_sent.pop(service_id, None)
         _last_auto_save.pop(service_id, None)
+        _time_restriction_warnings_sent.pop(service_id, None)
+        _last_time_restriction_remaining.pop(service_id, None)
+        _time_restriction_stop_dispatched.discard(service_id)
 
   # Hibernate check — only evaluate after potential auto-stops
   if any_auto_stopped or True:  # always check each tick; harmless extra check
-    hibernate_policy = config.get("hibernate_policy", {})
     if hibernate_policy.get("enabled", False):
       if _check_hibernate_conditions(config):
         print("[HIBERNATE] all conditions met, triggering Windows hibernate")
@@ -673,7 +1068,12 @@ def start_watchdog(config: dict):
   if not needs_watchdog:
     return
 
-  check_interval = config.get("hibernate_policy", {}).get("check_interval_seconds", 60)
+  hibernate_policy = config.get("hibernate_policy", {})
+  _extend_hibernate_inhibit(
+    _get_hibernate_grace_seconds(hibernate_policy, "startup_grace_seconds", 180),
+    "agent_startup",
+  )
+  check_interval = hibernate_policy.get("check_interval_seconds", 60)
 
   thread = threading.Thread(
     target=_watchdog_loop,
@@ -808,6 +1208,10 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, self._build_idle_status(config))
       return
 
+    if self.path == "/hibernate/debug":
+      self.respond_json(200, _hibernate_debug_info(config))
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
@@ -830,6 +1234,8 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(404, {"error": "not_found"})
         return
       status_code, payload = start_service(service)
+      if status_code < 400 and payload.get("accepted"):
+        _arm_service_start_hibernate_inhibit(config, service_id)
       self.respond_json(status_code, payload)
       return
 
@@ -921,6 +1327,7 @@ class Handler(BaseHTTPRequestHandler):
       "watchdog_running": _watchdog_running,
       "services": services_out,
       "hibernate_policy_enabled": config.get("hibernate_policy", {}).get("enabled", False),
+      "hibernate_inhibit_active": _hibernate_inhibit_active(),
     }
 
   def respond_json(self, status_code, payload):
@@ -937,6 +1344,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
   config = load_config()
+  _setup_file_logging(config)
   start_watchdog(config)
 
   server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
