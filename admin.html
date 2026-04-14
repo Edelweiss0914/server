@@ -150,6 +150,31 @@
       font-size: 0.8rem;
     }
 
+    .audit-ip-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+
+    .audit-ip-value {
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+
+    .audit-ip-label {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 0.7rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    }
+
     .admin-result-badge {
       display: inline-block;
       padding: 2px 8px;
@@ -686,12 +711,12 @@
           <div class="audit-page-dropdown" id="auditPageDropdown">
             <span class="audit-page-slot-label">더보기 단위</span>
             <button type="button" class="audit-slot-trigger" id="auditSlotTrigger">
-              <span id="auditSlotLabel">10</span>
+              <span id="auditSlotLabel">5</span>
               <span class="slot-arrow">▼</span>
             </button>
             <div class="audit-slot-menu" id="auditSlotMenu">
-              <button type="button" class="audit-slot-item" data-slot="5">5</button>
-              <button type="button" class="audit-slot-item active" data-slot="10">10</button>
+              <button type="button" class="audit-slot-item active" data-slot="5">5</button>
+              <button type="button" class="audit-slot-item" data-slot="10">10</button>
               <button type="button" class="audit-slot-item" data-slot="15">15</button>
               <button type="button" class="audit-slot-item" data-slot="20">20</button>
               <button type="button" class="audit-slot-item" data-slot="25">25</button>
@@ -971,8 +996,43 @@
     function stateClass(state) { return `is-${state || 'offline'}`; }
 
     // ── Audit result badge ─────────────────────────────────
+    function actionLabel(action) {
+      const labels = {
+        start: '시작',
+        stop: '종료',
+        wake: '깨우기',
+      };
+      return labels[(action || '').toLowerCase()] || action || '-';
+    }
+
+    function resultLabel(result) {
+      const labels = {
+        forwarded: '전달됨',
+        rejected: '거부됨',
+        failed: '실패',
+        error: '오류',
+      };
+      return labels[(result || '').toLowerCase()] || result || '-';
+    }
+
+    function tokenLabel(entry) {
+      const raw = entry.token_label || entry.token_id || '-';
+      const labels = {
+        'Primary Admin Token': '기본 관리자 토큰',
+        'admin-main': '기본 관리자 토큰',
+        'Discord Bot Multi-Server Start Token': '디스코드 봇 시작 토큰',
+        'discord-bot-start': '디스코드 봇 시작 토큰',
+        'Discord Bot Multi-Server Stop Token': '디스코드 봇 종료 토큰',
+        'discord-bot-stop': '디스코드 봇 종료 토큰',
+        'Friend Game Start Token (24h)': '친구 게임 시작 토큰 (24시간)',
+        'friend-game-start-24h': '친구 게임 시작 토큰 (24시간)',
+        'legacy-admin-env-token': '레거시 관리자 토큰',
+      };
+      return labels[raw] || raw;
+    }
+
     function resultBadge(result) {
-      const safe = esc(result || '');
+      const safe = esc(resultLabel(result));
       const cls = `is-${(result || '').toLowerCase()}`;
       return `<span class="admin-result-badge ${cls}">${safe}</span>`;
     }
@@ -1157,7 +1217,9 @@
     function resolveIp(ip) {
       if (!ip) return '-';
       const name = ipLabels[ip];
-      return name ? `${esc(ip)} <span style="color:var(--accent,#7eb8f7);font-size:11px">(${esc(name)})</span>` : esc(ip);
+      return name
+        ? `<span class="audit-ip-cell"><span class="audit-ip-value">${esc(ip)}</span><span class="audit-ip-label">${esc(name)}</span></span>`
+        : `<span class="audit-ip-value">${esc(ip)}</span>`;
     }
 
     function renderIpLabelTable() {
@@ -1200,7 +1262,7 @@
 
     // Audit table state
     let auditOffset = 0;
-    let auditPage = 10;
+    let auditPage = 5;
     let auditTotal = 0;
 
     function renderAuditRows(entries, append = false) {
@@ -1217,9 +1279,9 @@
         <tr>
           <td class="col-ts">${fmtTs(e.timestamp)}</td>
           <td>${esc(e.service_id || '-')}</td>
-          <td class="col-action">${esc(e.action || '-')}</td>
+          <td class="col-action">${esc(actionLabel(e.action))}</td>
           <td>${resultBadge(e.result)}</td>
-          <td>${esc(e.token_label || e.token_id || '-')}</td>
+          <td>${esc(tokenLabel(e))}</td>
           <td>${resolveIp(e.remote_ip)}</td>
         </tr>
       `).join('');
@@ -1322,9 +1384,9 @@
             <tr class="audit-row-new">
               <td class="col-ts">${fmtTs(e.timestamp)}</td>
               <td>${esc(e.service_id || '-')}</td>
-              <td class="col-action">${esc(e.action || '-')}</td>
+              <td class="col-action">${esc(actionLabel(e.action))}</td>
               <td>${resultBadge(e.result)}</td>
-              <td>${esc(e.token_label || e.token_id || '-')}</td>
+              <td>${esc(tokenLabel(e))}</td>
               <td>${resolveIp(e.remote_ip)}</td>
             </tr>
           `).join('');
@@ -1748,7 +1810,7 @@
             auditPage = parseInt(item.dataset.slot, 10);
             auditDropdown.querySelectorAll('.audit-slot-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
-            $('auditSlotLabel').textContent = auditPage;
+            $('auditSlotLabel').textContent = String(auditPage);
             auditDropdown.classList.remove('open');
           });
         });
