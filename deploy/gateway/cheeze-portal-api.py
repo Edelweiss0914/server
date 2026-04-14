@@ -192,6 +192,19 @@ def audit_log(payload):
     handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def get_real_ip(handler) -> str:
+  """Return the real client IP, preferring Cloudflare/proxy headers over the
+  direct socket address (which is always 127.0.0.1 behind nginx)."""
+  for header in ("CF-Connecting-IP", "X-Real-IP"):
+    ip = handler.headers.get(header, "").strip()
+    if ip:
+      return ip
+  xff = handler.headers.get("X-Forwarded-For", "").strip()
+  if xff:
+    return xff.split(",")[0].strip()
+  return handler.client_address[0] if handler.client_address else ""
+
+
 def authorize_admin(headers):
   """Returns (error_status, error_payload) or (None, None) if admin."""
   supplied = headers.get(CONTROL_ACTION_HEADER, "").strip()
@@ -540,7 +553,7 @@ class Handler(BaseHTTPRequestHandler):
       "token_id": token_record.get("token_id") if token_record else None,
       "token_label": token_record.get("label") if token_record else None,
       "token_role": token_record.get("role") if token_record else None,
-      "remote_ip": self.client_address[0] if self.client_address else None,
+      "remote_ip": get_real_ip(self),
       "user_agent": self.headers.get("User-Agent", ""),
       "error": error,
     })
