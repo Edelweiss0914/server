@@ -19,7 +19,7 @@ import hmac
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -64,7 +64,11 @@ def is_action_time_blocked(service_id: str, action: str) -> bool:
   restriction = SERVICE_TIME_RESTRICTIONS.get(service_id, {}).get(action)
   if not restriction:
     return False
-  kst_hour = (datetime.now(timezone.utc).hour + KST_OFFSET_HOURS) % 24
+  # 주말(토/일)에는 시간 제한 미적용
+  kst_now = datetime.now(timezone.utc) + timedelta(hours=KST_OFFSET_HOURS)
+  if kst_now.weekday() in (5, 6):  # 5=토, 6=일
+    return False
+  kst_hour = kst_now.hour
   return restriction["blocked_start"] <= kst_hour < restriction["blocked_end"]
 
 
