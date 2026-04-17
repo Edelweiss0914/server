@@ -22,3 +22,8 @@ actions-runner/
 # Python
 __pycache__/
 *.pyc
+
+# 배포 아티팩트
+deploy/backend/.agent-deployed-hash
+deploy/gateway/.test-tmp/
+deploy/gateway/tmp*/

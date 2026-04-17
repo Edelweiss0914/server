@@ -20,6 +20,9 @@
   "hibernate_policy": {
     "enabled": true,
     "check_interval_seconds": 60,
+    "startup_grace_seconds": 180,
+    "resume_grace_seconds": 180,
+    "start_request_grace_seconds": 600,
     "min_free_space_gb": 20,
     "check_drive": "C:\\",
     "no_sleep_flag_path": "",
@@ -80,7 +83,7 @@
       },
       "auto_save": {
         "enabled": true,
-        "interval_minutes": 30
+        "scheduled_minutes": [0, 30]
       },
       "metadata": {
         "control_dir": "D:\\Servers\\Control\\minecraft-vanilla"
@@ -114,9 +117,13 @@
         "port": 25576,
         "password": "<rcon-password>"
       },
+      "time_restriction": {
+        "enabled": true,
+        "end": "01:00"
+      },
       "auto_save": {
         "enabled": true,
-        "interval_minutes": 30
+        "scheduled_minutes": [0, 30]
       },
       "metadata": {
         "control_dir": "D:\\Servers\\Control\\minecraft-cobbleverse"
@@ -152,7 +159,7 @@
       },
       "auto_save": {
         "enabled": true,
-        "interval_minutes": 30
+        "scheduled_minutes": [0, 30]
       },
       "metadata": {
         "control_dir": "D:\\Servers\\Control\\minecraft-hardcore"

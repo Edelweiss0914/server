@@ -1,0 +1,6 @@
+name: HardcoreDeathban
+version: 1.0.0
+main: dev.cheeze.hardcore.deathban.HardcoreDeathbanPlugin
+description: Kicks dead players and blocks reconnects for a cooldown.
+author: Codex
+api-version: '26.1.2'

@@ -1,0 +1,5 @@
+cooldown-minutes: 120
+
+messages:
+  death-kick: "사망했습니다. {remaining} 후 다시 접속할 수 있습니다."
+  login-denied: "사망 쿨타임이 남아 있습니다. {remaining} 후 다시 접속할 수 있습니다."
