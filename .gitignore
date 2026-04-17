@@ -27,3 +27,7 @@ __pycache__/
 deploy/backend/.agent-deployed-hash
 deploy/gateway/.test-tmp/
 deploy/gateway/tmp*/
+
+# Java 빌드 아티팩트
+*.class
+*.jar
