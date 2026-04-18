@@ -113,7 +113,7 @@ export const SERVICES: Service[] = [
     name: 'On-Demand 서버',
     nameKo: '온디맨드 서비스',
     description:
-      'Minecraft Vanilla · Cobbleverse · Ollama AI — 필요할 때만 켜지는 온디맨드 서비스',
+      'Minecraft Vanilla · Cobbleverse · Hardcore — 필요할 때만 켜지는 온디맨드 게임 서버',
     url: '/servers',
     color: '#4f7fff',
     bgColor: '#ebf0ff',
@@ -220,34 +220,6 @@ export const SERVICES: Service[] = [
     keywords: [
       'minecraft', '마인크래프트', 'hardcore', '하드코어', 'game', '게임',
       'server', '서버', 'vanilla', '바닐라', 'paper', '플러그인',
-    ],
-    featured: false,
-    searchable: false,
-  },
-  {
-    id: 'ollama',
-    name: 'Ollama AI',
-    nameKo: '로컬 AI',
-    description: '온디맨드 로컬 LLM 추론 서버. 필요할 때만 켜서 사용하는 AI 서비스입니다.',
-    category: 'AI',
-    categoryIcon: 'AI',
-    url: '/servers',
-    onDemand: true,
-    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="18" y="18" width="64" height="64" rx="16" fill="#e85d26"/>
-      <rect x="30" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
-      <rect x="54" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
-      <rect x="30" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
-      <rect x="54" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
-      <rect x="44" y="38" width="12" height="24" rx="3" fill="white" opacity="0.5"/>
-      <rect x="30" y="44" width="40" height="12" rx="3" fill="white" opacity="0.5"/>
-    </svg>`,
-    color: '#e85d26',
-    bgColor: '#fef0e8',
-    bgColorDark: '#2a1108',
-    keywords: [
-      'ollama', 'ai', 'llm', '인공지능', '로컬 ai', 'local ai',
-      'chat', '챗봇', 'language model', '언어모델', 'gpt', 'qwen',
     ],
     featured: false,
     searchable: false,
