@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server'
 const CF_ACCESS_CERTS_URL =
   'https://cheeze0297.cloudflareaccess.com/cdn-cgi/access/certs'
 const ALLOWED_AUD = '9bc9a0b2-09e1-4ce5-8dc3-ccc3ebfebd13'
-const ALLOWED_EMAILS = ['Zoop784@naver.com', 'azdazd0101@gmail.com']
+const ALLOWED_EMAILS = ['zoop784@naver.com', 'azdazd0101@gmail.com']
 
 // In-memory JWKS cache
 let cachedKeys: { keys: JWKSKey[] } | null = null
@@ -149,7 +149,7 @@ export async function proxy(request: NextRequest) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!ALLOWED_EMAILS.includes(payload.email as string)) {
+  if (!ALLOWED_EMAILS.includes((payload.email as string).toLowerCase())) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
