@@ -100,10 +100,10 @@ curl -s http://127.0.0.1:11437/api/control/status/<service_id>
 curl -s http://127.0.0.1:11436/status/<service_id>
 
 # Portal API 로그에서 오류 확인
-journalctl -u cheeze-portal-api --since "5 minutes ago"
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml logs --since 5m portal-api
 
 # 감사 로그에서 최근 실패 확인
-tail -20 /opt/cheeze-control/portal-control-audit.log | python3 -m json.tool
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec portal-api tail -20 /opt/cheeze-control/portal-control-audit.log | python3 -m json.tool
 ```
 
 **원인별 해결:**
@@ -113,7 +113,7 @@ tail -20 /opt/cheeze-control/portal-control-audit.log | python3 -m json.tool
 | Backend Agent 미실행 | `upstream_error` 또는 연결 거부 | [3.6 백엔드 도달 불가](#36-백엔드-도달-불가) 참고 |
 | 시간 제한 | `time_blocked` | 허용 시간대 확인 (minecraft-cobbleverse: 10:00~01:00 KST) |
 | 토큰 권한 부족 | `scope_denied` | 토큰의 `allowed_actions`, `allowed_services` 확인 |
-| Control API 미실행 | 502 또는 연결 거부 | `systemctl restart cheeze-control-api` |
+| Control API 미실행 | 502 또는 연결 거부 | `docker compose -f /var/www/home/deploy/docker/docker-compose.yml restart control-api` |
 
 ---
 
@@ -234,14 +234,14 @@ systemctl enable cloudflared
 
 ```bash
 # Nginx 에러 로그 확인
-tail -50 /var/log/nginx/error.log
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml logs --tail 50 nginx
 
 # 업스트림 서비스 상태 확인
-systemctl status cheeze-portal-api
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml ps portal-api
 ss -tlnp | grep 11437
 
 # Nginx 설정 유효성 검사
-nginx -t
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec nginx nginx -t
 ```
 
 **원인별 해결:**

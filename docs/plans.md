@@ -16,7 +16,7 @@
 - 온디맨드 서비스 추가가 관리자 수동 작업 — 비효율적
 - Nginx 단일 실패지점
 
-### Phase 1: Docker + Compose (Gateway 컨테이너화)
+### Phase 1: Docker + Compose (Gateway 컨테이너화) ✅ 완료
 
 > 목표: 선언적 인프라 관리, 환경 재현성 확보
 
@@ -26,8 +26,9 @@
   - cheeze-control-api → 동일
   - cheeze-ai-queue → 동일 (가장 무거운 워크로드, 격리 우선순위 높음)
 - Nginx 컨테이너화 (upstream을 Docker 서비스 이름으로 변경)
-- Cloudflared 컨테이너화 (공식 이미지, 토큰 env 주입)
+- Cloudflared: Docker 불필요 — 네이티브 systemd 유지 (credentials JSON 방식, cert.pem 불필요)
 - docker-compose.yml로 전체 스택 정의
+- Next.js web 서비스 Docker Compose에 추가 완료
 
 #### 영향 범위
 - deploy/gateway/ 전체
@@ -161,10 +162,9 @@
 - 컴포넌트 6개: ServiceStatusGrid, ServiceControlGrid, ServerConsole, AuditLogSection, IpLabelManager, AuditLogTab
 
 **남은 작업:**
-- ADMIN_CONTROL_TOKEN 환경변수 설정
+- ADMIN_CONTROL_TOKEN 환경변수 설정 (deploy/docker/.env에 nextjs-admin 토큰 등록 필요)
 - 절전 관리 탭 구현 (/idle/status, /hibernate/debug, /no-sleep)
-- 모니터링 탭 구현 (GET /system/resources API 필요)
-- Docker Compose에 Next.js web 서비스 추가
+- 모니터링 탭 구현 완료 (MonitoringTab.tsx — 인증 오류 상태별 메시지 개선됨)
 
 ---
 

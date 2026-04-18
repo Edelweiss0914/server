@@ -205,19 +205,24 @@ journalctl -u cloudflared -f
 ```yaml
 web:
   build:
-    context: /var/www/home
-    dockerfile: deploy/docker/Dockerfile.web
+    context: ../../web
+    dockerfile: Dockerfile
   container_name: cheeze-web
   ports:
     - "127.0.0.1:3000:3000"
   environment:
+    - CONTROL_API_URL=http://portal-api:11437
     - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
-    - CONTROL_API_URL=http://127.0.0.1:11437
-  restart: always
+  depends_on:
+    - portal-api
+  restart: unless-stopped
+  networks:
+    - cheeze-net
 ```
 
 **환경변수**: `/var/www/home/deploy/docker/.env`에서 주입됨. 주요 변수:
 - `ADMIN_CONTROL_TOKEN`: Portal API 어드민 토큰 (token_id: `nextjs-admin`)
+- `CONTROL_API_URL`: Docker 내부 네트워크에서 portal-api 컨테이너 이름으로 통신 (`http://portal-api:11437`)
 
 ### portal-api (Python, 포트 11437)
 
@@ -226,24 +231,22 @@ web:
 ```yaml
 portal-api:
   build:
-    context: /var/www/home
-    dockerfile: deploy/docker/Dockerfile.portal-api
+    context: ../../deploy/gateway
+    dockerfile: ../../deploy/docker/portal-api/Dockerfile
   container_name: cheeze-portal-api
   ports:
     - "127.0.0.1:11437:11437"
-  volumes:
-    - portal-data:/opt/cheeze-control
+  env_file:
+    - .env
   environment:
     - CHEEZE_PORTAL_LISTEN_HOST=0.0.0.0
     - CHEEZE_PORTAL_LISTEN_PORT=11437
     - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
-    - CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-    - CHEEZE_PORTAL_REQUEST_TIMEOUT=210
-    - CHEEZE_PORTAL_TOKEN_REGISTRY=/opt/cheeze-control/portal-control-tokens.json
-    - CHEEZE_PORTAL_AUDIT_LOG=/opt/cheeze-control/portal-control-audit.log
-  depends_on:
-    - control-api
-  restart: always
+  volumes:
+    - portal-data:/opt/cheeze-control
+  restart: unless-stopped
+  networks:
+    - cheeze-net
 ```
 
 ### control-api (Python, 포트 11436)
@@ -253,25 +256,22 @@ portal-api:
 ```yaml
 control-api:
   build:
-    context: /var/www/home
-    dockerfile: deploy/docker/Dockerfile.control-api
+    context: ../../deploy/gateway
+    dockerfile: ../../deploy/docker/control-api/Dockerfile
   container_name: cheeze-control-api
   ports:
     - "127.0.0.1:11436:11436"
-  volumes:
-    - portal-data:/opt/cheeze-control
+  env_file:
+    - .env
   environment:
     - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
     - CHEEZE_CONTROL_LISTEN_PORT=11436
-    - CHEEZE_BACKEND_AGENT_BASE=http://100.86.252.21:5010
-    - CHEEZE_BACKEND_MAC=9C-6B-00-57-73-3A
-    - CHEEZE_WOL_TARGET_IP=192.168.50.255
-    - CHEEZE_WOL_TARGET_PORT=9
-    - CHEEZE_SERVICE_REGISTRY=/var/www/home/deploy/orchestrator/service-registry.example.json
-    - CHEEZE_BACKEND_WAKE_TIMEOUT=150
-    - CHEEZE_BACKEND_WAKE_POLL=3
-  restart: always
+  restart: unless-stopped
+  networks:
+    - cheeze-net
 ```
+
+> Backend IP, MAC, WOL 브로드캐스트 등 민감 설정은 `env_file: .env`로 주입됩니다 (`.env.example` 참고).
 
 ### ai-queue (Python, 포트 11435)
 
@@ -280,18 +280,19 @@ control-api:
 ```yaml
 ai-queue:
   build:
-    context: /var/www/home
-    dockerfile: deploy/docker/Dockerfile.ai-queue
+    context: ../../deploy/gateway
+    dockerfile: ../../deploy/docker/ai-queue/Dockerfile
   container_name: cheeze-ai-queue
   ports:
     - "127.0.0.1:11435:11435"
+  env_file:
+    - .env
   environment:
     - CHEEZE_AI_LISTEN_HOST=0.0.0.0
     - CHEEZE_AI_LISTEN_PORT=11435
-    - CHEEZE_AI_UPSTREAM=http://100.86.252.21:11434
-    - CHEEZE_AI_MAX_QUEUE=2
-    - CHEEZE_AI_TIMEOUT=180
-  restart: always
+  restart: unless-stopped
+  networks:
+    - cheeze-net
 ```
 
 ### nginx (host network, 포트 80/443)
@@ -300,17 +301,18 @@ ai-queue:
 
 ```yaml
 nginx:
-  image: nginx:latest
+  image: nginx:alpine
   container_name: cheeze-nginx
   network_mode: host
   volumes:
-    - /var/www/home:/var/www/home:ro
-    - /var/www/home/deploy/docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    - ./nginx/ssl:/etc/nginx/ssl:ro
   depends_on:
     - web
     - portal-api
+    - control-api
     - ai-queue
-  restart: always
+  restart: unless-stopped
 ```
 
 **특징**:
@@ -323,14 +325,15 @@ nginx:
 ```yaml
 volumes:
   portal-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/cheeze-control
+
+networks:
+  cheeze-net:
+    driver: bridge
 ```
 
 `.env` 파일 위치: `/var/www/home/deploy/docker/.env`
+
+> `portal-data` 볼륨은 Docker가 자동 관리하며, `/opt/cheeze-control/`에 토큰 레지스트리와 감사 로그를 보관합니다. host bind mount가 아닌 Docker named volume 방식입니다.
 
 ### 기존 systemd 서비스 상태
 

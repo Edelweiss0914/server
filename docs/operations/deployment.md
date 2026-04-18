@@ -223,10 +223,12 @@ cd /var/www/home
 # 롤백할 커밋 SHA 확인
 git log --oneline -10
 
-# 특정 커밋으로 되돌리기
+# 특정 파일만 되돌리기 (예: portal-api)
 git checkout <commit-sha> -- deploy/gateway/cheeze-portal-api.py
-cp deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/
-systemctl restart cheeze-portal-api
+
+# Docker 이미지 재빌드 및 재시작
+cd deploy/docker
+docker compose build portal-api && docker compose up -d portal-api
 ```
 
 ### 6.2 전체 롤백
@@ -241,8 +243,9 @@ git push origin main --force
 ### 6.3 긴급 서비스 중지
 
 ```bash
-systemctl stop cheeze-portal-api   # 외부 액션 차단
-systemctl stop cheeze-control-api  # 내부 제어 차단
+cd /var/www/home/deploy/docker
+docker compose stop portal-api   # 외부 액션 차단
+docker compose stop control-api  # 내부 제어 차단
 ```
 
 ---
