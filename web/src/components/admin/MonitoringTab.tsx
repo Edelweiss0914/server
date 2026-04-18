@@ -130,10 +130,20 @@ export function MonitoringTab() {
         setBackendData(await res.json())
         setBackendError(null)
       } else {
-        setBackendError('백엔드 연결 실패')
+        let msg: string
+        if (res.status === 401 || res.status === 403) {
+          msg = `인증 실패 (${res.status}) — ADMIN_CONTROL_TOKEN 설정 또는 admin 권한을 확인하세요`
+        } else if (res.status === 502) {
+          msg = '백엔드 PC 오프라인 (절전 중 — 서비스 시작 시 자동 복구)'
+        } else {
+          let detail = ''
+          try { detail = (await res.json()).message || (await res.json()).error || '' } catch { /* noop */ }
+          msg = `서버 오류 (${res.status})${detail ? ': ' + detail : ''}`
+        }
+        setBackendError(msg)
       }
     } catch {
-      setBackendError('네트워크 오류')
+      setBackendError('네트워크 오류 — API 서버에 도달할 수 없습니다')
     } finally {
       setBackendLoading(false)
     }
@@ -146,10 +156,18 @@ export function MonitoringTab() {
         setGatewayData(await res.json())
         setGatewayError(null)
       } else {
-        setGatewayError('게이트웨이 연결 실패')
+        let msg: string
+        if (res.status === 401 || res.status === 403) {
+          msg = `인증 실패 (${res.status}) — ADMIN_CONTROL_TOKEN 설정 또는 admin 권한을 확인하세요`
+        } else {
+          let detail = ''
+          try { detail = (await res.json()).message || (await res.json()).error || '' } catch { /* noop */ }
+          msg = `게이트웨이 연결 실패 (${res.status})${detail ? ': ' + detail : ''}`
+        }
+        setGatewayError(msg)
       }
     } catch {
-      setGatewayError('네트워크 오류')
+      setGatewayError('네트워크 오류 — API 서버에 도달할 수 없습니다')
     } finally {
       setGatewayLoading(false)
     }
