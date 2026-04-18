@@ -13,6 +13,7 @@ jobs:
         run: |
           set -euo pipefail
           export HOME=/root
+          COMPOSE_FILE=/var/www/home/deploy/docker/docker-compose.yml
           git config --global --add safe.directory /var/www/home
           cd /var/www/home
 
@@ -24,24 +25,39 @@ jobs:
 
           git pull origin main
 
-          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-portal-api\.py$"; then
-            cp deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/cheeze-portal-api.py
-            systemctl restart cheeze-portal-api
-            echo "✓ cheeze-portal-api restarted"
+          # ── Docker Compose 서비스 ─────────────────────────────────────
+          if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-portal-api\.py$|^deploy/docker/(portal-api/Dockerfile|Dockerfile\.portal-api)$"; then
+            docker compose -f "$COMPOSE_FILE" build portal-api
+            docker compose -f "$COMPOSE_FILE" up -d portal-api
+            echo "✓ portal-api rebuilt & restarted"
           fi
 
-          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-control-api\.py$"; then
-            cp deploy/gateway/cheeze-control-api.py /opt/cheeze-control/cheeze-control-api.py
-            systemctl restart cheeze-control-api
-            echo "✓ cheeze-control-api restarted"
+          if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-control-api\.py$|^deploy/docker/(control-api/Dockerfile|Dockerfile\.control-api)$"; then
+            docker compose -f "$COMPOSE_FILE" build control-api
+            docker compose -f "$COMPOSE_FILE" up -d control-api
+            echo "✓ control-api rebuilt & restarted"
           fi
 
-          if echo "$CHANGED" | grep -q "^deploy/gateway/cheeze-ai-queue\.py$"; then
-            cp deploy/gateway/cheeze-ai-queue.py /opt/cheeze-ai/cheeze-ai-queue.py
-            systemctl restart cheeze-ai-queue
-            echo "✓ cheeze-ai-queue restarted"
+          if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-ai-queue\.py$|^deploy/docker/(ai-queue/Dockerfile|Dockerfile\.ai-queue)$"; then
+            docker compose -f "$COMPOSE_FILE" build ai-queue
+            docker compose -f "$COMPOSE_FILE" up -d ai-queue
+            echo "✓ ai-queue rebuilt & restarted"
           fi
 
+          if echo "$CHANGED" | grep -qE "^web/"; then
+            docker compose -f "$COMPOSE_FILE" build web
+            docker compose -f "$COMPOSE_FILE" up -d web
+            echo "✓ web rebuilt & restarted"
+          fi
+
+          # ── Nginx 설정 변경 시 reload ────────────────────────────────
+          if echo "$CHANGED" | grep -q "^deploy/docker/nginx/"; then
+            docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -t
+            docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload
+            echo "✓ nginx config reloaded"
+          fi
+
+          # ── Discord 봇 (여전히 systemd) ──────────────────────────────
           if echo "$CHANGED" | grep -q "^deploy/discord-bot/cheeze-discord-bot\.py$"; then
             cp deploy/discord-bot/cheeze-discord-bot.py /opt/cheeze-bot/cheeze-discord-bot.py
             systemctl restart cheeze-discord-bot
