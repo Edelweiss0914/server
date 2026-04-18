@@ -83,6 +83,143 @@ services:
   # cloudflared runs as native systemd service (no cert.pem needed with credentials file)
   # Config: /etc/cloudflared/config.yml  ingress → http://localhost:80 (Docker nginx)
 
+  # ── Nextcloud ────────────────────────────────────────────────────────
+  nextcloud-db:
+    image: mariadb:11
+    container_name: cheeze-nextcloud-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${NEXTCLOUD_DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+    volumes:
+      - nextcloud-db-data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  nextcloud:
+    image: nextcloud:29-apache
+    container_name: cheeze-nextcloud
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      - MYSQL_HOST=nextcloud-db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=cloud.edelweiss0297.cloud
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=cloud.edelweiss0297.cloud
+    volumes:
+      - nextcloud-data:/var/www/html
+    depends_on:
+      - nextcloud-db
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  # ── Paperless-ngx ────────────────────────────────────────────────────
+  paperless-db:
+    image: postgres:16-alpine
+    container_name: cheeze-paperless-db
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - paperless-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  paperless-broker:
+    image: redis:7-alpine
+    container_name: cheeze-paperless-broker
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  paperless-gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: cheeze-paperless-gotenberg
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  paperless-tika:
+    image: apache/tika:latest
+    container_name: cheeze-paperless-tika
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: cheeze-paperless
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      - PAPERLESS_REDIS=redis://paperless-broker:6379
+      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASSWORD}
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://paperless-gotenberg:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://paperless-tika:9998
+      - PAPERLESS_URL=https://paperless.edelweiss0297.cloud
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      - PAPERLESS_ALLOWED_HOSTS=paperless.edelweiss0297.cloud
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
+      - PAPERLESS_TIME_ZONE=Asia/Seoul
+      - PAPERLESS_OCR_LANGUAGE=kor+eng
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - paperless-export:/usr/src/paperless/export
+      - paperless-consume:/usr/src/paperless/consume
+    depends_on:
+      - paperless-db
+      - paperless-broker
+      - paperless-gotenberg
+      - paperless-tika
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  # ── ArchiveBox ───────────────────────────────────────────────────────
+  archivebox:
+    image: archivebox/archivebox:latest
+    container_name: cheeze-archivebox
+    ports:
+      - "127.0.0.1:8002:8000"
+    environment:
+      - ALLOWED_HOSTS=archive.edelweiss0297.cloud
+      - PUBLIC_INDEX=False
+      - PUBLIC_SNAPSHOTS=False
+      - PUBLIC_ADD_VIEW=False
+      - ADMIN_USERNAME=${ARCHIVEBOX_ADMIN_USER}
+      - ADMIN_PASSWORD=${ARCHIVEBOX_ADMIN_PASSWORD}
+    volumes:
+      - archivebox-data:/data
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
 networks:
   cheeze-net:
     driver: bridge
+
+volumes:
+  nextcloud-data:
+  nextcloud-db-data:
+  paperless-db-data:
+  paperless-data:
+  paperless-media:
+  paperless-export:
+  paperless-consume:
+  archivebox-data:

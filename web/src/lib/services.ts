@@ -78,7 +78,7 @@ export const SERVICES: Service[] = [
     category: 'Documents',
     categoryIcon: 'DOC',
     featured: true,
-    status: 'planned',
+    status: 'online',
   },
   {
     id: 'archivebox',
@@ -106,7 +106,7 @@ export const SERVICES: Service[] = [
     category: 'Archive',
     categoryIcon: 'ARC',
     featured: true,
-    status: 'planned',
+    status: 'online',
   },
   {
     id: 'ondemand',
