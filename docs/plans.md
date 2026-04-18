@@ -115,6 +115,36 @@
   └── Minecraft 서버들 (Wings 관리 또는 기존 방식)
 ```
 
+## 변경 이력
+
+### 2026-04-18: 초기 스캐폴딩 완료
+
+**점검 및 정리:**
+- 루트 구버전 cheeze-backend-agent.py 삭제 (deploy/backend/가 정본)
+- .gitignore 정리 (배포 아티팩트, Java 빌드, Docker env, Node.js 제외)
+- Gateway 잔여 임시 디렉터리 처리
+- Backend agent 테스트 3건 통과 확인
+
+**버그 수정:**
+- AI Queue 내부 인증 헤더 이름 수정 (X-Cheeze-Internal-Secret → X-Cheeze-Internal-Token)
+
+**파이프라인 점검:**
+- 프런트엔드→백엔드 전체 API 경로 매핑 완료
+- 사용되지 않는 엔드포인트 식별 (POST /host/wake, GET /registry 등)
+- 인증 흐름 4계층 분석 완료
+
+**Phase 1 스캐폴드 (Docker):**
+- docker-compose.yml (5개 서비스: nginx, portal-api, control-api, ai-queue, cloudflared)
+- Dockerfile x 3 (Python API용)
+- Nginx 설정 (Docker 서비스 이름 기반)
+- Rocky Linux 9 Docker 설치 스크립트
+- 환경변수 템플릿 (.env.example)
+
+**Phase 2 스캐폴드 (Next.js):**
+- Next.js 14+ 프로젝트 생성 (App Router, TypeScript, Tailwind CSS)
+- 빌드 검증 완료
+- 기존 정적 파일과 공존 구조 확인
+
 ---
 
 ## 사용법
