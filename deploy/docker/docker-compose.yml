@@ -126,6 +126,7 @@ services:
     volumes:
       - pterodactyl-data:/app/var
       - pterodactyl-logs:/app/storage/logs
+      - ./pterodactyl-panel/.my.cnf:/root/.my.cnf:ro
     depends_on:
       - pterodactyl-db
       - pterodactyl-cache
