@@ -84,7 +84,7 @@ def ensure_ollama_running() -> bool:
   try:
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     if INTERNAL_SECRET:
-      headers["X-Cheeze-Internal-Secret"] = INTERNAL_SECRET
+      headers["X-Cheeze-Internal-Token"] = INTERNAL_SECRET
     start_req = urllib.request.Request(
       f"{BACKEND_BASE.rstrip('/')}/services/ollama/start",
       data=b"{}",
