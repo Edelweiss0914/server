@@ -39,7 +39,7 @@
 - Backend Agent(homepc)는 Docker 대상 아님 (Windows 네이티브, ctypes/WTS API 의존)
 - 마이그레이션 중 서비스 중단 최소화 (하나씩 전환)
 
-### Phase 2: Next.js 프런트엔드 전환
+### Phase 2: Next.js 프런트엔드 전환 ✅ 완료
 
 > 목표: 실시간 UI, 인증 시스템, 관리자 현대화
 

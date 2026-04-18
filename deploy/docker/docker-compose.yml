@@ -1,4 +1,20 @@
 services:
+  web:
+    build:
+      context: ../../web
+      dockerfile: Dockerfile
+    container_name: cheeze-web
+    expose:
+      - "3000"
+    environment:
+      - CONTROL_API_URL=http://portal-api:11437
+      - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
+    depends_on:
+      - portal-api
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
   nginx:
     image: nginx:alpine
     container_name: cheeze-nginx
@@ -8,8 +24,8 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ../../:/var/www/home:ro  # legacy static files (until Next.js migration complete)
     depends_on:
+      - web
       - portal-api
       - control-api
       - ai-queue
@@ -77,20 +93,6 @@ services:
     restart: unless-stopped
     networks:
       - cheeze-net
-
-  # Phase 2: uncomment after Next.js migration
-  # web:
-  #   build:
-  #     context: ../../web
-  #     dockerfile: Dockerfile
-  #   container_name: cheeze-web
-  #   expose:
-  #     - "3000"
-  #   environment:
-  #     - CONTROL_API_URL=http://portal-api:11437
-  #   restart: unless-stopped
-  #   networks:
-  #     - cheeze-net
 
 volumes:
   portal-data:
