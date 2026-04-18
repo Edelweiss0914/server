@@ -43,7 +43,7 @@ services:
       - CHEEZE_PORTAL_LISTEN_PORT=11437
       - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
     volumes:
-      - portal-data:/opt/cheeze-control
+      - /opt/cheeze-control:/opt/cheeze-control
     restart: unless-stopped
     networks:
       - cheeze-net
@@ -82,14 +82,6 @@ services:
 
   # cloudflared runs as native systemd service (no cert.pem needed with credentials file)
   # Config: /etc/cloudflared/config.yml  ingress → http://localhost:80 (Docker nginx)
-
-volumes:
-  portal-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/cheeze-control
 
 networks:
   cheeze-net:
