@@ -22,3 +22,8 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+@keyframes audit-flash {
+  from { background: rgba(79, 127, 255, 0.12); }
+  to { background: transparent; }
+}

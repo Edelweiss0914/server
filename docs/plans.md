@@ -5,7 +5,7 @@
 
 ## 인프라 현대화 로드맵
 
-> 상태: 설계 중
+> 상태: 진행 중
 > 작성일: 2026-04-18
 
 ### 배경
@@ -48,14 +48,15 @@
 - Python API는 유지 — Next.js는 BFF(Backend For Frontend) 레이어로만 사용
 
 #### 마이그레이션 순서 (페이지 단위)
-1. servers.html → /servers (가장 독립적, SSE 실시간 업데이트 내장)
-2. index.html → / (Ollama 상태, AI 인터페이스)
-3. admin.html → /admin (인증 미들웨어 추가)
+1. ~~servers.html → /servers~~ ✅ 완료
+2. ~~index.html → /~~ ✅ 완료
+3. ~~admin.html → /admin~~ ✅ 완료 (2026-04-18)
 
 #### 인증 시스템
-- NextAuth.js 또는 자체 토큰 기반
-- 기존 portal-control-tokens 시스템과 통합
-- 세션 기반 접근 제어
+- ~~NextAuth.js 또는 자체 토큰 기반~~ → Cloudflare Access OTP 채택
+- proxy.ts에서 JWT 검증 (RS256, Web Crypto API)
+- API route에서 서버사이드 ADMIN_CONTROL_TOKEN 주입 (클라이언트 토큰 불필요)
+- 기존 portal-control-tokens 시스템은 /servers 및 디스코드 봇용으로 유지
 
 #### 배포
 - Docker 컨테이너 (web 서비스)로 Compose에 추가
@@ -144,6 +145,26 @@
 - Next.js 14+ 프로젝트 생성 (App Router, TypeScript, Tailwind CSS)
 - 빌드 검증 완료
 - 기존 정적 파일과 공존 구조 확인
+
+### 2026-04-18: Phase 2 Next.js 페이지 마이그레이션 완료
+
+**마이그레이션 완료 (3/3 페이지):**
+- servers.html → /servers
+- index.html → /
+- admin.html → /admin (Cloudflare Access OTP 인증)
+
+**admin.html → /admin 마이그레이션 상세:**
+- proxy.ts: Cloudflare Access JWT 검증 (RS256, Web Crypto API, 외부 패키지 없음)
+- Admin API route handlers 7개 (status, audit, ip-labels, console, service action)
+- 서버사이드 ADMIN_CONTROL_TOKEN 주입 (클라이언트 토큰 불필요)
+- 탭 구조: 서비스(완료), 감사 로그(완료), 절전 관리(placeholder), 모니터링(placeholder)
+- 컴포넌트 6개: ServiceStatusGrid, ServiceControlGrid, ServerConsole, AuditLogSection, IpLabelManager, AuditLogTab
+
+**남은 작업:**
+- ADMIN_CONTROL_TOKEN 환경변수 설정
+- 절전 관리 탭 구현 (/idle/status, /hibernate/debug, /no-sleep)
+- 모니터링 탭 구현 (GET /system/resources API 필요)
+- Docker Compose에 Next.js web 서비스 추가
 
 ---
 

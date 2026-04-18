@@ -1,6 +1,6 @@
 # CHEEZE 프론트엔드 구조
 
-> 최종 업데이트: 2026-04-17
+> 최종 업데이트: 2026-04-18
 
 ## 목차
 
@@ -89,7 +89,7 @@
 
 ---
 
-### 2.3 admin.html — 관리자 대시보드
+### 2.3 admin.html — 관리자 대시보드 (레거시)
 
 **접근 제한:** Tailscale IP (`100.75.209.83`) 전용. 공개 사이트에서는 404.
 
@@ -103,6 +103,58 @@
 | 서버 콘솔 | 멀티 탭 (서비스별), 구문 강조, 명령어 히스토리 (↑↓ 키) |
 
 **관리자 인증:** 페이지 로드 시 토큰 입력 다이얼로그 표시. `admin` 역할 토큰 필요.
+
+> **참고:** Next.js `/admin`으로 마이그레이션 완료. 아래 2.4 참조.
+
+### 2.4 /admin — Next.js 관리자 대시보드
+
+**접근 제한:** Cloudflare Access OTP 인증 (이메일 기반). proxy.ts에서 JWT 검증.
+
+**기술 스택:** Next.js 16 (App Router), TypeScript, Tailwind CSS v4
+
+**파일 구조:**
+
+```
+web/src/
+├── proxy.ts                        # Cloudflare Access JWT 검증 (RS256, SubtleCrypto)
+├── app/admin/
+│   ├── layout.tsx                  # 어드민 레이아웃 (Server Component)
+│   └── page.tsx                    # 탭 네비게이션 (Client Component)
+├── components/admin/
+│   ├── ServiceStatusGrid.tsx       # 서비스 상태 카드 (10s/2s 적응형 폴링)
+│   ├── ServiceControlGrid.tsx      # 서비스 제어 (시작/종료, optimistic UI)
+│   ├── ServerConsole.tsx           # 터미널 UI (3s 폴링, 명령어 히스토리)
+│   ├── AuditLogSection.tsx         # 감사 로그 테이블 (5s 실시간 폴링)
+│   ├── IpLabelManager.tsx          # IP 라벨 CRUD
+│   └── AuditLogTab.tsx             # 감사 로그 + IP 라벨 컨테이너
+├── app/api/admin/
+│   ├── status/route.ts             # GET: 서비스 상태
+│   ├── audit/route.ts              # GET: 감사 로그 (limit/offset)
+│   ├── ip-labels/route.ts          # GET/POST: IP 라벨
+│   ├── ip-labels/[ip]/route.ts     # DELETE: IP 라벨 삭제
+│   └── services/[id]/
+│       ├── console/route.ts        # GET/POST: 서버 콘솔
+│       └── [action]/route.ts       # POST: 서비스 시작/종료
+└── lib/admin-labels.ts             # 상태/액션/결과/토큰 한글 라벨 유틸
+```
+
+**탭 구조:**
+
+| 탭 | 상태 | 주요 컴포넌트 |
+|----|------|--------------|
+| 서비스 | 1차 구현 완료 | ServiceStatusGrid + ServerConsole + ServiceControlGrid |
+| 감사 로그 | 1차 구현 완료 | AuditLogSection + IpLabelManager |
+| 절전 관리 | 2차 (placeholder) | /idle/status, /hibernate/debug, /no-sleep 연동 예정 |
+| 모니터링 | 2차 (placeholder) | CPU/RAM/디스크 — Gateway + Backend PC 동시 모니터링 예정 |
+
+**인증 방식:** Cloudflare Access JWT → proxy.ts 검증 → API route에서 서버사이드 토큰 주입 (ADMIN_CONTROL_TOKEN env)
+
+**콘솔 기능:**
+- 서비스별 탭 전환 (버퍼 캐시 유지)
+- 로그 레벨별 색상 (error=red, warn=yellow, debug=gray, info=blue)
+- `say X` → `tellraw @a {"text":"[관리자] X","color":"gold"}` 자동 변환
+- 명령어 히스토리 (ArrowUp/Down, 최대 50개)
+- 자동 스크롤 + "↓ 최신으로" 힌트
 
 ---
 
