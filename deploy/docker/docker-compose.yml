@@ -87,9 +87,12 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cheeze-cloudflared
-    command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - /root/.cloudflared:/root/.cloudflared:ro
+    depends_on:
+      - nginx
     restart: unless-stopped
     networks:
       - cheeze-net
