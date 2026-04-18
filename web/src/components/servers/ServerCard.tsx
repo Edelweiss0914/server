@@ -64,8 +64,8 @@ export function ServerCard({ service, state, onAction }: ServerCardProps) {
           style={{ backgroundColor: `${service.color}18` }}
         >
           <div
-            className="h-6 w-6 rounded-full"
-            style={{ backgroundColor: service.color }}
+            className="h-6 w-6"
+            dangerouslySetInnerHTML={{ __html: service.icon }}
           />
         </div>
         <div className="min-w-0 flex-1">

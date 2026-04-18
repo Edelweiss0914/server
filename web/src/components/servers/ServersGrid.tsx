@@ -13,6 +13,7 @@ export interface ServiceConfig {
   timeRestriction?: string
   color: string
   bgColor: string
+  icon: string
 }
 
 export interface ServiceState {
@@ -30,6 +31,16 @@ const SERVICES: ServiceConfig[] = [
     category: 'Game Server',
     color: '#4b7f3f',
     bgColor: '#edf6ea',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="12" y="16" width="76" height="24" rx="6" fill="#4b7f3f"/>
+      <rect x="12" y="40" width="76" height="44" rx="8" fill="#6ea85f"/>
+      <rect x="24" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="42" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="60" y="30" width="12" height="10" rx="2" fill="#2d4a22"/>
+      <rect x="28" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+      <rect x="56" y="54" width="16" height="12" rx="3" fill="#2d4a22"/>
+      <rect x="44" y="66" width="12" height="8" rx="2" fill="#2d4a22"/>
+    </svg>`,
   },
   {
     id: 'minecraft-cobbleverse',
@@ -40,6 +51,16 @@ const SERVICES: ServiceConfig[] = [
     timeRestriction: '10:00 ~ 01:00',
     color: '#c88b42',
     bgColor: '#fbf1e4',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="12" y="14" width="76" height="22" rx="6" fill="#7d5330"/>
+      <rect x="12" y="36" width="76" height="48" rx="8" fill="#c88b42"/>
+      <circle cx="33" cy="28" r="6" fill="#ffe29a"/>
+      <circle cx="50" cy="28" r="6" fill="#ffd15a"/>
+      <circle cx="67" cy="28" r="6" fill="#ffe29a"/>
+      <rect x="24" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+      <rect x="42" y="62" width="16" height="12" rx="3" fill="#5d381d"/>
+      <rect x="60" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
+    </svg>`,
   },
   {
     id: 'minecraft-hardcore',
@@ -49,6 +70,34 @@ const SERVICES: ServiceConfig[] = [
     category: 'Game Server',
     color: '#c0392b',
     bgColor: '#fce8e6',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <ellipse cx="50" cy="42" rx="28" ry="26" fill="#c0392b"/>
+      <rect x="30" y="60" width="40" height="18" rx="4" fill="#c0392b"/>
+      <rect x="35" y="62" width="8" height="10" rx="2" fill="white"/>
+      <rect x="46" y="62" width="8" height="10" rx="2" fill="white"/>
+      <rect x="57" y="62" width="8" height="10" rx="2" fill="white"/>
+      <ellipse cx="38" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
+      <ellipse cx="62" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
+      <ellipse cx="50" cy="52" rx="4" ry="3" fill="white" opacity="0.6"/>
+    </svg>`,
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama AI',
+    nameKo: '로컬 AI',
+    description: '온디맨드 로컬 LLM 추론 서버. 필요할 때만 켜서 사용하는 AI 서비스입니다.',
+    category: 'AI',
+    color: '#e85d26',
+    bgColor: '#fef0e8',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="18" y="18" width="64" height="64" rx="16" fill="#e85d26"/>
+      <rect x="30" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="54" y="30" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="30" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="54" y="54" width="16" height="16" rx="4" fill="white" opacity="0.9"/>
+      <rect x="44" y="38" width="12" height="24" rx="3" fill="white" opacity="0.5"/>
+      <rect x="30" y="44" width="40" height="12" rx="3" fill="white" opacity="0.5"/>
+    </svg>`,
   },
 ]
 

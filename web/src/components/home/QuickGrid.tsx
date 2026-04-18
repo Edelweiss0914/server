@@ -7,12 +7,13 @@ function ServiceIcon({ service, size = 'lg' }: { service: Service; size?: 'md' |
 
   return (
     <div
-      className="flex items-center justify-center rounded-xl shrink-0"
+      className="flex items-center justify-center rounded-xl shrink-0 dark:![background-color:var(--bg-dark)]"
       style={{
+        '--bg-dark': service.bgColorDark || `${service.color}33`,
         width: dim,
         height: dim,
         backgroundColor: service.bgColor || `${service.color}20`,
-      }}
+      } as React.CSSProperties}
     >
       <div
         className="flex items-center justify-center"

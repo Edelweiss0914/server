@@ -21,12 +21,13 @@ function ResultCard({ service }: { service: Service }) {
       {...linkProps}
     >
       <div
-        className="flex items-center justify-center rounded-xl shrink-0"
+        className="flex items-center justify-center rounded-xl shrink-0 dark:![background-color:var(--bg-dark)]"
         style={{
+          '--bg-dark': service.bgColorDark || `${service.color}33`,
           width: 44,
           height: 44,
           backgroundColor: service.bgColor || `${service.color}20`,
-        }}
+        } as React.CSSProperties}
       >
         <div
           className="flex items-center justify-center"
