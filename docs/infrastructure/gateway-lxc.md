@@ -45,11 +45,13 @@ tailscale up --hostname=gateway-lxc
 
 | 소프트웨어 | 버전 | 역할 |
 |------------|------|------|
-| Nginx | — | 리버스 프록시, 정적 파일 서빙 |
-| cloudflared | — | Cloudflare Tunnel 클라이언트 |
+| Docker CE | — | 컨테이너 런타임 |
+| docker-compose-plugin | — | Docker Compose v2 |
+| Nginx | — | Docker Compose (리버스 프록시, host network) |
+| cloudflared | — | 네이티브 systemd (Cloudflare Tunnel 클라이언트) |
 | Tailscale | — | VPN 클라이언트 |
-| Python 3 | — | CHEEZE 서비스 런타임 |
-| Node.js | v20 LTS | Next.js 웹 앱 런타임 |
+| Python 3 | — | 호스트 시스템 기본 (컨테이너 내부에서 API 실행) |
+| Node.js | v20 LTS | (컨테이너 내부) Next.js 웹 앱 런타임 |
 | GitHub Actions Runner | — | self-hosted 러너 (label: `gateway`) |
 
 ---
@@ -60,55 +62,71 @@ tailscale up --hostname=gateway-lxc
 /var/www/home/                  # 메인 웹사이트 루트 (git repo)
   deploy/
     gateway/
-      cheeze-control-api.py           # 소스 (cp → /opt/cheeze-control/ 필요)
-      cheeze-portal-api.py            # 소스 (cp → /opt/cheeze-control/ 필요)
+      cheeze-control-api.py           # 소스 (Docker build에서 사용)
+      cheeze-portal-api.py            # 소스 (Docker build에서 사용)
+      cheeze-ai-queue.py              # 소스 (Docker build에서 사용)
     orchestrator/
       service-registry.example.json   # 서비스 레지스트리 예시
+    docker/
+      docker-compose.yml              # Docker Compose 설정
+      .env                            # 환경변수 (ADMIN_CONTROL_TOKEN 등)
+      Dockerfile.portal-api           # Portal API 이미지
+      Dockerfile.control-api          # Control API 이미지
+      Dockerfile.ai-queue             # AI Queue 이미지
+      nginx/
+        conf.d/
+          default.conf                # Nginx 설정 (host network)
   web/                                # Next.js 어드민 패널
     .env.local                        # ADMIN_CONTROL_TOKEN 등 시크릿 (git 제외)
-    .next/                            # 빌드 산출물 (npm run build 후 생성)
+    .next/                            # 빌드 산출물 (Docker build에서 생성)
 
-/opt/cheeze-control/            # cheeze-control-api, cheeze-portal-api
-  cheeze-control-api.py
-  cheeze-portal-api.py
-  portal-control-tokens.json    # 포털 제어 토큰 목록 (시크릿)
-  portal-control-audit.log      # 포털 감사 로그
+/opt/cheeze-control/            # Docker volume (portal-data) 마운트 포인트
+  portal-control-tokens.json    # 포털 제어 토큰 목록 (시크릿, 볼륨 관리)
+  portal-control-audit.log      # 포털 감사 로그 (볼륨 관리)
 
-/opt/cheeze-ai/                 # cheeze-ai-queue
-  cheeze-ai-queue.py
-
-/opt/cheeze-bot/                # cheeze-discord-bot
-  cheeze-discord-bot.py
+/etc/nginx/conf.d/              # Nginx 설정 디렉토리 (Docker 마운트)
+  default.conf                   # Docker compose에서 마운트된 설정
 
 /actions-runner/                # GitHub Actions Runner (또는 지정 경로)
 ```
+
+**변경사항:**
+- Python API 서비스(`cheeze-control-api.py`, `cheeze-portal-api.py`, `cheeze-ai-queue.py`)는 더 이상 `/opt/` 경로로 복사하지 않음. Docker build 시 소스에서 직접 사용됨.
+- `/opt/cheeze-control/`은 이제 Docker volume(`portal-data`)으로 관리되며, 토큰과 감사 로그만 보관됨.
+- `/var/www/home/deploy/docker/` 디렉토리에 Docker Compose 설정 및 Dockerfile이 위치함.
 
 ---
 
 ## Nginx 설정 구조
 
-설정 파일 위치: `/etc/nginx/conf.d/`
+**Nginx는 Docker Compose로 실행되며, host network 모드를 사용합니다.**
+
+설정 파일 위치: `/var/www/home/deploy/docker/nginx/conf.d/` (Docker에서 `/etc/nginx/conf.d/`로 마운트됨)
 
 | 파일 | 도메인 / 역할 |
 |------|---------------|
-| `home.conf` | 메인 사이트 (`edelweiss0297.cloud`) + Tailscale 전용 관리자 페이지 |
-| `nextcloud.conf` | `cloud.edelweiss0297.cloud` → Cloud VM:80 리버스 프록시 |
-| `paperless.conf` | `paperless.edelweiss0297.cloud` → Cloud VM:8010 리버스 프록시 |
-| `archivebox.conf` | `archive.edelweiss0297.cloud` → Cloud VM:8020 리버스 프록시 |
-| `ollama.conf` | `ollama.edelweiss0297.cloud` → Backend PC:11434 리버스 프록시 |
+| `default.conf` | 메인 사이트 (`edelweiss0297.cloud`) + Tailscale 전용 관리자 페이지 |
+| 기타 설정 | Cloud VM, Backend PC 리버스 프록시 |
 
-### home.conf 라우팅 (edelweiss0297.cloud)
+### default.conf 라우팅 (edelweiss0297.cloud) - Docker nginx (host network)
 
 | location | 대상 | 설명 |
 |----------|------|------|
 | `/` | `/var/www/home` 정적 파일 | 메인 홈페이지 |
-| `/ai/` | `127.0.0.1:11435` | AI 큐 게이트웨이 |
-| `/api/control/` | `127.0.0.1:11437` | Portal API (공개, rate limit 적용) |
-| `/admin` | `127.0.0.1:3000` | Next.js 어드민 패널 (Cloudflare Access 보호) |
+| `/ai/` | `127.0.0.1:11435` | AI 큐 게이트웨이 (Docker 컨테이너) |
+| `/api/control/` | `127.0.0.1:11437` | Portal API (공개, rate limit 적용, Docker 컨테이너) |
+| `/admin` | `127.0.0.1:3000` | Next.js 어드민 패널 (Cloudflare Access 보호, Docker 컨테이너) |
 | `/_next/` | `127.0.0.1:3000` | Next.js 정적 자산 |
 | `/api/admin/` | `127.0.0.1:3000` | Next.js 어드민 API (Cloudflare Access 보호) |
 | `/admin.html` | 404 | 레거시 어드민 차단 |
 | `/api/control/admin/` | 404 | 공개 사이트에서 어드민 API 직접 접근 차단 |
+
+### Docker Nginx 특징
+
+- **host network 모드**: 포트 바인딩 불필요. 컨테이너가 호스트 네트워크 직접 사용 (127.0.0.1:80/443).
+- **마운트**: `/var/www/home/deploy/docker/nginx/conf.d` → `/etc/nginx/conf.d` (읽기 전용).
+- **resolver 불필요**: host network이므로 localhost 이름 해석 표준 메커니즘 사용.
+- **재로드**: `docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec nginx nginx -s reload`
 
 ### Rate Limit 존
 
@@ -127,230 +145,218 @@ limit_req_zone $binary_remote_addr zone=cheeze_control_action:10m rate=5r/m;
 
 ## Cloudflare Tunnel 구성
 
-- **도구**: `cloudflared` (systemd 서비스로 실행)
+- **도구**: `cloudflared` (네이티브 systemd 서비스로 실행, Docker 아님)
 - **역할**: 공인 IP 없이 Cloudflare 엣지 → gateway-lxc Nginx로 트래픽 전달
-- **인증**: Cloudflare 대시보드에서 발급한 터널 토큰 (`<설정 필요>`)
+- **인증**: Cloudflare 대시보드에서 발급한 Tunnel 자격증명 JSON 방식
+
+### Tunnel 정보
+
+| 항목 | 값 |
+|------|-----|
+| Tunnel UUID | `136c8b02-a570-42af-8753-6738ba99718c` |
+| Credentials 파일 | `/root/.cloudflared/136c8b02-a570-42af-8753-6738ba99718c.json` |
+| 설정 파일 | `/etc/cloudflared/config.yml` |
+| Ingress 대상 | `http://localhost:80` (Nginx, host network) |
+
+### 설정 파일 예시 (`/etc/cloudflared/config.yml`)
+
+```yaml
+tunnel: 136c8b02-a570-42af-8753-6738ba99718c
+credentials-file: /root/.cloudflared/136c8b02-a570-42af-8753-6738ba99718c.json
+
+ingress:
+  - hostname: "edelweiss0297.cloud"
+    service: "http://localhost:80"
+  - hostname: "*.edelweiss0297.cloud"
+    service: "http://localhost:80"
+  - service: "http_status:404"
+```
 
 ```bash
 # 터널 서비스 상태 확인
 systemctl status cloudflared
+
+# 터널 로그 확인
+journalctl -u cloudflared -f
 ```
 
 ---
 
-## systemd 서비스 목록
+## Docker Compose 서비스 목록
 
-### cheeze-control-api (포트 11436)
+**2026-04-18 업데이트**: 모든 CHEEZE 서비스가 Docker Compose로 전환됨. 기존 systemd 서비스는 비활성화됨.
+
+위치: `/var/www/home/deploy/docker/docker-compose.yml`
+
+### 개요
+
+| 서비스 | 포트 | 역할 | 상태 |
+|--------|------|------|------|
+| web | 127.0.0.1:3000 | Next.js 어드민 패널 | Docker Compose |
+| portal-api | 127.0.0.1:11437 | 퍼블릭 파사드 API | Docker Compose |
+| control-api | 127.0.0.1:11436 | 내부 제어 API | Docker Compose |
+| ai-queue | 127.0.0.1:11435 | AI 요청 게이트웨이 | Docker Compose |
+| nginx | 0.0.0.0:80/443 | 리버스 프록시 | Docker Compose (host network) |
+
+### web (Next.js, 포트 3000)
+
+**역할**: Cloudflare Access OTP 인증 후 접근 가능한 어드민 패널.
+
+```yaml
+web:
+  build:
+    context: /var/www/home
+    dockerfile: deploy/docker/Dockerfile.web
+  container_name: cheeze-web
+  ports:
+    - "127.0.0.1:3000:3000"
+  environment:
+    - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
+    - CONTROL_API_URL=http://127.0.0.1:11437
+  restart: always
+```
+
+**환경변수**: `/var/www/home/deploy/docker/.env`에서 주입됨. 주요 변수:
+- `ADMIN_CONTROL_TOKEN`: Portal API 어드민 토큰 (token_id: `nextjs-admin`)
+
+### portal-api (Python, 포트 11437)
+
+**역할**: 외부(Discord 봇, 웹 프론트엔드)에서 접근하는 퍼블릭 파사드 API. 토큰 인증 후 control-api로 요청을 전달합니다.
+
+```yaml
+portal-api:
+  build:
+    context: /var/www/home
+    dockerfile: deploy/docker/Dockerfile.portal-api
+  container_name: cheeze-portal-api
+  ports:
+    - "127.0.0.1:11437:11437"
+  volumes:
+    - portal-data:/opt/cheeze-control
+  environment:
+    - CHEEZE_PORTAL_LISTEN_HOST=0.0.0.0
+    - CHEEZE_PORTAL_LISTEN_PORT=11437
+    - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
+    - CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
+    - CHEEZE_PORTAL_REQUEST_TIMEOUT=210
+    - CHEEZE_PORTAL_TOKEN_REGISTRY=/opt/cheeze-control/portal-control-tokens.json
+    - CHEEZE_PORTAL_AUDIT_LOG=/opt/cheeze-control/portal-control-audit.log
+  depends_on:
+    - control-api
+  restart: always
+```
+
+### control-api (Python, 포트 11436)
 
 **역할**: 내부 전용 제어 API. WOL(Wake-on-LAN), 서비스 시작/중지, backend agent 통신을 담당합니다.
 
-```ini
-[Unit]
-Description=CHEEZE generic control API
-After=network-online.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/cheeze-control
-Environment=CHEEZE_CONTROL_LISTEN_HOST=127.0.0.1
-Environment=CHEEZE_CONTROL_LISTEN_PORT=11436
-Environment=CHEEZE_BACKEND_AGENT_BASE=http://100.86.252.21:5010
-Environment=CHEEZE_BACKEND_MAC=9C-6B-00-57-73-3A
-Environment=CHEEZE_WOL_TARGET_IP=192.168.50.255
-Environment=CHEEZE_WOL_TARGET_PORT=9
-Environment=CHEEZE_SERVICE_REGISTRY=/var/www/home/deploy/orchestrator/service-registry.example.json
-Environment=CHEEZE_BACKEND_WAKE_TIMEOUT=150
-Environment=CHEEZE_BACKEND_WAKE_POLL=3
-ExecStart=/usr/bin/python3 /opt/cheeze-control/cheeze-control-api.py
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
+```yaml
+control-api:
+  build:
+    context: /var/www/home
+    dockerfile: deploy/docker/Dockerfile.control-api
+  container_name: cheeze-control-api
+  ports:
+    - "127.0.0.1:11436:11436"
+  volumes:
+    - portal-data:/opt/cheeze-control
+  environment:
+    - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
+    - CHEEZE_CONTROL_LISTEN_PORT=11436
+    - CHEEZE_BACKEND_AGENT_BASE=http://100.86.252.21:5010
+    - CHEEZE_BACKEND_MAC=9C-6B-00-57-73-3A
+    - CHEEZE_WOL_TARGET_IP=192.168.50.255
+    - CHEEZE_WOL_TARGET_PORT=9
+    - CHEEZE_SERVICE_REGISTRY=/var/www/home/deploy/orchestrator/service-registry.example.json
+    - CHEEZE_BACKEND_WAKE_TIMEOUT=150
+    - CHEEZE_BACKEND_WAKE_POLL=3
+  restart: always
 ```
 
-**주요 환경변수 설명**:
-
-| 변수 | 설명 |
-|------|------|
-| `CHEEZE_BACKEND_AGENT_BASE` | Backend PC의 cheeze-backend-agent URL (Tailscale IP) |
-| `CHEEZE_BACKEND_MAC` | WOL 대상 MAC 주소 |
-| `CHEEZE_WOL_TARGET_IP` | WOL 브로드캐스트 주소 |
-| `CHEEZE_BACKEND_WAKE_TIMEOUT` | Backend PC 기동 대기 최대 시간 (초) |
-| `CHEEZE_BACKEND_WAKE_POLL` | 기동 확인 폴링 간격 (초) |
-| `CHEEZE_SERVICE_REGISTRY` | 서비스 목록 JSON 파일 경로 |
-
----
-
-### cheeze-portal-api (포트 11437)
-
-**역할**: 외부(Discord 봇, 웹 프론트엔드)에서 접근하는 퍼블릭 파사드 API. 토큰 인증 후 cheeze-control-api로 요청을 전달합니다.
-
-```ini
-[Unit]
-Description=CHEEZE public portal control facade
-After=network-online.target cheeze-control-api.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/cheeze-control
-Environment=CHEEZE_PORTAL_LISTEN_HOST=127.0.0.1
-Environment=CHEEZE_PORTAL_LISTEN_PORT=11437
-Environment=CHEEZE_INTERNAL_CONTROL_BASE=http://127.0.0.1:11436
-Environment=CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-Environment=CHEEZE_PORTAL_REQUEST_TIMEOUT=210
-Environment=CHEEZE_PORTAL_TOKEN_REGISTRY=/opt/cheeze-control/portal-control-tokens.json
-Environment=CHEEZE_PORTAL_AUDIT_LOG=/opt/cheeze-control/portal-control-audit.log
-ExecStart=/usr/bin/python3 /opt/cheeze-control/cheeze-portal-api.py
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**주요 환경변수 설명**:
-
-| 변수 | 설명 |
-|------|------|
-| `CHEEZE_PORTAL_CONTROL_HEADER` | 인증 토큰을 전달하는 HTTP 헤더명 |
-| `CHEEZE_PORTAL_REQUEST_TIMEOUT` | 업스트림 요청 타임아웃 (초, WOL 대기 포함) |
-| `CHEEZE_PORTAL_TOKEN_REGISTRY` | 허용된 토큰 목록 JSON 파일 |
-| `CHEEZE_PORTAL_AUDIT_LOG` | 감사 로그 파일 경로 |
-
----
-
-### cheeze-nextjs (포트 3000)
-
-**역할**: Next.js 기반 어드민 패널. Cloudflare Access OTP 인증 후 접근 가능.
-
-```ini
-[Unit]
-Description=CHEEZE Next.js Web
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/var/www/home/web
-ExecStart=/usr/bin/node node_modules/.bin/next start -p 3000
-Restart=on-failure
-EnvironmentFile=/var/www/home/web/.env.local
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**환경변수 (`.env.local`):**
-
-| 변수 | 설명 |
-|------|------|
-| `ADMIN_CONTROL_TOKEN` | Portal API 어드민 토큰 (token_id: `nextjs-admin`) |
-| `CONTROL_API_URL` | Portal API 주소 (기본값: `http://127.0.0.1:11437`) |
-
-**배포 절차:**
-
-```bash
-cd /var/www/home && git reset --hard origin/main
-cd web && npm run build
-systemctl restart cheeze-nextjs
-```
-
-> `npm run build` 없이 재시작하면 "Could not find a production build" 오류 발생.
-
----
-
-### cheeze-ai-queue (포트 11435)
+### ai-queue (Python, 포트 11435)
 
 **역할**: AI 요청을 큐잉하여 Backend PC의 Ollama로 순차 전달하는 게이트웨이입니다.
 
-```ini
-[Unit]
-Description=CHEEZE AI queue gateway
-After=network-online.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/cheeze-ai
-Environment=CHEEZE_AI_LISTEN_HOST=127.0.0.1
-Environment=CHEEZE_AI_LISTEN_PORT=11435
-Environment=CHEEZE_AI_UPSTREAM=http://100.86.252.21:11434
-Environment=CHEEZE_AI_MAX_QUEUE=2
-Environment=CHEEZE_AI_TIMEOUT=180
-ExecStart=/usr/bin/python3 /opt/cheeze-ai/cheeze-ai-queue.py
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
+```yaml
+ai-queue:
+  build:
+    context: /var/www/home
+    dockerfile: deploy/docker/Dockerfile.ai-queue
+  container_name: cheeze-ai-queue
+  ports:
+    - "127.0.0.1:11435:11435"
+  environment:
+    - CHEEZE_AI_LISTEN_HOST=0.0.0.0
+    - CHEEZE_AI_LISTEN_PORT=11435
+    - CHEEZE_AI_UPSTREAM=http://100.86.252.21:11434
+    - CHEEZE_AI_MAX_QUEUE=2
+    - CHEEZE_AI_TIMEOUT=180
+  restart: always
 ```
 
-**주요 환경변수 설명**:
+### nginx (host network, 포트 80/443)
 
-| 변수 | 설명 |
-|------|------|
-| `CHEEZE_AI_UPSTREAM` | Backend PC Ollama 엔드포인트 (Tailscale IP) |
-| `CHEEZE_AI_MAX_QUEUE` | 동시 처리 최대 큐 크기 |
-| `CHEEZE_AI_TIMEOUT` | 요청 타임아웃 (초) |
+**역할**: 리버스 프록시, 정적 파일 서빙. host network 모드로 실행 (포트 바인딩 없음).
 
----
-
-### cheeze-discord-bot
-
-**역할**: Discord 슬래시 커맨드를 통해 게임 서버(Minecraft 등)를 제어하는 봇. cheeze-portal-api를 통해 명령을 전달합니다.
-
-```ini
-[Unit]
-Description=CHEEZE Discord game control bot
-After=network-online.target cheeze-portal-api.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/cheeze-bot
-Environment=DISCORD_APPLICATION_ID=1492519354129055939   # 공개 정보, 시크릿 아님
-Environment=DISCORD_GUILD_ID=1492516751362097265         # 공개 정보, 시크릿 아님
-Environment=DISCORD_ADMIN_ROLE_IDS=1492517995711561910   # 공개 정보, 시크릿 아님
-Environment=DISCORD_MEMBER_ROLE_IDS=1492518234878906459  # 공개 정보, 시크릿 아님
-Environment=CHEEZE_PORTAL_API_BASE=http://127.0.0.1:11437
-Environment=CHEEZE_PORTAL_CONTROL_HEADER=X-Cheeze-Control-Token
-Environment=CHEEZE_BOT_REQUEST_TIMEOUT=30
-Environment=CHEEZE_MANAGED_GAME_SERVERS=minecraft-vanilla,minecraft-cobbleverse
-ExecStart=/usr/bin/python3 /opt/cheeze-bot/cheeze-discord-bot.py
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
+```yaml
+nginx:
+  image: nginx:latest
+  container_name: cheeze-nginx
+  network_mode: host
+  volumes:
+    - /var/www/home:/var/www/home:ro
+    - /var/www/home/deploy/docker/nginx/conf.d:/etc/nginx/conf.d:ro
+  depends_on:
+    - web
+    - portal-api
+    - ai-queue
+  restart: always
 ```
 
-> `DISCORD_TOKEN` 등 시크릿 값은 서비스 파일 외부(예: `/opt/cheeze-bot/.env` 또는 별도 환경 파일)에서 관리합니다. 실제 값은 이 문서에 기재하지 않습니다.
+**특징**:
+- `network_mode: host`: 포트 바인딩 대신 호스트 네트워크 직접 사용 (eth0).
+- 정적 파일 마운트: `/var/www/home` (읽기 전용).
+- Nginx 설정 마운트: `/var/www/home/deploy/docker/nginx/conf.d` → `/etc/nginx/conf.d` (읽기 전용).
 
-**주요 환경변수 설명**:
+### Volumes
 
-| 변수 | 설명 |
-|------|------|
-| `DISCORD_APPLICATION_ID` | Discord 애플리케이션 ID |
-| `DISCORD_GUILD_ID` | 대상 Discord 서버(길드) ID |
-| `DISCORD_ADMIN_ROLE_IDS` | 관리자 권한 역할 ID |
-| `DISCORD_MEMBER_ROLE_IDS` | 일반 멤버 권한 역할 ID |
-| `CHEEZE_MANAGED_GAME_SERVERS` | 봇이 제어할 게임 서버 ID 목록 (쉼표 구분) |
+```yaml
+volumes:
+  portal-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cheeze-control
+```
+
+`.env` 파일 위치: `/var/www/home/deploy/docker/.env`
+
+### 기존 systemd 서비스 상태
+
+다음 서비스는 **비활성화됨**:
+- `cheeze-portal-api.service`
+- `cheeze-control-api.service`
+- `cheeze-ai-queue.service`
+- `cheeze-nextjs.service`
+
+Discord 봇(`cheeze-discord-bot`)은 여전히 systemd로 실행됨 (Docker 미지원).
 
 ---
 
 ## 서비스 의존 관계
 
 ```
-cheeze-control-api  (11436)
+control-api       (11436, Docker)
         ↑
-cheeze-portal-api   (11437)
-        ↑                ↑
-cheeze-discord-bot   cheeze-nextjs (3000)  ← Cloudflare Access 인증 후 접근
+portal-api        (11437, Docker)
+        ↑                    ↑
+cheeze-discord-bot   web (3000, Docker)  ← Cloudflare Access 인증 후 접근
+(systemd)
 
-cheeze-ai-queue     (11435)  ← 독립 실행
+ai-queue          (11435, Docker)  ← 독립 실행
+
+nginx             (80/443, host network, Docker)  ← 모든 HTTP(S) 트래픽 진입점
 ```
 
 ---
@@ -370,29 +376,125 @@ systemctl status actions.runner.*
 
 ## 주요 운영 명령어
 
+### Docker Compose 기본 명령어
+
 ```bash
+# Compose 파일 경로 (편의상 alias 설정 권장)
+COMPOSE_FILE="/var/www/home/deploy/docker/docker-compose.yml"
+
 # 서비스 전체 상태 확인
-systemctl status cheeze-control-api cheeze-portal-api cheeze-ai-queue cheeze-discord-bot cheeze-nextjs
+docker compose -f $COMPOSE_FILE ps
 
-# 서비스 재시작
-systemctl restart cheeze-control-api
-systemctl restart cheeze-nextjs
+# 모든 서비스 시작
+docker compose -f $COMPOSE_FILE up -d
 
-# Next.js 재빌드 후 재시작 (코드 변경 시)
-cd /var/www/home && git reset --hard origin/main && cd web && npm run build && systemctl restart cheeze-nextjs
+# 모든 서비스 중지
+docker compose -f $COMPOSE_FILE down
 
-# Python 서비스 파일 업데이트 (git pull 후 수동 cp 필요)
-\cp /var/www/home/deploy/gateway/cheeze-control-api.py /opt/cheeze-control/ && systemctl restart cheeze-control-api
-\cp /var/www/home/deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/ && systemctl restart cheeze-portal-api
+# 모든 서비스 재시작
+docker compose -f $COMPOSE_FILE restart
 
-# Nginx 설정 테스트 및 재로드
-nginx -t && systemctl reload nginx
+# 특정 서비스 재시작
+docker compose -f $COMPOSE_FILE restart portal-api
+docker compose -f $COMPOSE_FILE restart web
+docker compose -f $COMPOSE_FILE restart nginx
+```
 
-# 감사 로그 확인
+### 로그 확인
+
+```bash
+# 모든 서비스 로그 (실시간)
+docker compose -f $COMPOSE_FILE logs -f
+
+# 특정 서비스 로그
+docker compose -f $COMPOSE_FILE logs -f portal-api
+docker compose -f $COMPOSE_FILE logs -f web
+docker compose -f $COMPOSE_FILE logs -f nginx
+
+# N줄 이전 로그 + 실시간
+docker compose -f $COMPOSE_FILE logs -f --tail 50 control-api
+```
+
+### 코드 변경 후 배포
+
+#### Python API 서비스 (control-api, portal-api, ai-queue)
+
+```bash
+# Git pull (소스 반영)
+cd /var/www/home && git pull origin main
+
+# 이미지 재빌드 및 컨테이너 재시작
+cd /var/www/home/deploy/docker
+docker compose build control-api && docker compose up -d control-api
+
+# 또는
+docker compose build portal-api && docker compose up -d portal-api
+docker compose build ai-queue && docker compose up -d ai-queue
+```
+
+> Python 서비스는 `/opt/` 경로로 수동 cp 불필요. Docker build가 소스에서 직접 사용함.
+
+#### Next.js 웹 (web)
+
+```bash
+# Git pull
+cd /var/www/home && git pull origin main
+
+# 이미지 재빌드 및 컨테이너 재시작
+cd /var/www/home/deploy/docker
+docker compose build web && docker compose up -d web
+```
+
+> Docker build 단계에서 자동으로 `npm run build` 실행됨. 별도 npm build 불필요.
+
+#### Nginx 설정 변경
+
+```bash
+# 설정 파일 편집
+nano /var/www/home/deploy/docker/nginx/conf.d/default.conf
+
+# 설정 테스트 및 재로드 (컨테이너 내)
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec nginx nginx -t
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec nginx nginx -s reload
+```
+
+### 감사 로그 확인
+
+```bash
+# Portal API 감사 로그 (Docker volume 내)
+docker compose -f $COMPOSE_FILE exec portal-api tail -f /opt/cheeze-control/portal-control-audit.log
+
+# 또는 호스트에서 직접
 tail -f /opt/cheeze-control/portal-control-audit.log
+```
 
-# Tailscale 상태 확인
+### 기타 유틸리티
+
+```bash
+# Tailscale 상태 확인 (호스트)
 tailscale status
+
+# Discord 봇 상태 (여전히 systemd)
+systemctl status cheeze-discord-bot
+
+# Discord 봇 로그
+journalctl -u cheeze-discord-bot -f
+
+# Cloudflared 터널 상태
+systemctl status cloudflared
+journalctl -u cloudflared -f
+```
+
+### Alias 설정 (권장)
+
+```bash
+# ~/.bashrc 또는 ~/.bash_profile에 추가
+alias compose-gateway='docker compose -f /var/www/home/deploy/docker/docker-compose.yml'
+
+# 사용 예
+compose-gateway ps
+compose-gateway logs -f web
+compose-gateway restart portal-api
 ```
 
 ---
