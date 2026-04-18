@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const CF_ACCESS_CERTS_URL =
   'https://cheeze0297.cloudflareaccess.com/cdn-cgi/access/certs'
-const ALLOWED_AUD = '9bc9a0b2-09e1-4ce5-8dc3-ccc3ebfebd13'
+const ALLOWED_AUD = '5217e5d9279113aa89c0a6653f4dbac925c04c951fd15c5508647a63d0b17ccc'
 const ALLOWED_EMAILS = ['zoop784@naver.com', 'azdazd0101@gmail.com']
 
 // In-memory JWKS cache
@@ -139,7 +139,9 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  const jwtToken = request.headers.get('Cf-Access-Jwt-Assertion')
+  const jwtToken =
+    request.headers.get('Cf-Access-Jwt-Assertion') ||
+    request.cookies.get('CF_Authorization')?.value
   if (!jwtToken) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
