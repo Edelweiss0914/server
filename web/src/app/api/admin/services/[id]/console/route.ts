@@ -15,7 +15,7 @@ export async function GET(
 
     const query = queryParams.toString() ? `?${queryParams.toString()}` : ''
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/services/${encodeURIComponent(id)}/console${query}`,
+      `${CONTROL_API_URL}/services/${encodeURIComponent(id)}/console${query}`,
       {
         cache: 'no-store',
         headers: {
@@ -42,7 +42,7 @@ export async function POST(
   try {
     const { command } = await request.json()
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/services/${encodeURIComponent(id)}/console`,
+      `${CONTROL_API_URL}/services/${encodeURIComponent(id)}/console`,
       {
         method: 'POST',
         cache: 'no-store',

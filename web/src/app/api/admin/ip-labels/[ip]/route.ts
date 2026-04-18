@@ -9,7 +9,7 @@ export async function DELETE(
 
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/ip-labels/${encodeURIComponent(ip)}`,
+      `${CONTROL_API_URL}/admin/ip-labels/${encodeURIComponent(ip)}`,
       {
         method: 'DELETE',
         cache: 'no-store',

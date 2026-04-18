@@ -4,7 +4,7 @@ import { CONTROL_API_URL } from '@/lib/control-api'
 export async function GET(_request: NextRequest) {
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/ip-labels`,
+      `${CONTROL_API_URL}/admin/ip-labels`,
       {
         cache: 'no-store',
         headers: {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/ip-labels`,
+      `${CONTROL_API_URL}/admin/ip-labels`,
       {
         method: 'POST',
         cache: 'no-store',

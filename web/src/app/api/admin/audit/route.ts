@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
     const query = params.toString() ? `?${params.toString()}` : ''
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/audit${query}`,
+      `${CONTROL_API_URL}/admin/audit${query}`,
       {
         cache: 'no-store',
         headers: {

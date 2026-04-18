@@ -5,7 +5,7 @@ export async function GET(_request: NextRequest) {
   const token = process.env.ADMIN_CONTROL_TOKEN || ''
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/no-sleep`,
+      `${CONTROL_API_URL}/admin/no-sleep`,
       {
         cache: 'no-store',
         headers: { 'X-Cheeze-Control-Token': token },
@@ -25,7 +25,7 @@ export async function POST(_request: NextRequest) {
   const token = process.env.ADMIN_CONTROL_TOKEN || ''
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/no-sleep`,
+      `${CONTROL_API_URL}/admin/no-sleep`,
       {
         method: 'POST',
         cache: 'no-store',
@@ -46,7 +46,7 @@ export async function DELETE(_request: NextRequest) {
   const token = process.env.ADMIN_CONTROL_TOKEN || ''
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/no-sleep`,
+      `${CONTROL_API_URL}/admin/no-sleep`,
       {
         method: 'DELETE',
         cache: 'no-store',

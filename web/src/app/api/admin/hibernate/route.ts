@@ -5,7 +5,7 @@ export async function GET(_request: NextRequest) {
   const token = process.env.ADMIN_CONTROL_TOKEN || ''
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/hibernate/debug`,
+      `${CONTROL_API_URL}/admin/hibernate/debug`,
       {
         cache: 'no-store',
         headers: { 'X-Cheeze-Control-Token': token },

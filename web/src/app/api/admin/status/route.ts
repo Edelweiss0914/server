@@ -4,7 +4,7 @@ import { CONTROL_API_URL } from '@/lib/control-api'
 export async function GET(_request: NextRequest) {
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/admin/status`,
+      `${CONTROL_API_URL}/admin/status`,
       {
         cache: 'no-store',
         headers: {
