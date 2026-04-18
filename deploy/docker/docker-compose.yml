@@ -117,6 +117,7 @@ services:
       - DB_DATABASE=${PTERO_DB_DATABASE:-panel}
       - DB_USERNAME=${PTERO_DB_USER:-pterodactyl}
       - DB_PASSWORD=${PTERO_DB_PASSWORD}
+      - DB_USE_SSL=false
       - REDIS_HOST=pterodactyl-cache
       - REDIS_PORT=6379
       - TRUSTED_PROXIES=*
