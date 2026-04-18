@@ -7,10 +7,24 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      - CONTROL_API_URL=http://portal-api:11437
+      - CONTROL_API_URL=${CONTROL_API_URL:-http://portal-api:11437}
       - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
+      - SERVER_RENTAL_WEBHOOK_URL=${SERVER_RENTAL_WEBHOOK_URL:-}
+      - SERVER_RENTAL_WEBHOOK_USERNAME=${SERVER_RENTAL_WEBHOOK_USERNAME:-CHEEZE Rental Intake}
+      - PTERODACTYL_PANEL_URL=${PTERODACTYL_PANEL_URL:-https://panel.edelweiss0297.cloud}
+      - PTERODACTYL_PANEL_INTERNAL_URL=${PTERODACTYL_PANEL_INTERNAL_URL:-http://pterodactyl-panel}
+      - PTERODACTYL_APPLICATION_API_KEY=${PTERODACTYL_APPLICATION_API_KEY:-}
     depends_on:
-      - portal-api
+      portal-api:
+        condition: service_healthy
+      pterodactyl-panel:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
     networks:
       - cheeze-net
@@ -23,10 +37,16 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - web
-      - portal-api
-      - control-api
-      - ai-queue
+      web:
+        condition: service_healthy
+      portal-api:
+        condition: service_healthy
+      control-api:
+        condition: service_healthy
+      ai-queue:
+        condition: service_healthy
+      pterodactyl-panel:
+        condition: service_started
     restart: unless-stopped
 
   portal-api:
@@ -42,6 +62,15 @@ services:
       - CHEEZE_PORTAL_LISTEN_HOST=0.0.0.0
       - CHEEZE_PORTAL_LISTEN_PORT=11437
       - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
+    depends_on:
+      control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11437/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     volumes:
       - /opt/cheeze-control:/opt/cheeze-control
     restart: unless-stopped
@@ -60,6 +89,12 @@ services:
     environment:
       - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
       - CHEEZE_CONTROL_LISTEN_PORT=11436
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11436/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - cheeze-net
@@ -76,6 +111,15 @@ services:
     environment:
       - CHEEZE_AI_LISTEN_HOST=0.0.0.0
       - CHEEZE_AI_LISTEN_PORT=11435
+    depends_on:
+      control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11435/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - cheeze-net

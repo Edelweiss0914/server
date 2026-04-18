@@ -287,6 +287,66 @@ wings --debug
 **보류 결정:**
 - `/servers`에 Cloudflare Access OTP 적용 안 함 (현재 토큰 방식 유지, Phase 3에서 Pterodactyl 자체 인증으로 대체)
 
+### 2026-04-19: Phase 3 운영 반영 및 관리자 연동
+
+**실제 반영 완료:**
+- `panel.edelweiss0297.cloud`가 Cloudflare Tunnel ingress 누락으로 404를 반환하던 문제 해결
+  - `/etc/cloudflared/config.yml`에 `panel.edelweiss0297.cloud` 라우팅 추가
+- Pterodactyl Panel 초기화 완료
+  - `php artisan migrate --seed --force`
+  - 관리자 계정 생성 및 로그인 테스트 성공
+- `/admin`에 `Pterodactyl` 탭 추가
+  - 패널 연결 상태
+  - Application API 키 설정 여부
+  - 서버 목록 / 노드 목록 조회
+
+**운영 구조 정리:**
+- Gateway 혼합 배포(web만 Docker, portal-api는 systemd)를 제거
+- Gateway 앱 계층을 Docker Compose 기준으로 통일
+  - `web`
+  - `portal-api`
+  - `control-api`
+  - `ai-queue`
+  - `nginx`
+  - `pterodactyl-panel`
+  - `pterodactyl-db`
+  - `pterodactyl-cache`
+- `cloudflared`와 Discord 봇만 네이티브 systemd 유지
+
+**운영 규칙 확정:**
+- 기존 서버 제어 방식은 유지
+- Pterodactyl은 신규 서버부터 순차 적용
+- `/servers`는 안정화 전까지 기존 시작/종료 UX 유지
+
+**후속 작업:**
+1. homepc WSL2에서 Wings 설치 및 노드 등록
+2. 신규 서버 1개를 Pterodactyl로 실제 프로비저닝
+3. 안정화 후 `/servers` 공개 페이지 병행 노출 검토
+
+### 2026-04-19: /servers 대여 신청 패널 추가
+
+**구현 완료:**
+- `/servers` 페이지 하단에 `서버 대여 신청` 패널 추가
+- 신규 서버 요청은 기존 시작/종료 흐름과 분리해 별도 접수
+- Next.js Route Handler(`/api/server-rental`)가 Discord 웹훅으로 신청 내용을 전달
+
+**입력 항목:**
+- 신청자 이름
+- 연락 수단
+- 희망 서버 유형
+- 예상 동시 접속 인원
+- 희망 일정
+- 추가 메모
+
+**운영 조건:**
+- `SERVER_RENTAL_WEBHOOK_URL` 환경변수 설정 필요
+- 웹훅 미설정 시 폼은 오류를 명확히 반환하여 “접수된 척”하지 않음
+
+**의도:**
+- 기존 서버는 그대로 운영
+- 신규 서버 수요만 먼저 수집
+- Pterodactyl/Wings 안정화 전까지 공개 페이지의 역할을 “기존 제어 + 신규 요청 접수”로 유지
+
 ---
 
 ## 사용법

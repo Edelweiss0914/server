@@ -7,9 +7,10 @@ import { AuditLogTab } from '@/components/admin/AuditLogTab'
 import { ServerConsole } from '@/components/admin/ServerConsole'
 import { SleepManagementTab } from '@/components/admin/SleepManagementTab'
 import { MonitoringTab } from '@/components/admin/MonitoringTab'
+import { PterodactylTab } from '@/components/admin/PterodactylTab'
 
-type Tab = '서비스' | '감사 로그' | '절전 관리' | '모니터링'
-const TABS: Tab[] = ['서비스', '감사 로그', '절전 관리', '모니터링']
+type Tab = '서비스' | '감사 로그' | '절전 관리' | '모니터링' | 'Pterodactyl'
+const TABS: Tab[] = ['서비스', '감사 로그', '절전 관리', '모니터링', 'Pterodactyl']
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('서비스')
@@ -98,6 +99,8 @@ export default function AdminPage() {
       {activeTab === '절전 관리' && <SleepManagementTab />}
 
       {activeTab === '모니터링' && <MonitoringTab />}
+
+      {activeTab === 'Pterodactyl' && <PterodactylTab />}
     </div>
   )
 }

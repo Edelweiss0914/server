@@ -25,28 +25,36 @@ jobs:
 
           git pull origin main
 
+          # Legacy native Python/Next.js services must remain disabled.
+          for svc in cheeze-portal-api cheeze-control-api cheeze-ai-queue cheeze-nextjs; do
+            if systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
+              systemctl stop "$svc" || true
+              systemctl disable "$svc" || true
+            fi
+          done
+
           # ── Docker Compose 서비스 ─────────────────────────────────────
           if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-portal-api\.py$|^deploy/docker/(portal-api/Dockerfile|Dockerfile\.portal-api)$"; then
             docker compose -f "$COMPOSE_FILE" build portal-api
-            docker compose -f "$COMPOSE_FILE" up -d portal-api
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps portal-api
             echo "✓ portal-api rebuilt & restarted"
           fi
 
           if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-control-api\.py$|^deploy/docker/(control-api/Dockerfile|Dockerfile\.control-api)$"; then
             docker compose -f "$COMPOSE_FILE" build control-api
-            docker compose -f "$COMPOSE_FILE" up -d control-api
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps control-api
             echo "✓ control-api rebuilt & restarted"
           fi
 
           if echo "$CHANGED" | grep -qE "^deploy/gateway/cheeze-ai-queue\.py$|^deploy/docker/(ai-queue/Dockerfile|Dockerfile\.ai-queue)$"; then
             docker compose -f "$COMPOSE_FILE" build ai-queue
-            docker compose -f "$COMPOSE_FILE" up -d ai-queue
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps ai-queue
             echo "✓ ai-queue rebuilt & restarted"
           fi
 
           if echo "$CHANGED" | grep -qE "^web/"; then
             docker compose -f "$COMPOSE_FILE" build web
-            docker compose -f "$COMPOSE_FILE" up -d web
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps web
             echo "✓ web rebuilt & restarted"
           fi
 

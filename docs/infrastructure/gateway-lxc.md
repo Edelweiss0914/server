@@ -80,7 +80,7 @@ tailscale up --hostname=gateway-lxc
     .env.local                        # ADMIN_CONTROL_TOKEN 등 시크릿 (git 제외)
     .next/                            # 빌드 산출물 (Docker build에서 생성)
 
-/opt/cheeze-control/            # Docker volume (portal-data) 마운트 포인트
+/opt/cheeze-control/            # Docker bind mount 대상 (portal-api 컨테이너)
   portal-control-tokens.json    # 포털 제어 토큰 목록 (시크릿, 볼륨 관리)
   portal-control-audit.log      # 포털 감사 로그 (볼륨 관리)
 
@@ -92,7 +92,7 @@ tailscale up --hostname=gateway-lxc
 
 **변경사항:**
 - Python API 서비스(`cheeze-control-api.py`, `cheeze-portal-api.py`, `cheeze-ai-queue.py`)는 더 이상 `/opt/` 경로로 복사하지 않음. Docker build 시 소스에서 직접 사용됨.
-- `/opt/cheeze-control/`은 이제 Docker volume(`portal-data`)으로 관리되며, 토큰과 감사 로그만 보관됨.
+- `/opt/cheeze-control/`은 `portal-api` 컨테이너에 **직접 바인드 마운트**된다. 토큰과 감사 로그는 이 경로에 보관한다.
 - `/var/www/home/deploy/docker/` 디렉토리에 Docker Compose 설정 및 Dockerfile이 위치함.
 
 ---
@@ -211,10 +211,16 @@ web:
   ports:
     - "127.0.0.1:3000:3000"
   environment:
-    - CONTROL_API_URL=http://portal-api:11437
+    - CONTROL_API_URL=${CONTROL_API_URL:-http://portal-api:11437}
     - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
+    - PTERODACTYL_PANEL_URL=${PTERODACTYL_PANEL_URL:-https://panel.edelweiss0297.cloud}
+    - PTERODACTYL_PANEL_INTERNAL_URL=${PTERODACTYL_PANEL_INTERNAL_URL:-http://pterodactyl-panel}
+    - PTERODACTYL_APPLICATION_API_KEY=${PTERODACTYL_APPLICATION_API_KEY:-}
   depends_on:
-    - portal-api
+    portal-api:
+      condition: service_healthy
+    pterodactyl-panel:
+      condition: service_started
   restart: unless-stopped
   networks:
     - cheeze-net
@@ -223,6 +229,7 @@ web:
 **환경변수**: `/var/www/home/deploy/docker/.env`에서 주입됨. 주요 변수:
 - `ADMIN_CONTROL_TOKEN`: Portal API 어드민 토큰 (token_id: `nextjs-admin`)
 - `CONTROL_API_URL`: Docker 내부 네트워크에서 portal-api 컨테이너 이름으로 통신 (`http://portal-api:11437`)
+- `PTERODACTYL_APPLICATION_API_KEY`: `/admin`의 Pterodactyl 탭에서 Application API 조회용
 
 ### portal-api (Python, 포트 11437)
 
@@ -243,7 +250,7 @@ portal-api:
     - CHEEZE_PORTAL_LISTEN_PORT=11437
     - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
   volumes:
-    - portal-data:/opt/cheeze-control
+    - /opt/cheeze-control:/opt/cheeze-control
   restart: unless-stopped
   networks:
     - cheeze-net
@@ -320,12 +327,9 @@ nginx:
 - 정적 파일 마운트: `/var/www/home` (읽기 전용).
 - Nginx 설정 마운트: `/var/www/home/deploy/docker/nginx/conf.d` → `/etc/nginx/conf.d` (읽기 전용).
 
-### Volumes
+### Volumes / Bind Mounts
 
 ```yaml
-volumes:
-  portal-data:
-
 networks:
   cheeze-net:
     driver: bridge
@@ -333,7 +337,7 @@ networks:
 
 `.env` 파일 위치: `/var/www/home/deploy/docker/.env`
 
-> `portal-data` 볼륨은 Docker가 자동 관리하며, `/opt/cheeze-control/`에 토큰 레지스트리와 감사 로그를 보관합니다. host bind mount가 아닌 Docker named volume 방식입니다.
+> `portal-api`는 `/opt/cheeze-control:/opt/cheeze-control` 직접 바인드 마운트를 사용합니다. Proxmox LXC에서 Docker named volume `driver_opts` bind 방식은 사용하지 않습니다.
 
 ### 기존 systemd 서비스 상태
 
@@ -445,7 +449,7 @@ cd /var/www/home && git pull origin main
 
 # 이미지 재빌드 및 컨테이너 재시작
 cd /var/www/home/deploy/docker
-docker compose build web && docker compose up -d web
+docker compose build web && docker compose up -d --no-deps web
 ```
 
 > Docker build 단계에서 자동으로 `npm run build` 실행됨. 별도 npm build 불필요.
@@ -499,6 +503,26 @@ compose-gateway ps
 compose-gateway logs -f web
 compose-gateway restart portal-api
 ```
+
+### 최초 전환 명령
+
+Gateway가 예전 systemd 기반 Python/Next.js 서비스를 아직 사용 중이라면, 최초 1회는 아래 스크립트로 Compose-only 상태로 전환한다.
+
+```bash
+cd /var/www/home/deploy/docker
+bash ./migrate-gateway-to-compose.sh
+```
+
+스크립트가 수행하는 일:
+
+- `cheeze-portal-api.service` stop/disable
+- `cheeze-control-api.service` stop/disable
+- `cheeze-ai-queue.service` stop/disable
+- `cheeze-nextjs.service` stop/disable
+- Compose 이미지 빌드
+- `control-api`, `portal-api`, `ai-queue`, `web`, `nginx`, `pterodactyl-*` 기동
+
+> `cloudflared`와 `cheeze-discord-bot`은 계속 systemd로 유지한다.
 
 ---
 
