@@ -21,6 +21,8 @@ interface HibernateCondition {
 }
 
 interface HibernateDebug {
+  would_hibernate: boolean
+  failing_conditions: string[]
   conditions: Record<string, HibernateCondition>
 }
 
@@ -173,7 +175,17 @@ export function SleepManagementTab() {
       {/* Hibernate debug */}
       {hibernate && (
         <section>
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">절전 조건 디버그</h3>
+          <div className="flex items-center gap-3 mb-3">
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">절전 조건 디버그</h3>
+            <span className={[
+              'inline-block px-2 py-0.5 rounded-full text-xs font-bold',
+              hibernate.would_hibernate
+                ? 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+            ].join(' ')}>
+              {hibernate.would_hibernate ? '절전 진입 가능' : '절전 차단됨'}
+            </span>
+          </div>
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -217,7 +229,8 @@ function conditionLabel(key: string): string {
     all_services_offline: '전체 서비스 오프라인',
     no_active_user_session: '활성 세션 없음',
     not_in_inhibit_schedule: '억제 스케줄 외',
-    no_sleep_flag: '절전 방지 플래그',
+    disk_space: '디스크 여유 공간',
+    no_sleep_flag_absent: '절전 방지 플래그',
   }
   return labels[key] || key
 }
@@ -236,6 +249,13 @@ function conditionDetail(key: string, cond: HibernateCondition): string {
   if (key === 'all_services_offline' && cond.services) {
     const svcs = cond.services as Record<string, { state: string }>
     return Object.entries(svcs).map(([id, s]) => `${id}:${s.state}`).join(', ')
+  }
+  if (key === 'disk_space') {
+    if (cond.error) return `오류: ${cond.error}`
+    return `여유 ${cond.free_gb}GB / 필요 ${cond.required_gb}GB`
+  }
+  if (key === 'no_sleep_flag_absent' && cond.flag_path) {
+    return String(cond.flag_path)
   }
   return ''
 }
