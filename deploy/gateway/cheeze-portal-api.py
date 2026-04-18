@@ -126,9 +126,12 @@ def load_token_registry():
   if not TOKEN_REGISTRY_PATH.exists():
     return []
 
-  payload = json.loads(TOKEN_REGISTRY_PATH.read_text(encoding="utf-8"))
-  tokens = payload.get("tokens", [])
-  return tokens if isinstance(tokens, list) else []
+  try:
+    payload = json.loads(TOKEN_REGISTRY_PATH.read_text(encoding="utf-8"))
+    tokens = payload.get("tokens", [])
+    return tokens if isinstance(tokens, list) else []
+  except Exception:
+    return []
 
 
 def token_registry_configured():

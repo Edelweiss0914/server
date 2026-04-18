@@ -17,7 +17,7 @@ export async function POST(
 
   try {
     const upstream = await fetch(
-      `${CONTROL_API_URL}/api/control/services/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
+      `${CONTROL_API_URL}/services/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
       { method: 'POST', headers, cache: 'no-store' }
     )
     const data = await upstream.json()

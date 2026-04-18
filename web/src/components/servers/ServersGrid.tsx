@@ -84,7 +84,7 @@ const SERVICES: ServiceConfig[] = [
 ]
 
 const NORMAL_POLL_MS = 10_000
-const ACTIVE_POLL_MS = 2_000
+const ACTIVE_POLL_MS = 5_000
 const TOKEN_STORAGE_KEY = 'cheeze-control-action-token'
 
 function readToken(): string {
@@ -121,32 +121,36 @@ export function ServersGrid() {
   const pendingRef = useRef<Set<string>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // --- fetch all states ---
+  // --- fetch all states (batch) ---
   const fetchAllStates = useCallback(async () => {
-    const results = await Promise.allSettled(
-      SERVICES.map(async (s) => {
-        const res = await fetch(`/api/control/services/${s.id}`)
-        if (!res.ok) throw new Error(`status ${res.status}`)
-        return { id: s.id, payload: await res.json() }
-      })
-    )
+    try {
+      const res = await fetch('/api/control/services')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data: { services?: Array<ServiceState & { id: string }> } = await res.json()
+      const list = data.services ?? []
 
-    setStates((prev) => {
-      const next = { ...prev }
-      results.forEach((result, i) => {
-        const service = SERVICES[i]
-        if (pendingRef.current.has(service.id)) return
-        if (result.status === 'fulfilled') {
-          next[service.id] = result.value.payload
-        } else {
+      setStates((prev) => {
+        const next = { ...prev }
+        SERVICES.forEach((service) => {
+          if (pendingRef.current.has(service.id)) return
+          const found = list.find((s) => s.id === service.id)
+          next[service.id] = found ?? { state: 'offline' }
+        })
+        return next
+      })
+    } catch {
+      setStates((prev) => {
+        const next = { ...prev }
+        SERVICES.forEach((service) => {
+          if (pendingRef.current.has(service.id)) return
           next[service.id] = {
             state: 'error',
             message: '제어 API 상태를 읽지 못했습니다.',
           }
-        }
+        })
+        return next
       })
-      return next
-    })
+    }
   }, [])
 
   // --- polling ---

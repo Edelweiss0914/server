@@ -51,7 +51,10 @@ def normalized_wol_mac():
 def load_registry():
   if not REGISTRY_PATH.exists():
     return {"host": {}, "services": []}
-  return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+  try:
+    return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+  except Exception:
+    return {"host": {}, "services": []}
 
 
 def find_registry_service(service_id):
