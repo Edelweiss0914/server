@@ -16,6 +16,7 @@ import hmac
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import time
 import urllib.error

@@ -885,18 +885,14 @@ def _get_system_resources() -> dict:
   except Exception as exc:
     result["memory"] = {"error": str(exc)}
 
-  # --- CPU (wmic) ---
+  # --- CPU (PowerShell) ---
   try:
     out = subprocess.check_output(
-      ["wmic", "cpu", "get", "LoadPercentage", "/value"],
+      ["powershell", "-NoProfile", "-Command",
+       "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average"],
       timeout=5, text=True, creationflags=0x08000000,
     )
-    for line in out.strip().splitlines():
-      if line.startswith("LoadPercentage="):
-        result["cpu"] = {"percent": int(line.split("=", 1)[1])}
-        break
-    if "cpu" not in result:
-      result["cpu"] = {"percent": None}
+    result["cpu"] = {"percent": int(out.strip())}
   except Exception as exc:
     result["cpu"] = {"error": str(exc)}
 
