@@ -1,6 +1,6 @@
 # CHEEZE 문제 해결 가이드
 
-> 최종 업데이트: 2026-04-17
+> 최종 업데이트: 2026-04-18
 
 ## 목차
 
@@ -15,28 +15,34 @@
    - [백엔드 도달 불가](#36-백엔드-도달-불가)
    - [하이버네이션 미작동](#37-하이버네이션-미작동)
    - [Discord 봇 명령어 미응답](#38-discord-봇-명령어-미응답)
+   - [Docker Compose 서비스 미실행](#39-docker-compose-서비스-미실행)
+   - [Nginx upstream host not found (Docker DNS)](#310-nginx-upstream-host-not-found-docker-dns)
+   - [cloudflared Docker 컨테이너 cert.pem 오류](#311-cloudflared-docker-컨테이너-certpem-오류)
+   - [LXC Docker 포트 바인딩 실패](#312-lxc-docker-포트-바인딩-실패)
 
 ---
 
 ## 1. 서비스 상태 확인 명령어
 
-### Gateway (Linux LXC)
+### Gateway (Linux LXC) — Docker Compose 환경 (2026-04-18 이후)
 
 ```bash
-# 모든 CHEEZE 서비스 상태 한번에 확인
-systemctl status cheeze-portal-api cheeze-control-api cheeze-ai-queue cheeze-discord-bot
+# Docker Compose 서비스 전체 상태 확인
+cd /opt/cheeze   # 또는 docker-compose.yml 위치
+docker compose ps
 
-# Nginx 상태
-systemctl status nginx
+# 개별 서비스 로그 실시간 확인
+docker compose logs -f web
+docker compose logs -f portal-api
+docker compose logs -f control-api
+docker compose logs -f ai-queue
+docker compose logs -f nginx
 
-# 개별 서비스
-systemctl status cheeze-portal-api   # 공개 API 파사드
-systemctl status cheeze-control-api  # 내부 제어 API
-systemctl status cheeze-ai-queue     # AI 큐 처리
-systemctl status cheeze-discord-bot  # Discord 봇
+# 포트 리스닝 확인 (host network nginx + loopback 서비스)
+ss -tlnp | grep -E '80|3000|11435|11436|11437'
 
-# 포트 리스닝 확인
-ss -tlnp | grep -E '11436|11437'
+# Cloudflare Tunnel (네이티브 systemd 유지)
+systemctl status cloudflared
 ```
 
 ### Homepc (Windows)
@@ -66,14 +72,13 @@ cloudflared tunnel info
 
 | 컴포넌트 | 로그 위치 | 명령어 |
 |----------|-----------|--------|
-| Portal API | journald | `journalctl -u cheeze-portal-api -f` |
-| Control API | journald | `journalctl -u cheeze-control-api -f` |
-| AI Queue | journald | `journalctl -u cheeze-ai-queue -f` |
-| Discord Bot | journald | `journalctl -u cheeze-discord-bot -f` |
-| 감사 로그 | `/opt/cheeze-control/portal-control-audit.log` | `tail -f /opt/cheeze-control/portal-control-audit.log` |
-| Nginx 접근 로그 | `/var/log/nginx/access.log` | `tail -f /var/log/nginx/access.log` |
-| Nginx 에러 로그 | `/var/log/nginx/error.log` | `tail -f /var/log/nginx/error.log` |
-| Cloudflare Tunnel | journald | `journalctl -u cloudflared -f` |
+| Portal API (Docker) | Docker stdout | `docker compose logs -f portal-api` |
+| Control API (Docker) | Docker stdout | `docker compose logs -f control-api` |
+| AI Queue (Docker) | Docker stdout | `docker compose logs -f ai-queue` |
+| Next.js Web (Docker) | Docker stdout | `docker compose logs -f web` |
+| Nginx (Docker) | Docker stdout | `docker compose logs -f nginx` |
+| 감사 로그 | Docker volume (portal-data) | `docker compose exec portal-api tail -f /opt/cheeze-control/portal-control-audit.log` |
+| Cloudflare Tunnel | journald (네이티브) | `journalctl -u cloudflared -f` |
 | Backend Agent | Windows 콘솔/파일 | 에이전트 로그 파일 또는 Admin 콘솔 탭 |
 | GitHub Actions | GitHub 웹 UI | `https://github.com/<repo>/actions` |
 
@@ -349,3 +354,209 @@ systemctl cat cheeze-discord-bot | grep EnvironmentFile
 # 환경변수 파일 내용 확인 (시크릿 주의)
 cat /opt/cheeze-bot/.env 2>/dev/null || cat /opt/cheeze-bot/cheeze-discord-bot.env 2>/dev/null
 ```
+
+---
+
+### 3.9 Docker Compose 서비스 미실행
+
+**증상:** `docker compose ps`에서 서비스가 없거나 `Exited` 상태
+
+#### 3.9.1 Docker 미설치
+
+**증상:** `docker: command not found`
+
+```bash
+# Docker 설치 여부 확인
+docker --version
+docker compose version
+```
+
+**해결:** `deploy/docker/setup-docker-rocky.sh` 실행
+
+```bash
+# Rocky Linux 9에서 Docker CE 설치
+bash /path/to/deploy/docker/setup-docker-rocky.sh
+
+# 설치 후 서비스 시작
+systemctl enable --now docker
+
+# 확인
+docker compose version
+```
+
+> **LXC 주의사항:** Proxmox LXC 컨테이너에서 Docker를 사용하려면 컨테이너 옵션에서 `nesting=1` 이 활성화되어 있어야 한다. 미활성화 시 `permission denied` 또는 `cgroup` 관련 오류 발생.
+
+#### 3.9.2 포트 80 충돌 (네이티브 nginx 잔존)
+
+**증상:** Docker nginx 컨테이너가 시작되지 않거나, 시작되어도 포트 80에 바인딩 실패
+
+**원인:** Docker 도입 이전 네이티브 systemd nginx가 포트 80을 점유
+
+```bash
+# 포트 80 점유 프로세스 확인
+ss -tlnp | grep ':80'
+
+# 네이티브 nginx 종료 및 비활성화
+systemctl stop nginx
+systemctl disable nginx
+```
+
+#### 3.9.3 .env 파일 누락
+
+**증상:** `docker compose up` 시 환경변수 관련 경고 또는 서비스 오류
+
+```bash
+# .env 파일 존재 확인
+ls -la deploy/docker/.env
+
+# 없으면 예제에서 복사 후 값 입력
+cp deploy/docker/.env.example deploy/docker/.env
+vi deploy/docker/.env
+```
+
+---
+
+### 3.10 Nginx upstream host not found (Docker DNS)
+
+**증상:** nginx 컨테이너 로그에 `host not found in upstream "portal-api"` 또는 `"web"` 오류
+
+```
+[emerg] host not found in upstream "portal-api" in /etc/nginx/conf.d/default.conf:XX
+```
+
+**원인:** nginx는 시작 시점에 upstream 호스트명을 DNS로 즉시 해석한다. Docker 브리지 네트워크에서 다른 서비스가 아직 준비되지 않았거나, nginx가 `network_mode: host`로 실행 중일 때 Docker 내부 DNS(`127.0.0.11`)를 사용할 수 없어 서비스 이름 해석 실패.
+
+**해결 방안 A — nginx를 host network로 전환 (채택된 방식)**
+
+`network_mode: host`로 nginx를 실행하고, upstream을 Docker 서비스 이름 대신 `127.0.0.1:PORT`로 변경:
+
+```nginx
+# default.conf — host network 환경에서의 upstream 지정
+location /api/control/ {
+    proxy_pass http://127.0.0.1:11437/;
+}
+location / {
+    proxy_pass http://127.0.0.1:3000;
+}
+```
+
+각 백엔드 서비스는 `docker-compose.yml`에서 loopback에 포트를 노출:
+
+```yaml
+portal-api:
+  ports:
+    - "127.0.0.1:11437:11437"
+web:
+  ports:
+    - "127.0.0.1:3000:3000"
+```
+
+**해결 방안 B — resolver + 변수 패턴 (브리지 네트워크 유지 시)**
+
+브리지 네트워크를 유지하면서 동적 DNS 해석이 필요한 경우:
+
+```nginx
+resolver 127.0.0.11 valid=10s;
+location /api/control/ {
+    set $upstream http://portal-api:11437;
+    proxy_pass $upstream/;
+}
+```
+
+> **참고:** 현재 프로덕션은 방안 A(host network)를 사용한다. LXC에서 Docker iptables 포트 바인딩이 불안정하여 host network가 더 안정적이었다.
+
+---
+
+### 3.11 cloudflared Docker 컨테이너 cert.pem 오류
+
+**증상:** cloudflared Docker 컨테이너가 시작되지 않거나 다음 오류 발생
+
+```
+failed to load tunnel credentials: stat /root/.cloudflared/<UUID>.json: no such file or directory
+```
+
+또는 터널 이름으로 실행 시:
+
+```
+You need to authenticate: run cloudflared login
+```
+
+**원인:** CHEEZE Gateway는 `cert.pem` 기반 인증 없이 credentials JSON 파일 방식으로 터널을 운영한다. Docker 공식 cloudflared 이미지는 `TUNNEL_TOKEN` 환경변수 방식을 주로 지원하며, credentials 파일 마운트 구성이 복잡하다.
+
+**해결: cloudflared를 네이티브 systemd로 유지**
+
+Docker Compose에서 cloudflared 서비스를 제거하고, 기존 네이티브 systemd 서비스를 그대로 사용한다.
+
+```bash
+# 네이티브 cloudflared 상태 확인
+systemctl status cloudflared
+
+# 설정 파일 확인
+cat /etc/cloudflared/config.yml
+# ingress: localhost:80 (Docker nginx host network로 전달)
+
+# 재시작
+systemctl restart cloudflared
+```
+
+**현재 아키텍처:**
+```
+[Cloudflare] → cloudflared (네이티브 systemd) → localhost:80 → nginx (Docker, host network) → 백엔드 서비스
+```
+
+> **왜 Docker로 전환하지 않는가:** credentials JSON 파일 방식은 터널 이름 → cert.pem 의존성이 있어 Docker 환경에서 설정이 복잡하다. UUID 직접 지정도 cert.pem 없이는 동작하지 않았다. 네이티브 systemd 방식이 이미 안정적으로 운영 중이므로 변경 이익이 없다.
+
+---
+
+### 3.12 LXC Docker 포트 바인딩 실패
+
+**증상:** Docker 서비스가 Running 상태임에도 포트에 접근 불가, 또는 Cloudflare Tunnel에서 `Error 1033` 반환
+
+```
+# curl localhost:80
+curl: (7) Failed to connect to localhost port 80: Connection refused
+```
+
+**원인:** Proxmox LXC 컨테이너(nesting=1)에서 Docker는 iptables DNAT 규칙으로 포트 포워딩을 구현한다. LXC 환경에서는 iptables 규칙이 호스트(LXC 컨테이너 자체)에 적용되지 않아 Docker가 노출한 포트에 같은 호스트에서 접근해도 실패할 수 있다.
+
+**해결: nginx를 `network_mode: host`로 실행**
+
+```yaml
+# docker-compose.yml
+nginx:
+  image: nginx:alpine
+  network_mode: host          # iptables 우회, 호스트 네트워크 직접 사용
+  volumes:
+    - ./nginx/conf.d:/etc/nginx/conf.d:ro
+```
+
+- nginx가 호스트 네트워크를 직접 사용하므로 포트 80이 LXC 컨테이너의 실제 인터페이스에 바인딩됨
+- cloudflared(네이티브 systemd)가 `localhost:80`으로 정상 접근 가능
+- 다른 백엔드 서비스는 `127.0.0.1:PORT:PORT` loopback 노출로 nginx에서 접근
+
+**진단 흐름:**
+
+```bash
+# 1. Docker 서비스 상태 확인
+docker compose ps
+
+# 2. 실제 포트 바인딩 확인 (host network nginx는 ss에서 직접 보임)
+ss -tlnp | grep ':80'
+
+# 3. localhost 직접 접근 테스트
+curl -v http://localhost:80
+
+# 4. cloudflared 로그에서 연결 오류 확인
+journalctl -u cloudflared -n 30
+
+# 5. Cloudflare 대시보드 Tunnel 상태 확인
+# Error 1033 = cloudflared가 ingress 대상(localhost:80)에 연결 불가
+```
+
+**Error 1033 체크리스트:**
+
+- [ ] `ss -tlnp | grep ':80'` 결과에 nginx 프로세스 확인
+- [ ] `docker compose ps`에서 nginx 컨테이너 `Running` 상태 확인
+- [ ] nginx 컨테이너가 `network_mode: host`로 설정되어 있는지 확인
+- [ ] cloudflared `config.yml`의 ingress가 `http://localhost:80`으로 설정되어 있는지 확인
+- [ ] `systemctl status cloudflared` 에서 에러 없이 실행 중인지 확인
