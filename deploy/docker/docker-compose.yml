@@ -85,6 +85,11 @@ services:
 
 volumes:
   portal-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cheeze-control
 
 networks:
   cheeze-net:
