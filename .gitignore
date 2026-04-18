@@ -31,3 +31,11 @@ deploy/gateway/tmp*/
 # Java 빌드 아티팩트
 *.class
 *.jar
+
+# Docker
+deploy/docker/.env
+
+# Node.js / Next.js
+node_modules/
+web/.next/
+web/out/

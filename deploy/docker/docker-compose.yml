@@ -1,0 +1,100 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: cheeze-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ../../:/var/www/home:ro  # legacy static files (until Next.js migration complete)
+    depends_on:
+      - portal-api
+      - control-api
+      - ai-queue
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  portal-api:
+    build:
+      context: ../../deploy/gateway
+      dockerfile: ../../deploy/docker/portal-api/Dockerfile
+    container_name: cheeze-portal-api
+    expose:
+      - "11437"
+    env_file:
+      - .env
+    environment:
+      - CHEEZE_PORTAL_LISTEN_HOST=0.0.0.0
+      - CHEEZE_PORTAL_LISTEN_PORT=11437
+      - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
+    volumes:
+      - portal-data:/opt/cheeze-control
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  control-api:
+    build:
+      context: ../../deploy/gateway
+      dockerfile: ../../deploy/docker/control-api/Dockerfile
+    container_name: cheeze-control-api
+    expose:
+      - "11436"
+    env_file:
+      - .env
+    environment:
+      - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
+      - CHEEZE_CONTROL_LISTEN_PORT=11436
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  ai-queue:
+    build:
+      context: ../../deploy/gateway
+      dockerfile: ../../deploy/docker/ai-queue/Dockerfile
+    container_name: cheeze-ai-queue
+    expose:
+      - "11435"
+    env_file:
+      - .env
+    environment:
+      - CHEEZE_AI_LISTEN_HOST=0.0.0.0
+      - CHEEZE_AI_LISTEN_PORT=11435
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cheeze-cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    restart: unless-stopped
+    networks:
+      - cheeze-net
+
+  # Phase 2: uncomment after Next.js migration
+  # web:
+  #   build:
+  #     context: ../../web
+  #     dockerfile: Dockerfile
+  #   container_name: cheeze-web
+  #   expose:
+  #     - "3000"
+  #   environment:
+  #     - CONTROL_API_URL=http://portal-api:11437
+  #   restart: unless-stopped
+  #   networks:
+  #     - cheeze-net
+
+volumes:
+  portal-data:
+
+networks:
+  cheeze-net:
+    driver: bridge
