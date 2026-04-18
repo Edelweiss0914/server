@@ -376,6 +376,30 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, load_ip_labels())
       return
 
+    if self.path == "/admin/idle/status":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/idle/status")
+      return
+
+    if self.path == "/admin/hibernate/debug":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/hibernate/debug")
+      return
+
+    if self.path == "/admin/no-sleep":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/no-sleep")
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
@@ -442,6 +466,14 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, labels)
       return
 
+    if self.path == "/admin/no-sleep":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/no-sleep", method="POST")
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_DELETE(self):
@@ -455,6 +487,14 @@ class Handler(BaseHTTPRequestHandler):
       labels.pop(ip, None)
       save_ip_labels(labels)
       self.respond_json(200, labels)
+      return
+
+    if self.path == "/admin/no-sleep":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/no-sleep", method="DELETE")
       return
 
     self.respond_json(404, {"error": "not_found"})

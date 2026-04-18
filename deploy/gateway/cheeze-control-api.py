@@ -301,6 +301,30 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(200, offline_service_payload(service))
       return
 
+    if self.path == "/idle/status":
+      try:
+        status_code, body = backend_fetch("/idle/status")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
+    if self.path == "/hibernate/debug":
+      try:
+        status_code, body = backend_fetch("/hibernate/debug")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
+    if self.path == "/no-sleep":
+      try:
+        status_code, body = backend_fetch("/no-sleep")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
@@ -353,6 +377,29 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_raw(status_code, body)
       except Exception as error:
         self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
+      return
+
+    if self.path == "/no-sleep":
+      try:
+        status_code, body = backend_fetch("/no-sleep", method="POST")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
+    self.respond_json(404, {"error": "not_found"})
+
+  def do_DELETE(self):
+    if not self.check_internal_auth():
+      self.respond_json(401, {"error": "unauthorized"})
+      return
+
+    if self.path == "/no-sleep":
+      try:
+        status_code, body = backend_fetch("/no-sleep", method="DELETE")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
       return
 
     self.respond_json(404, {"error": "not_found"})

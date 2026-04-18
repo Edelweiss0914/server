@@ -5,6 +5,7 @@ import { ServiceStatusGrid, type AdminService } from '@/components/admin/Service
 import { ServiceControlGrid } from '@/components/admin/ServiceControlGrid'
 import { AuditLogTab } from '@/components/admin/AuditLogTab'
 import { ServerConsole } from '@/components/admin/ServerConsole'
+import { SleepManagementTab } from '@/components/admin/SleepManagementTab'
 
 type Tab = '서비스' | '감사 로그' | '절전 관리' | '모니터링'
 const TABS: Tab[] = ['서비스', '감사 로그', '절전 관리', '모니터링']
@@ -93,11 +94,7 @@ export default function AdminPage() {
 
       {activeTab === '감사 로그' && <AuditLogTab />}
 
-      {activeTab === '절전 관리' && (
-        <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 text-sm text-zinc-500 dark:text-zinc-400">
-          준비 중
-        </div>
-      )}
+      {activeTab === '절전 관리' && <SleepManagementTab />}
 
       {activeTab === '모니터링' && (
         <div className="rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 text-sm text-zinc-500 dark:text-zinc-400">
