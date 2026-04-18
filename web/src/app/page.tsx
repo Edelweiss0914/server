@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useReducer } from 'react'
 import { BrandHeader } from '@/components/layout/BrandHeader'
 import { Footer } from '@/components/layout/Footer'
 import { SearchBar } from '@/components/home/SearchBar'
@@ -15,6 +15,18 @@ export default function Home() {
   const results = searchServices(query)
   const ollamaState = useOllamaState()
   const [aiTrigger, setAiTrigger] = useState(0)
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0)
+
+  // Re-sync on route restore (browser back/forward)
+  useEffect(() => {
+    const onFocus = () => forceUpdate()
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('popstate', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('popstate', onFocus)
+    }
+  }, [])
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q)
