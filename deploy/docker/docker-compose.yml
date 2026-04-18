@@ -84,6 +84,7 @@ services:
   pterodactyl-db:
     image: mariadb:10.11
     container_name: pterodactyl-db
+    command: --skip-ssl
     env_file: .env
     environment:
       - MYSQL_ROOT_PASSWORD=${PTERO_DB_ROOT_PASSWORD}
