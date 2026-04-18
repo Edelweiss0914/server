@@ -51,16 +51,14 @@ export function ServerCard({ service, state, onAction }: ServerCardProps) {
 
   return (
     <article
-      className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-5 shadow-sm hover:shadow-md transition-shadow"
-      style={
-        {
-          '--service-color': service.color,
-        } as React.CSSProperties
-      }
+      className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/80 p-5 shadow-sm hover:shadow-md transition-shadow grid"
+      style={{
+        '--service-color': service.color,
+        gridTemplateRows: 'auto auto auto 1fr auto',
+      } as React.CSSProperties}
     >
-      {/* head */}
-      <div className="flex items-start gap-3.5 mb-3">
-        {/* icon circle */}
+      {/* Row 1: head — icon + name + badge (fixed) */}
+      <div className="flex items-start gap-3.5">
         <div
           className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center"
           style={{ backgroundColor: `${service.color}18` }}
@@ -71,52 +69,54 @@ export function ServerCard({ service, state, onAction }: ServerCardProps) {
           />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm whitespace-nowrap">
               {service.name}
             </span>
             {service.nameKo && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              <span className="text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
                 {service.nameKo}
               </span>
             )}
+          </div>
+          <div className="mt-1">
             <span
               className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATE_BADGE_CLASSES[currentState] || STATE_BADGE_CLASSES.offline}`}
             >
               {STATE_LABELS[currentState] || '확인 중'}
             </span>
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
-            {service.description}
-          </p>
         </div>
       </div>
 
-      {/* chips */}
-      {(service.category || service.timeRestriction) && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {service.category && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-              {service.category}
-            </span>
-          )}
-          {service.timeRestriction && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-              🕙 {service.timeRestriction}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Row 2: description (fixed height) */}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3 min-h-[2.5rem] line-clamp-2">
+        {service.description}
+      </p>
 
-      {/* status line */}
-      <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+      {/* Row 3: chips — always rendered, min height reserved */}
+      <div className="flex flex-wrap gap-1.5 mt-2 min-h-[1.75rem]">
+        {service.category && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+            {service.category}
+          </span>
+        )}
+        {service.timeRestriction && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+            🕙 {service.timeRestriction}
+          </span>
+        )}
+      </div>
+
+      {/* Row 4: status message (flex-grow, fills remaining space) */}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3">
         {statusMessage(currentState, state.message)}
       </p>
 
-      {/* footer */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Row 5: footer — pinned to bottom (fixed) */}
+      <div className="flex items-end justify-between gap-2 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-700/50">
         {/* player count */}
-        <div className="text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="text-xs text-zinc-400 dark:text-zinc-500 min-h-[1.25rem]">
           {state.player_count !== null &&
             state.player_count !== undefined && (
               <span className="inline-flex items-center gap-1">
@@ -131,7 +131,7 @@ export function ServerCard({ service, state, onAction }: ServerCardProps) {
         </div>
 
         {/* controls */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 shrink-0">
           <button
             type="button"
             disabled={!canStart}
