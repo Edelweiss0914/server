@@ -4,8 +4,8 @@ services:
       context: ../../web
       dockerfile: Dockerfile
     container_name: cheeze-web
-    expose:
-      - "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
     environment:
       - CONTROL_API_URL=http://portal-api:11437
       - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
@@ -18,9 +18,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: cheeze-nginx
-    ports:
-      - "80:80"
-      - "443:443"
+    network_mode: host
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
@@ -30,16 +28,14 @@ services:
       - control-api
       - ai-queue
     restart: unless-stopped
-    networks:
-      - cheeze-net
 
   portal-api:
     build:
       context: ../../deploy/gateway
       dockerfile: ../../deploy/docker/portal-api/Dockerfile
     container_name: cheeze-portal-api
-    expose:
-      - "11437"
+    ports:
+      - "127.0.0.1:11437:11437"
     env_file:
       - .env
     environment:
@@ -57,8 +53,8 @@ services:
       context: ../../deploy/gateway
       dockerfile: ../../deploy/docker/control-api/Dockerfile
     container_name: cheeze-control-api
-    expose:
-      - "11436"
+    ports:
+      - "127.0.0.1:11436:11436"
     env_file:
       - .env
     environment:
@@ -73,8 +69,8 @@ services:
       context: ../../deploy/gateway
       dockerfile: ../../deploy/docker/ai-queue/Dockerfile
     container_name: cheeze-ai-queue
-    expose:
-      - "11435"
+    ports:
+      - "127.0.0.1:11435:11435"
     env_file:
       - .env
     environment:
@@ -84,18 +80,8 @@ services:
     networks:
       - cheeze-net
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cheeze-cloudflared
-    command: tunnel --config /etc/cloudflared/config.yml run
-    volumes:
-      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - /root/.cloudflared:/root/.cloudflared:ro
-    depends_on:
-      - nginx
-    restart: unless-stopped
-    networks:
-      - cheeze-net
+  # cloudflared runs as native systemd service (no cert.pem needed with credentials file)
+  # Config: /etc/cloudflared/config.yml  ingress → http://localhost:80 (Docker nginx)
 
 volumes:
   portal-data:
