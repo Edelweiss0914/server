@@ -53,15 +53,22 @@ GitHub Actions를 사용하여 `main` 브랜치 push 시 자동 배포됩니다.
 | `deploy/gateway/cheeze-control-api.py` | `/opt/cheeze-control/cheeze-control-api.py` | `cheeze-control-api` |
 | `deploy/gateway/cheeze-ai-queue.py` | `/opt/cheeze-ai/cheeze-ai-queue.py` | `cheeze-ai-queue` |
 | `deploy/discord-bot/cheeze-discord-bot.py` | `/opt/cheeze-bot/cheeze-discord-bot.py` | `cheeze-discord-bot` |
-| `index.html`, `js/`, `css/`, `servers.html`, `admin.html` | `/var/www/home/` | Nginx 정적 파일 |
+| `index.html`, `js/`, `css/`, `servers.html` | `/var/www/home/` | Nginx 정적 파일 |
+| `web/` | `/var/www/home/web/` | Next.js 어드민 (빌드 필요) |
 
 **정적 파일 (HTML/JS/CSS):** `git pull`로 자동 반영됨. 별도 복사 불필요.
+
+**Python 서비스 파일:** `git pull`로 `/var/www/home/deploy/`에 반영되나, `/opt/cheeze-control/`로 **수동 cp 필요**. CI/CD가 자동 처리함.
+
+**Next.js:** `git pull` 후 `npm run build` + `systemctl restart cheeze-nextjs` 필요. 빌드 없이 재시작하면 오류 발생.
 
 ### Homepc (Windows)
 
 | 소스 경로 (리포지토리) | 배포 경로 | 서비스 |
 |------------------------|-----------|--------|
-| `deploy/backend/cheeze-backend-agent.py` | `D:\Project\deploy\backend\cheeze-backend-agent.py` | Backend Agent (자가 재시작) |
+| `deploy/backend/cheeze-backend-agent.py` | `D:\Servers\Control\backend-agent\cheeze-backend-agent.py` | Backend Agent |
+
+> **주의:** Backend Agent 실제 실행 경로는 `D:\Servers\Control\backend-agent\`입니다. 배포 후 해당 경로로 파일을 복사해야 합니다. Backend Agent는 `Start-Process`로 실행 중 (별도 Windows 서비스 없음).
 
 ---
 
@@ -144,18 +151,24 @@ systemctl status cheeze-portal-api
 systemctl status cheeze-control-api
 systemctl status cheeze-ai-queue
 systemctl status cheeze-discord-bot
+systemctl status cheeze-nextjs
 
 # 재시작
 systemctl restart cheeze-portal-api
 systemctl restart cheeze-control-api
 systemctl restart cheeze-ai-queue
 systemctl restart cheeze-discord-bot
+systemctl restart cheeze-nextjs
+
+# Next.js 코드 변경 후 재빌드 + 재시작
+cd /var/www/home && git reset --hard origin/main && cd web && npm run build && systemctl restart cheeze-nextjs
 
 # 로그 확인
 journalctl -u cheeze-portal-api -f
 journalctl -u cheeze-control-api -f
 journalctl -u cheeze-ai-queue -f
 journalctl -u cheeze-discord-bot -f
+journalctl -u cheeze-nextjs -f
 ```
 
 ### 서비스 파일 위치

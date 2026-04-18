@@ -142,12 +142,32 @@ web/src/
 
 | 탭 | 상태 | 주요 컴포넌트 |
 |----|------|--------------|
-| 서비스 | 1차 구현 완료 | ServiceStatusGrid + ServerConsole + ServiceControlGrid |
-| 감사 로그 | 1차 구현 완료 | AuditLogSection + IpLabelManager |
-| 절전 관리 | 2차 (placeholder) | /idle/status, /hibernate/debug, /no-sleep 연동 예정 |
-| 모니터링 | 2차 (placeholder) | CPU/RAM/디스크 — Gateway + Backend PC 동시 모니터링 예정 |
+| 서비스 | 구현 완료 | ServiceStatusGrid + ServerConsole + ServiceControlGrid |
+| 감사 로그 | 구현 완료 | AuditLogSection + IpLabelManager |
+| 절전 관리 | 구현 완료 | SleepManagementTab — /idle/status, /hibernate/debug, /no-sleep |
+| 모니터링 | 구현 완료 | MonitoringTab — Backend PC + Gateway VM CPU/RAM/디스크 (10s 폴링) |
 
-**인증 방식:** Cloudflare Access JWT → proxy.ts 검증 → API route에서 서버사이드 토큰 주입 (ADMIN_CONTROL_TOKEN env)
+**인증 방식:**
+- Cloudflare Access OTP 이메일 인증 → JWT를 `CF_Authorization` 쿠키로 수신
+- `proxy.ts`에서 RS256 JWT 서명 검증 (SubtleCrypto API)
+- AUD 검증: `5217e5d9279113aa89c0a6653f4dbac925c04c951fd15c5508647a63d0b17ccc`
+- 허용 이메일 목록: `zoop784@naver.com`, `azdazd0101@gmail.com`
+- API route에서 서버사이드 `ADMIN_CONTROL_TOKEN` 주입 → Portal API 어드민 엔드포인트 호출
+
+**API 경로 구조:**
+
+| Next.js API | Portal API | 설명 |
+|-------------|-----------|------|
+| `/api/admin/status` | `/admin/status` | 서비스 전체 상태 |
+| `/api/admin/audit` | `/admin/audit` | 감사 로그 |
+| `/api/admin/ip-labels` | `/admin/ip-labels` | IP 라벨 CRUD |
+| `/api/admin/idle` | `/admin/idle/status` | 유휴 상태 |
+| `/api/admin/hibernate` | `/admin/hibernate/debug` | 절전 디버그 |
+| `/api/admin/no-sleep` | `/admin/no-sleep` | no-sleep 토글 |
+| `/api/admin/system` | `/admin/system/resources` | Backend PC 리소스 |
+| `/api/admin/gateway` | `/admin/gateway/resources` | Gateway VM 리소스 |
+| `/api/admin/services/[id]/[action]` | `/services/[id]/[action]` | 서비스 제어 |
+| `/api/admin/services/[id]/console` | `/services/[id]/console` | 서버 콘솔 |
 
 **콘솔 기능:**
 - 서비스별 탭 전환 (버퍼 캐시 유지)

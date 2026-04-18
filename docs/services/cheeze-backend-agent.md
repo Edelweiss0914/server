@@ -32,8 +32,8 @@ cheeze-backend-agent는 Windows 백엔드 PC에서 실행되는 에이전트 서
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| `GET` | `/services/{service_id}/console` | 콘솔 로그 조회 — **계획됨 (미구현)** |
-| `POST` | `/services/{service_id}/console` | RCON 명령 전송 — **계획됨 (미구현)** |
+| `GET` | `/services/{service_id}/console` | 콘솔 로그 조회 |
+| `POST` | `/services/{service_id}/console` | RCON 명령 전송 |
 
 #### `/services/{service_id}/console` 쿼리 파라미터 (GET)
 
@@ -47,7 +47,28 @@ cheeze-backend-agent는 Windows 백엔드 PC에서 실행되는 에이전트 서
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | `GET` | `/idle/status` | 유휴 감시 현재 상태 |
-| `GET` | `/hibernate/debug` | 하이버네이션 조건 상세 디버그 — **계획됨 (미구현)** |
+| `GET` | `/hibernate/debug` | 하이버네이션 조건 상세 디버그 |
+
+### 시스템 리소스
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| `GET` | `/system/resources` | CPU/메모리/디스크 사용률 (Windows 네이티브) |
+
+#### `/system/resources` 응답 구조
+
+```json
+{
+  "cpu": { "percent": 6 },
+  "memory": { "total_gb": 63.12, "used_gb": 25.51, "percent": 40 },
+  "disk": [
+    { "drive": "C:", "total_gb": 255.02, "used_gb": 217.86, "free_gb": 37.16, "percent": 85.4 },
+    { "drive": "D:", "total_gb": 976.56, "used_gb": 894.96, "free_gb": 81.6, "percent": 91.6 }
+  ]
+}
+```
+
+> CPU는 PowerShell `Get-CimInstance Win32_Processor`로 측정합니다 (wmic 제거됨 — Windows 11에서 지원 중단).
 | `POST` | `/no-sleep` | no-sleep 플래그 생성 (하이버네이션 억제) |
 | `DELETE` | `/no-sleep` | no-sleep 플래그 제거 |
 

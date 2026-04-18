@@ -24,6 +24,11 @@ cheeze-control-api는 CHEEZE 인프라의 내부 제어 API입니다. cheeze-por
 | `POST` | `/services/{service_id}/stop` | 서비스 중지 |
 | `POST` | `/services/{service_id}/console` | RCON 명령 전달 |
 | `POST` | `/host/wake` | WOL 매직 패킷 전송 |
+| `GET` | `/idle/status` | 백엔드 유휴 상태 프록시 |
+| `GET` | `/hibernate/debug` | 하이버네이션 조건 디버그 프록시 |
+| `GET`/`POST`/`DELETE` | `/no-sleep` | no-sleep 플래그 조회/설정/해제 |
+| `GET` | `/system/resources` | Backend PC 리소스 프록시 (CPU/메모리/디스크) |
+| `GET` | `/gateway/resources` | Gateway VM 자체 리소스 수집 (CPU/메모리/디스크) |
 
 ---
 

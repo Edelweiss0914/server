@@ -49,6 +49,7 @@ tailscale up --hostname=gateway-lxc
 | cloudflared | — | Cloudflare Tunnel 클라이언트 |
 | Tailscale | — | VPN 클라이언트 |
 | Python 3 | — | CHEEZE 서비스 런타임 |
+| Node.js | v20 LTS | Next.js 웹 앱 런타임 |
 | GitHub Actions Runner | — | self-hosted 러너 (label: `gateway`) |
 
 ---
@@ -56,10 +57,16 @@ tailscale up --hostname=gateway-lxc
 ## 파일 시스템 레이아웃
 
 ```
-/var/www/home/                  # 메인 웹사이트 루트
+/var/www/home/                  # 메인 웹사이트 루트 (git repo)
   deploy/
+    gateway/
+      cheeze-control-api.py           # 소스 (cp → /opt/cheeze-control/ 필요)
+      cheeze-portal-api.py            # 소스 (cp → /opt/cheeze-control/ 필요)
     orchestrator/
       service-registry.example.json   # 서비스 레지스트리 예시
+  web/                                # Next.js 어드민 패널
+    .env.local                        # ADMIN_CONTROL_TOKEN 등 시크릿 (git 제외)
+    .next/                            # 빌드 산출물 (npm run build 후 생성)
 
 /opt/cheeze-control/            # cheeze-control-api, cheeze-portal-api
   cheeze-control-api.py
@@ -89,6 +96,19 @@ tailscale up --hostname=gateway-lxc
 | `paperless.conf` | `paperless.edelweiss0297.cloud` → Cloud VM:8010 리버스 프록시 |
 | `archivebox.conf` | `archive.edelweiss0297.cloud` → Cloud VM:8020 리버스 프록시 |
 | `ollama.conf` | `ollama.edelweiss0297.cloud` → Backend PC:11434 리버스 프록시 |
+
+### home.conf 라우팅 (edelweiss0297.cloud)
+
+| location | 대상 | 설명 |
+|----------|------|------|
+| `/` | `/var/www/home` 정적 파일 | 메인 홈페이지 |
+| `/ai/` | `127.0.0.1:11435` | AI 큐 게이트웨이 |
+| `/api/control/` | `127.0.0.1:11437` | Portal API (공개, rate limit 적용) |
+| `/admin` | `127.0.0.1:3000` | Next.js 어드민 패널 (Cloudflare Access 보호) |
+| `/_next/` | `127.0.0.1:3000` | Next.js 정적 자산 |
+| `/api/admin/` | `127.0.0.1:3000` | Next.js 어드민 API (Cloudflare Access 보호) |
+| `/admin.html` | 404 | 레거시 어드민 차단 |
+| `/api/control/admin/` | 404 | 공개 사이트에서 어드민 API 직접 접근 차단 |
 
 ### Rate Limit 존
 
@@ -202,6 +222,46 @@ WantedBy=multi-user.target
 
 ---
 
+### cheeze-nextjs (포트 3000)
+
+**역할**: Next.js 기반 어드민 패널. Cloudflare Access OTP 인증 후 접근 가능.
+
+```ini
+[Unit]
+Description=CHEEZE Next.js Web
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/home/web
+ExecStart=/usr/bin/node node_modules/.bin/next start -p 3000
+Restart=on-failure
+EnvironmentFile=/var/www/home/web/.env.local
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**환경변수 (`.env.local`):**
+
+| 변수 | 설명 |
+|------|------|
+| `ADMIN_CONTROL_TOKEN` | Portal API 어드민 토큰 (token_id: `nextjs-admin`) |
+| `CONTROL_API_URL` | Portal API 주소 (기본값: `http://127.0.0.1:11437`) |
+
+**배포 절차:**
+
+```bash
+cd /var/www/home && git reset --hard origin/main
+cd web && npm run build
+systemctl restart cheeze-nextjs
+```
+
+> `npm run build` 없이 재시작하면 "Could not find a production build" 오류 발생.
+
+---
+
 ### cheeze-ai-queue (포트 11435)
 
 **역할**: AI 요청을 큐잉하여 Backend PC의 Ollama로 순차 전달하는 게이트웨이입니다.
@@ -287,8 +347,8 @@ WantedBy=multi-user.target
 cheeze-control-api  (11436)
         ↑
 cheeze-portal-api   (11437)
-        ↑
-cheeze-discord-bot
+        ↑                ↑
+cheeze-discord-bot   cheeze-nextjs (3000)  ← Cloudflare Access 인증 후 접근
 
 cheeze-ai-queue     (11435)  ← 독립 실행
 ```
@@ -312,10 +372,18 @@ systemctl status actions.runner.*
 
 ```bash
 # 서비스 전체 상태 확인
-systemctl status cheeze-control-api cheeze-portal-api cheeze-ai-queue cheeze-discord-bot
+systemctl status cheeze-control-api cheeze-portal-api cheeze-ai-queue cheeze-discord-bot cheeze-nextjs
 
 # 서비스 재시작
 systemctl restart cheeze-control-api
+systemctl restart cheeze-nextjs
+
+# Next.js 재빌드 후 재시작 (코드 변경 시)
+cd /var/www/home && git reset --hard origin/main && cd web && npm run build && systemctl restart cheeze-nextjs
+
+# Python 서비스 파일 업데이트 (git pull 후 수동 cp 필요)
+\cp /var/www/home/deploy/gateway/cheeze-control-api.py /opt/cheeze-control/ && systemctl restart cheeze-control-api
+\cp /var/www/home/deploy/gateway/cheeze-portal-api.py /opt/cheeze-control/ && systemctl restart cheeze-portal-api
 
 # Nginx 설정 테스트 및 재로드
 nginx -t && systemctl reload nginx
