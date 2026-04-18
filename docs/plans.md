@@ -65,32 +65,113 @@
 
 ### Phase 3: Pterodactyl 게임서버 관리
 
-> 목표: 유저 셀프서비스, 관리자 수동 작업 제거
+> 목표: 임대인 셀프서비스, 관리자 수동 작업 제거
+> 상태: 진행 중 (2026-04-19 구현 시작)
 
+#### 확정된 설계 결정 (2026-04-19)
+
+| 항목 | 결정 |
+|------|------|
+| Panel 서브도메인 | `panel.edelweiss0297.cloud` |
+| Wings 호스트 | homepc WSL2 Ubuntu (이미 설치됨) |
+| Panel ↔ Wings 통신 | Tailscale VPN (homepc Tailscale IP:8080) — 외부 노출 불필요 |
+| 기존 서버 처리 | 안정화 전까지 기존 방식 유지, **새 서버만 Wings로 운영** |
+| Panel 포트 | `127.0.0.1:8080:80` → nginx가 panel 서브도메인으로 프록시 |
+| DB | MariaDB 10.11 (Docker named volume) |
+| Cache | Redis Alpine (Docker named volume) |
+
+#### 구축 단계
+
+**[A] 코드 작업 — Gateway Docker Compose + nginx** ← 현재 진행
+- `docker-compose.yml`에 `pterodactyl-db`, `pterodactyl-cache`, `pterodactyl-panel` 추가
+- nginx에 `panel.edelweiss0297.cloud` 서버 블록 추가
+- `.env.example`에 Pterodactyl 환경변수 추가
+
+**[B] Gateway 서버 수동 작업** (코드 배포 후)
+```bash
+# Panel 기동
+docker compose up -d pterodactyl-db pterodactyl-cache pterodactyl-panel
+
+# Panel 초기 설정 (최초 1회)
+docker exec pterodactyl-panel php artisan migrate --seed --force
+docker exec -it pterodactyl-panel php artisan p:user:make
+```
+
+**[C] homepc WSL2 수동 작업**
+```bash
+# WSL2 Ubuntu에서 Docker Engine 설치
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Wings 설치
+mkdir -p /etc/pterodactyl
+curl -L -o /usr/local/bin/wings \
+  "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64"
+chmod u+x /usr/local/bin/wings
+
+# Panel에서 Node 생성 후 config.yml 다운로드
+# Wings 기동
+wings --debug
+# systemd 서비스 등록 (안정화 후)
+```
+
+**[D] Next.js 코드 작업** (Panel 정상 가동 후)
+- `/admin`에 Pterodactyl 탭 추가 (Panel iframe 또는 API 직접 연동)
+- `/servers` 카드 Pterodactyl Client API 폴링으로 교체
+- 서비스 대여 신청 폼 추가
+
+#### 인프라
 - Gateway에 Pterodactyl Panel (Docker 컨테이너)
 - homepc에 Docker(WSL2) + Pterodactyl Wings
 - Egg 구성: Minecraft Vanilla, Modpack 템플릿
-- CHEEZE 웹(Next.js)에서 Pterodactyl API 연동
-- 유저 인증/인가 → 격리된 환경에서 서버 관리
+
+#### 역할 구조
+- **임대인(서버 운영자)**: `/admin` 내 Pterodactyl 탭에서 서버 생성·제어·메타 정보(운영시간 등) 관리
+- **이용자**: `/servers` 페이지에서 서버 상태·정보 확인 (읽기 전용)
+  - Pterodactyl API 폴링 → 서버 카드 실시간 반영
+  - 켜기/끄기 버튼 제거 (Pterodactyl이 담당)
+  - **서비스 대여 신청 패널 추가**: 새 서버 임대를 원하는 이용자가 신청 폼 제출
+
+#### API 레이어 변화
+- `cheeze-portal-api` — 서버 제어 엔드포인트 대부분 제거 (Pterodactyl이 대체), 잔여 공개 facade만 유지 또는 전체 폐기 검토
+- `cheeze-control-api` — **유지** (Pterodactyl이 대체 불가한 homepc 전용: hibernate/WOL/WTS 유저 감지)
+- `portal-control-tokens.json` 시스템 — 제거 대상
 
 #### 현재 방식과 비교
 - 현재: 유저 요청 → 관리자 수동 검토/배치/연동
-- 이후: 유저 → Pterodactyl 패널 로그인 → 서버 생성(Egg 선택) → 자동 프로비저닝
+- 이후: 임대인 → Pterodactyl(/admin) → 서버 생성(Egg 선택) → 자동 프로비저닝 → `/servers` 카드에 반영
 
 #### 주의사항
-- Wings는 Docker 기반 — homepc에 Docker Desktop 또는 WSL2 Docker Engine 필요
+- Wings는 Docker 기반 — homepc WSL2 Ubuntu에 Docker Engine 설치 필요 (Docker Desktop 불필요)
 - 리소스 한도 설정 필수 (CPU, RAM, 디스크, 포트)
+- Next.js API route에서 Pterodactyl REST API 폴링으로 서버 정보 읽기
+- Panel `APP_KEY`는 최초 배포 전 반드시 생성: `openssl rand -base64 32`
+- Wings는 Panel과 같은 도메인이 아닌 별도 FQDN 또는 Tailscale IP로 node 등록
 
-### Phase 4: 서비스 확장
+### Phase 4: 서비스 확장 + WSL + k3s 도입
 
-> 목표: 게임 서버 외 서비스 제공, 운영 경험 축적
+> 목표: 게임 서버 외 다양한 서비스 제공, 컨테이너 오케스트레이션 안정화
 
 - Portainer 도입 (Docker 웹 관리 UI)
 - 게임 외 서비스 추가 (웹앱, DB 등)
-- K8s 필요성 재평가:
-  - 현 시점에서 미니PC 1대에 K8s는 과잉 (etcd + 컨트롤 플레인만 ~2GB RAM)
-  - 학습 목적이라면 별도 환경(클라우드 무료 티어, k3s on VPS)에서 진행 권장
-  - 프로덕션 도입은 노드 확장/멀티테넌트 운영 안정화 후 재검토
+
+#### WSL + k3s (homepc) 도입 계획
+
+> 상태: 구상 중 — Phase 3 안정화 후 진행
+
+- **목표**: Pterodactyl(게임 전용)을 넘어 다양한 서비스(웹앱, DB, 봇, 미디어 서버 등)를 homepc에서 운영
+- **선택 이유**: 풀 K8s 대신 k3s (경량, 단일 바이너리, 컨트롤 플레인 ~512MB)
+- **WSL2 + k3s 구성**: homepc Windows → WSL2 → k3s 단일 노드
+- **Gateway 연동**: Cloudflare Tunnel → nginx → homepc k3s 서비스 (Tailscale VPN 경유)
+
+#### k3s 도입 전제 조건
+- Phase 3 Pterodactyl Wings(WSL2 Docker)가 안정적으로 운영되어야 함
+- homepc RAM 여유 확인 (k3s 컨트롤 플레인 ~512MB + 서비스 워크로드)
+- 게임 서버 리소스와 k3s 워크로드 간 자원 경합 모니터링 필요
+
+#### 풀 K8s는 현 시점 불필요
+- 단일 노드에서 etcd + 컨트롤 플레인만 ~2GB (과잉)
+- 멀티노드/멀티테넌트 운영 안정화 후 재검토
 
 ---
 
@@ -162,9 +243,49 @@
 - 컴포넌트 6개: ServiceStatusGrid, ServiceControlGrid, ServerConsole, AuditLogSection, IpLabelManager, AuditLogTab
 
 **남은 작업:**
-- ADMIN_CONTROL_TOKEN 환경변수 설정 (deploy/docker/.env에 nextjs-admin 토큰 등록 필요)
 - 절전 관리 탭 구현 (/idle/status, /hibernate/debug, /no-sleep)
-- 모니터링 탭 구현 완료 (MonitoringTab.tsx — 인증 오류 상태별 메시지 개선됨)
+- 메인 페이지(`/`) 개인정보 처리 방침 모달 추가
+  - 구현 방식: 별도 페이지 대신 모달 (초기 방문 시 표시, 동의 여부 localStorage/쿠키 기록)
+  - 재동의 트리거: 처리 방침 내용 변경 시 버전 비교로 재표시
+  - 동의 기록: 클라이언트 측 timestamp + 버전 저장 (서버 기록은 Phase 3 이후 검토)
+  - 내용 초안: Claude가 작성 예정 (수집 항목, 보유 기간, 제3자 제공 여부 등 한국 개인정보보호법 기준)
+
+**완료:**
+- ADMIN_CONTROL_TOKEN 환경변수 설정 ✅ (deploy/docker/.env에 nextjs-admin 토큰 등록 완료)
+- 모니터링 탭 정상 동작 ✅ (Docker named volume → 직접 바인드 마운트 전환으로 401 해결, 2026-04-19)
+- 온디맨드 서비스에서 Ollama AI 카드 제거 ✅ (services.ts에서 ollama 항목 삭제, ondemand 카드 description 수정, 2026-04-19)
+
+### 2026-04-19: Phase 3 코드 스캐폴딩 시작
+
+**확정된 설계:**
+- Panel 서브도메인: `panel.edelweiss0297.cloud`
+- Wings: homepc WSL2 Ubuntu (Docker Engine 설치 필요)
+- Panel ↔ Wings 통신: Tailscale VPN (공인 인터넷 미사용)
+- 기존 서버 유지, 새 서버만 Wings 적용
+
+**코드 변경:**
+- `docker-compose.yml`: pterodactyl-db(MariaDB 10.11), pterodactyl-cache(Redis), pterodactyl-panel 추가
+- `nginx/conf.d/default.conf`: panel.edelweiss0297.cloud 서버 블록 추가 (WebSocket 지원 포함)
+- `.env.example`: PTERO_APP_KEY, PTERO_DB_* 변수 추가
+
+**다음 단계 (서버 수동 작업):**
+1. `.env`에 PTERO_* 값 설정 (`openssl rand -base64 32`로 APP_KEY 생성)
+2. `docker compose up -d pterodactyl-db pterodactyl-cache pterodactyl-panel`
+3. `docker exec pterodactyl-panel php artisan migrate --seed --force`
+4. `docker exec -it pterodactyl-panel php artisan p:user:make`
+5. cloudflared config.yml에 panel 서브도메인 ingress 추가 또는 와일드카드로 커버 확인
+
+### 2026-04-19: Phase 3 아키텍처 설계 확정
+
+**설계 결정:**
+- `/servers` 역할 분리: 켜기/끄기 제어 제거 → 읽기 전용 정보 허브로 전환
+- `/servers`에 서비스 대여 신청 패널 추가 예정 (Phase 3)
+- Pterodactyl Panel → `/admin` 탭으로 통합 (임대인 전용)
+- `cheeze-portal-api` 대부분 제거 대상, `cheeze-control-api`는 homepc Backend Agent용으로 유지
+- `/servers` 카드 데이터: Next.js API route → Pterodactyl REST API 폴링
+
+**보류 결정:**
+- `/servers`에 Cloudflare Access OTP 적용 안 함 (현재 토큰 방식 유지, Phase 3에서 Pterodactyl 자체 인증으로 대체)
 
 ---
 
