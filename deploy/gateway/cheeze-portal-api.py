@@ -400,6 +400,14 @@ class Handler(BaseHTTPRequestHandler):
       self.forward_or_error("/no-sleep")
       return
 
+    if self.path == "/admin/system/resources":
+      error_status, error_payload = authorize_admin(self.headers)
+      if error_status is not None:
+        self.respond_json(error_status, error_payload)
+        return
+      self.forward_or_error("/system/resources")
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):

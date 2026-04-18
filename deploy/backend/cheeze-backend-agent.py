@@ -851,6 +851,88 @@ def _check_hibernate_conditions(config: dict) -> bool:
   return True
 
 
+def _get_system_resources() -> dict:
+  """Gather CPU, memory, and disk usage using Windows-native APIs."""
+  import ctypes
+  import ctypes.wintypes
+
+  result: dict = {}
+
+  # --- Memory (GlobalMemoryStatusEx) ---
+  try:
+    class MEMORYSTATUSEX(ctypes.Structure):
+      _fields_ = [
+        ("dwLength", ctypes.wintypes.DWORD),
+        ("dwMemoryLoad", ctypes.wintypes.DWORD),
+        ("ullTotalPhys", ctypes.c_uint64),
+        ("ullAvailPhys", ctypes.c_uint64),
+        ("ullTotalPageFile", ctypes.c_uint64),
+        ("ullAvailPageFile", ctypes.c_uint64),
+        ("ullTotalVirtual", ctypes.c_uint64),
+        ("ullAvailVirtual", ctypes.c_uint64),
+        ("ullAvailExtendedVirtual", ctypes.c_uint64),
+      ]
+    mem = MEMORYSTATUSEX()
+    mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem))
+    total_gb = round(mem.ullTotalPhys / (1024 ** 3), 2)
+    used_gb = round((mem.ullTotalPhys - mem.ullAvailPhys) / (1024 ** 3), 2)
+    result["memory"] = {
+      "total_gb": total_gb,
+      "used_gb": used_gb,
+      "percent": mem.dwMemoryLoad,
+    }
+  except Exception as exc:
+    result["memory"] = {"error": str(exc)}
+
+  # --- CPU (wmic) ---
+  try:
+    out = subprocess.check_output(
+      ["wmic", "cpu", "get", "LoadPercentage", "/value"],
+      timeout=5, text=True, creationflags=0x08000000,
+    )
+    for line in out.strip().splitlines():
+      if line.startswith("LoadPercentage="):
+        result["cpu"] = {"percent": int(line.split("=", 1)[1])}
+        break
+    if "cpu" not in result:
+      result["cpu"] = {"percent": None}
+  except Exception as exc:
+    result["cpu"] = {"error": str(exc)}
+
+  # --- Disk (GetDiskFreeSpaceExW) ---
+  try:
+    drives = []
+    bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+    for i in range(26):
+      if bitmask & (1 << i):
+        letter = chr(65 + i) + ":\\"
+        drive_type = ctypes.windll.kernel32.GetDriveTypeW(letter)
+        if drive_type != 3:  # DRIVE_FIXED only
+          continue
+        free = ctypes.c_uint64(0)
+        total = ctypes.c_uint64(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(
+          letter, None, ctypes.byref(total), ctypes.byref(free)
+        )
+        total_gb = round(total.value / (1024 ** 3), 2)
+        free_gb = round(free.value / (1024 ** 3), 2)
+        used_gb = round(total_gb - free_gb, 2)
+        percent = round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0
+        drives.append({
+          "drive": letter.rstrip("\\"),
+          "total_gb": total_gb,
+          "used_gb": used_gb,
+          "free_gb": free_gb,
+          "percent": percent,
+        })
+    result["disk"] = drives
+  except Exception as exc:
+    result["disk"] = {"error": str(exc)}
+
+  return result
+
+
 def _hibernate_debug_info(config: dict) -> dict:
   """Evaluate each hibernate condition individually and return pass/fail details."""
   hibernate_policy = config.get("hibernate_policy", {})
@@ -1254,6 +1336,10 @@ class Handler(BaseHTTPRequestHandler):
 
     if self.path == "/hibernate/debug":
       self.respond_json(200, _hibernate_debug_info(config))
+      return
+
+    if self.path == "/system/resources":
+      self.respond_json(200, _get_system_resources())
       return
 
     self.respond_json(404, {"error": "not_found"})

@@ -325,6 +325,14 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
       return
 
+    if self.path == "/system/resources":
+      try:
+        status_code, body = backend_fetch("/system/resources")
+        self.respond_raw(status_code, body)
+      except Exception:
+        self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
     self.respond_json(404, {"error": "not_found"})
 
   def do_POST(self):
