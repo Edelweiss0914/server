@@ -27,15 +27,20 @@ interface Props {
 
 export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [fetchError, setFetchError] = useState(false)
 
   const fetchServices = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/status')
-      if (!res.ok) return
+      if (!res.ok) {
+        setFetchError(true)
+        return
+      }
       const data = await res.json()
       onServicesUpdate(data.services ?? [])
+      setFetchError(false)
     } catch {
-      /* noop */
+      setFetchError(true)
     }
   }, [onServicesUpdate])
 
@@ -52,7 +57,7 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   }, [fetchServices, hasTransition])
 
   useEffect(() => {
-    fetchServices().then(() => scheduleRefresh())
+    fetchServices()
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
@@ -84,6 +89,13 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   }, [fetchServices, scheduleRefresh])
 
   if (services.length === 0) {
+    if (fetchError) {
+      return (
+        <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          서비스 상태를 불러오지 못했습니다.
+        </div>
+      )
+    }
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">서비스 정보를 불러오는 중...</p>
     )

@@ -153,6 +153,16 @@ export function AuditLogSection({ ipLabels }: AuditLogSectionProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        pollNew().then(() => scheduleAuditPoll())
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [pollNew, scheduleAuditPoll])
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {

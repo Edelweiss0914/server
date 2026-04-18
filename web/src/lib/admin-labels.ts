@@ -50,10 +50,6 @@ export function stateLabel(state: string): string {
   )
 }
 
-export function stateClass(state: string): string {
-  return `is-${state || 'offline'}`
-}
-
 export function stateColorClass(state: string): string {
   switch (state) {
     case 'running':

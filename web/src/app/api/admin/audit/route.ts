@@ -1,7 +1,5 @@
 import { type NextRequest } from 'next/server'
-
-const CONTROL_API_URL =
-  process.env.CONTROL_API_URL || 'http://127.0.0.1:11437'
+import { CONTROL_API_URL } from '@/lib/control-api'
 
 export async function GET(request: NextRequest) {
   try {
