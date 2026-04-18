@@ -138,6 +138,56 @@ def decode_backend_payload(body, *, fallback_message):
   }
 
 
+def collect_gateway_cpu():
+  """Read /proc/stat twice with 0.1s interval to calculate CPU usage."""
+  def read_stat():
+    with open('/proc/stat', 'r') as f:
+      line = f.readline()
+    parts = line.split()
+    # user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice
+    vals = [int(x) for x in parts[1:]]
+    idle = vals[3] + vals[4]  # idle + iowait
+    total = sum(vals)
+    return idle, total
+
+  idle1, total1 = read_stat()
+  time.sleep(0.1)
+  idle2, total2 = read_stat()
+
+  delta_total = total2 - total1
+  delta_idle = idle2 - idle1
+  if delta_total == 0:
+    return 0.0
+  return round((1 - delta_idle / delta_total) * 100, 1)
+
+
+def collect_gateway_memory():
+  """Parse /proc/meminfo for memory stats."""
+  info = {}
+  with open('/proc/meminfo', 'r') as f:
+    for line in f:
+      key, _, val = line.partition(':')
+      info[key.strip()] = int(val.strip().split()[0])  # kB
+
+  total_kb = info.get('MemTotal', 0)
+  available_kb = info.get('MemAvailable', 0)
+  used_kb = total_kb - available_kb
+  total_gb = round(total_kb / 1024 / 1024, 1)
+  used_gb = round(used_kb / 1024 / 1024, 1)
+  percent = round(used_kb / total_kb * 100, 1) if total_kb > 0 else 0.0
+  return {'total_gb': total_gb, 'used_gb': used_gb, 'percent': percent}
+
+
+def collect_gateway_disk():
+  """Collect disk usage for root partition."""
+  usage = shutil.disk_usage('/')
+  total_gb = round(usage.total / 1024**3, 1)
+  used_gb = round(usage.used / 1024**3, 1)
+  free_gb = round(usage.free / 1024**3, 1)
+  percent = round(usage.used / usage.total * 100, 1)
+  return [{'drive': '/', 'total_gb': total_gb, 'used_gb': used_gb, 'free_gb': free_gb, 'percent': percent}]
+
+
 def build_wol_command():
   if WOL_COMMAND:
     return shlex.split(WOL_COMMAND)
@@ -331,6 +381,20 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_raw(status_code, body)
       except Exception:
         self.respond_json(502, {"error": "backend_unreachable", "message": BACKEND_UNREACHABLE_MESSAGE})
+      return
+
+    if self.path == "/gateway/resources":
+      try:
+        cpu_percent = collect_gateway_cpu()
+        memory = collect_gateway_memory()
+        disk = collect_gateway_disk()
+        self.respond_json(200, {
+          "cpu": {"percent": cpu_percent},
+          "memory": memory,
+          "disk": disk,
+        })
+      except Exception as error:
+        self.respond_json(500, {"error": "failed to collect gateway resources", "message": str(error)})
       return
 
     self.respond_json(404, {"error": "not_found"})

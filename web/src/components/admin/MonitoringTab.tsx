@@ -39,93 +39,153 @@ function UsageBar({ percent, label }: { percent: number; label: string }) {
   )
 }
 
-export function MonitoringTab() {
-  const [data, setData] = useState<SystemResources | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+function ResourceSection({
+  title,
+  data,
+  loading,
+  error,
+}: {
+  title: string
+  data: SystemResources | null
+  loading: boolean
+  error: string | null
+}) {
+  const disks = data && Array.isArray(data.disk) ? data.disk : []
 
-  const fetchData = useCallback(async () => {
+  return (
+    <div className="flex flex-col gap-4">
+      <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{title}</h3>
+
+      {loading && !data && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">불러오는 중...</p>
+      )}
+
+      {error && !data && (
+        <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
+      {data && (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* CPU */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">CPU</h3>
+              {data.cpu?.error ? (
+                <p className="text-xs text-red-500">{data.cpu.error}</p>
+              ) : (
+                <UsageBar percent={data.cpu?.percent ?? 0} label="사용률" />
+              )}
+            </div>
+
+            {/* Memory */}
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">메모리</h3>
+              {data.memory?.error ? (
+                <p className="text-xs text-red-500">{data.memory.error}</p>
+              ) : (
+                <>
+                  <UsageBar percent={data.memory?.percent ?? 0} label="사용률" />
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
+                    {data.memory?.used_gb ?? 0} / {data.memory?.total_gb ?? 0} GB
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Disk */}
+          {disks.length > 0 && (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">디스크</h3>
+              <div className="flex flex-col gap-3">
+                {disks.map((d) => (
+                  <div key={d.drive}>
+                    <UsageBar percent={d.percent} label={`${d.drive} (${d.used_gb} / ${d.total_gb} GB)`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+export function MonitoringTab() {
+  const [backendData, setBackendData] = useState<SystemResources | null>(null)
+  const [backendLoading, setBackendLoading] = useState(true)
+  const [backendError, setBackendError] = useState<string | null>(null)
+
+  const [gatewayData, setGatewayData] = useState<SystemResources | null>(null)
+  const [gatewayLoading, setGatewayLoading] = useState(true)
+  const [gatewayError, setGatewayError] = useState<string | null>(null)
+
+  const fetchBackend = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/system')
       if (res.ok) {
-        setData(await res.json())
-        setError(null)
+        setBackendData(await res.json())
+        setBackendError(null)
       } else {
-        setError('백엔드 연결 실패')
+        setBackendError('백엔드 연결 실패')
       }
     } catch {
-      setError('네트워크 오류')
+      setBackendError('네트워크 오류')
     } finally {
-      setLoading(false)
+      setBackendLoading(false)
+    }
+  }, [])
+
+  const fetchGateway = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/gateway')
+      if (res.ok) {
+        setGatewayData(await res.json())
+        setGatewayError(null)
+      } else {
+        setGatewayError('게이트웨이 연결 실패')
+      }
+    } catch {
+      setGatewayError('네트워크 오류')
+    } finally {
+      setGatewayLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchData()
-    const timer = setInterval(fetchData, 10_000)
+    fetchBackend()
+    fetchGateway()
+    const timer = setInterval(() => {
+      fetchBackend()
+      fetchGateway()
+    }, 10_000)
     return () => clearInterval(timer)
-  }, [fetchData])
+  }, [fetchBackend, fetchGateway])
 
-  if (loading) {
+  if (backendLoading && gatewayLoading) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">불러오는 중...</p>
   }
 
-  if (error && !data) {
-    return (
-      <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-        {error}
-      </div>
-    )
-  }
-
-  if (!data) return null
-
-  const disks = Array.isArray(data.disk) ? data.disk : []
-
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-xs text-zinc-400 dark:text-zinc-500">Backend PC 리소스 · 10초 폴링</p>
+    <div className="flex flex-col gap-8">
+      <p className="text-xs text-zinc-400 dark:text-zinc-500">Backend PC · Gateway VM 리소스 · 10초 폴링</p>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* CPU */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">CPU</h3>
-          {data.cpu?.error ? (
-            <p className="text-xs text-red-500">{data.cpu.error}</p>
-          ) : (
-            <UsageBar percent={data.cpu?.percent ?? 0} label="사용률" />
-          )}
-        </div>
+      <ResourceSection
+        title="Backend PC"
+        data={backendData}
+        loading={backendLoading}
+        error={backendError}
+      />
 
-        {/* Memory */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">메모리</h3>
-          {data.memory?.error ? (
-            <p className="text-xs text-red-500">{data.memory.error}</p>
-          ) : (
-            <>
-              <UsageBar percent={data.memory?.percent ?? 0} label="사용률" />
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
-                {data.memory?.used_gb ?? 0} / {data.memory?.total_gb ?? 0} GB
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Disk */}
-      {disks.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">디스크</h3>
-          <div className="flex flex-col gap-3">
-            {disks.map((d) => (
-              <div key={d.drive}>
-                <UsageBar percent={d.percent} label={`${d.drive} (${d.used_gb} / ${d.total_gb} GB)`} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ResourceSection
+        title="Gateway VM"
+        data={gatewayData}
+        loading={gatewayLoading}
+        error={gatewayError}
+      />
     </div>
   )
 }

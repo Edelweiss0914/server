@@ -3,11 +3,17 @@ import { type NextRequest } from 'next/server'
 const CONTROL_API_URL =
   process.env.CONTROL_API_URL || 'http://127.0.0.1:11437'
 
+const ALLOWED_ACTIONS = ['start', 'stop']
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; action: string }> }
 ) {
   const { id, action } = await params
+
+  if (!ALLOWED_ACTIONS.includes(action)) {
+    return Response.json({ error: 'invalid action' }, { status: 400 })
+  }
 
   try {
     const upstream = await fetch(
