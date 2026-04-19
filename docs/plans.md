@@ -350,6 +350,28 @@ wings --debug
 - 신규 서버 수요만 먼저 수집
 - Pterodactyl/Wings 안정화 전까지 공개 페이지의 역할을 “기존 제어 + 신규 요청 접수”로 유지
 
+### 2026-04-19: 임대인 패널 접속 버튼 및 Cloudflare Access 보호
+
+**구현 완료:**
+- `/servers` 페이지 하단에 임대인 전용 섹션 추가
+  - "패널 접속" 버튼 → `/panel-access` 경유 → `panel.edelweiss0297.cloud` redirect
+- `/panel-access` Next.js 페이지 신규 추가 (`PTERODACTYL_PANEL_URL` 환경변수 기반 redirect)
+- `proxy.ts` matcher에 `/panel-access` 추가 → Cloudflare Access JWT 검증 적용
+
+**인증 흐름:**
+```
+버튼 클릭 → /panel-access → Cloudflare Access OTP (미인증 시) → JWT 쿠키 발급 → proxy.ts 검증 → panel.edelweiss0297.cloud redirect
+```
+
+**운영 조건:**
+- Cloudflare Zero Trust → Access → Applications에 `edelweiss0297.cloud/panel-access` 경로 보호 정책 등록 필요
+- 정책 미등록 시 버튼은 표시되나 OTP 없이 누구나 접근 가능
+
+**파일:**
+- `web/src/app/panel-access/page.tsx` (신규)
+- `web/src/proxy.ts`
+- `web/src/app/servers/page.tsx`
+
 ### 2026-04-19: 대여 신청 패널 모달 전환
 
 **변경 내용:**
