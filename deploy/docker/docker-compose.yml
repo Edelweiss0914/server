@@ -167,7 +167,10 @@ services:
       - cheeze-net
 
   pterodactyl-panel:
-    image: ghcr.io/pterodactyl/panel:latest
+    build:
+      context: ./pterodactyl-panel
+      dockerfile: Dockerfile
+    image: cheeze-pterodactyl-panel:local
     container_name: pterodactyl-panel
     ports:
       - "127.0.0.1:8080:80"

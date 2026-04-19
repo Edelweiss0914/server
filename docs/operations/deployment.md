@@ -378,3 +378,36 @@ sudo systemctl daemon-reload
 sudo systemctl enable cheeze-<service-name>
 sudo systemctl start cheeze-<service-name>
 ```
+
+---
+
+## 8. Pterodactyl Panel 커스텀 이미지 재배포
+
+Pterodactyl Panel은 upstream 이미지를 그대로 쓰지 않고
+`deploy/docker/pterodactyl-panel/` 아래의 커스텀 빌드 자산으로 재배포한다.
+
+관련 파일:
+
+- `deploy/docker/pterodactyl-panel/Dockerfile`
+- `deploy/docker/pterodactyl-panel/patch-panel.sh`
+- `deploy/docker/docker-compose.yml`
+
+재배포 명령:
+
+```bash
+cd /var/www/home/deploy/docker
+docker compose build pterodactyl-panel
+docker compose up -d pterodactyl-panel
+```
+
+검증:
+
+```bash
+docker exec -it pterodactyl-panel sh -lc "grep -n \"between:0,1000\" /app/app/Models/Server.php"
+docker compose ps pterodactyl-panel
+```
+
+주의:
+
+- `pterodactyl-panel` 컨테이너 내부를 수동 수정하는 방식은 사용하지 않는다.
+- validation 패치나 한글화 같은 Panel 수정은 모두 커스텀 이미지 빌드에 포함한다.
