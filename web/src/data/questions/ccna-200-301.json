@@ -1,0 +1,152 @@
+[
+  {
+    "id": "ccna-001",
+    "examId": "ccna-200-301",
+    "category": "Routing",
+    "difficulty": "medium",
+    "question": "A router has these routes: 10.1.0.0/16 via 192.168.1.1, 10.1.1.0/24 via 192.168.1.2, 0.0.0.0/0 via 192.168.1.3. A packet destined for 10.1.1.50 will be forwarded to which next-hop?",
+    "options": [
+      "A. 192.168.1.1",
+      "B. 192.168.1.2",
+      "C. 192.168.1.3",
+      "D. The packet will be dropped"
+    ],
+    "answer": 1,
+    "explanation": "라우터는 최장 프리픽스 매칭(Longest Prefix Match) 원칙을 사용합니다. 10.1.1.50은 /16과 /24 모두에 매칭되지만, 더 구체적인 /24 경로(192.168.1.2)가 선택됩니다. 이것이 라우팅 테이블 탐색의 기본 원리입니다."
+  },
+  {
+    "id": "ccna-002",
+    "examId": "ccna-200-301",
+    "category": "Routing",
+    "difficulty": "hard",
+    "question": "Which OSPF network type requires a Designated Router (DR) and Backup Designated Router (BDR) election?",
+    "options": [
+      "A. Point-to-Point",
+      "B. Point-to-Multipoint",
+      "C. Broadcast (Ethernet)",
+      "D. Loopback"
+    ],
+    "answer": 2,
+    "explanation": "OSPF 브로드캐스트 네트워크 타입(이더넷 등)에서는 DR/BDR 선출이 필요합니다. 다수의 라우터가 연결된 환경에서 LSA 플러딩을 최소화하기 위해 DR이 중앙 역할을 합니다. Point-to-Point 링크는 DR/BDR이 필요 없습니다."
+  },
+  {
+    "id": "ccna-003",
+    "examId": "ccna-200-301",
+    "category": "Switching",
+    "difficulty": "easy",
+    "question": "스위치에서 VLAN 간 트래픽을 전달하는 IEEE 표준 트렁킹 프로토콜은 무엇입니까?",
+    "options": [
+      "A. ISL (Inter-Switch Link)",
+      "B. IEEE 802.1Q",
+      "C. IEEE 802.3",
+      "D. VTP (VLAN Trunking Protocol)"
+    ],
+    "answer": 1,
+    "explanation": "IEEE 802.1Q는 VLAN 트렁킹을 위한 산업 표준 프로토콜입니다. 이더넷 프레임에 4바이트 VLAN 태그를 삽입하여 여러 VLAN 트래픽을 단일 링크로 전송합니다. ISL은 Cisco 독점 프로토콜로 현재는 거의 사용되지 않습니다."
+  },
+  {
+    "id": "ccna-004",
+    "examId": "ccna-200-301",
+    "category": "Switching",
+    "difficulty": "medium",
+    "question": "In Spanning Tree Protocol (STP), which switch becomes the Root Bridge?",
+    "options": [
+      "A. The switch with the highest Bridge ID",
+      "B. The switch with the most ports",
+      "C. The switch with the lowest Bridge ID (priority + MAC address)",
+      "D. The switch that is first powered on"
+    ],
+    "answer": 2,
+    "explanation": "STP에서 루트 브리지는 가장 낮은 Bridge ID를 가진 스위치가 선출됩니다. Bridge ID는 2바이트 우선순위(기본값 32768)와 스위치의 MAC 주소로 구성됩니다. 우선순위가 같으면 가장 낮은 MAC 주소를 가진 스위치가 루트 브리지가 됩니다."
+  },
+  {
+    "id": "ccna-005",
+    "examId": "ccna-200-301",
+    "category": "IP Services",
+    "difficulty": "easy",
+    "question": "DHCP 클라이언트가 IP 주소를 할당받는 4단계 프로세스의 올바른 순서는 무엇입니까?",
+    "options": [
+      "A. Request → Discover → Offer → ACK",
+      "B. Discover → Offer → Request → ACK",
+      "C. Offer → Discover → ACK → Request",
+      "D. Discover → Request → Offer → ACK"
+    ],
+    "answer": 1,
+    "explanation": "DHCP DORA 프로세스: 1) Discover — 클라이언트가 브로드캐스트로 DHCP 서버 탐색, 2) Offer — 서버가 사용 가능한 IP 주소 제안, 3) Request — 클라이언트가 제안된 IP 주소 요청, 4) ACK — 서버가 임대를 확인하고 IP 설정 정보 전달."
+  },
+  {
+    "id": "ccna-006",
+    "examId": "ccna-200-301",
+    "category": "IP Services",
+    "difficulty": "medium",
+    "question": "A host has IP address 192.168.10.50 with subnet mask 255.255.255.192. What is the network address and broadcast address for this host?",
+    "options": [
+      "A. Network: 192.168.10.0, Broadcast: 192.168.10.63",
+      "B. Network: 192.168.10.32, Broadcast: 192.168.10.63",
+      "C. Network: 192.168.10.0, Broadcast: 192.168.10.255",
+      "D. Network: 192.168.10.48, Broadcast: 192.168.10.63"
+    ],
+    "answer": 0,
+    "explanation": "255.255.255.192 = /26이므로 서브넷 크기는 64입니다. 서브넷 경계: 0, 64, 128, 192. 호스트 50은 192.168.10.0/26 서브넷(0~63 범위)에 속합니다. 네트워크 주소는 192.168.10.0이고 브로드캐스트 주소는 192.168.10.63입니다."
+  },
+  {
+    "id": "ccna-007",
+    "examId": "ccna-200-301",
+    "category": "Security",
+    "difficulty": "medium",
+    "question": "스위치 포트 보안(Port Security)에서 허용된 MAC 주소 수를 초과했을 때 포트를 err-disabled 상태로 만드는 위반 모드는 무엇입니까?",
+    "options": [
+      "A. Protect",
+      "B. Restrict",
+      "C. Shutdown",
+      "D. Drop"
+    ],
+    "answer": 2,
+    "explanation": "Shutdown 모드(기본값)는 위반 발생 시 포트를 즉시 err-disabled 상태로 전환하고 SNMP 트랩 및 syslog 메시지를 전송합니다. Protect는 위반 패킷을 조용히 버리고, Restrict는 버리면서 카운터와 로그를 남깁니다. Drop은 IOS에 존재하지 않는 모드입니다."
+  },
+  {
+    "id": "ccna-008",
+    "examId": "ccna-200-301",
+    "category": "Wireless",
+    "difficulty": "easy",
+    "question": "Which 802.11 standard operates exclusively in the 5 GHz band and supports speeds up to 6.9 Gbps?",
+    "options": [
+      "A. 802.11b",
+      "B. 802.11g",
+      "C. 802.11ac (Wi-Fi 5)",
+      "D. 802.11n (Wi-Fi 4)"
+    ],
+    "answer": 2,
+    "explanation": "IEEE 802.11ac(Wi-Fi 5)는 5GHz 대역 전용으로 동작하며, MU-MIMO와 256-QAM을 지원하여 최대 6.9Gbps의 이론적 속도를 제공합니다. 802.11b/g는 2.4GHz만, 802.11n은 2.4GHz와 5GHz 모두 지원합니다."
+  },
+  {
+    "id": "ccna-009",
+    "examId": "ccna-200-301",
+    "category": "Security",
+    "difficulty": "hard",
+    "question": "What is the PRIMARY difference between an IDS and an IPS in network security?",
+    "options": [
+      "A. IDS uses signature-based detection; IPS uses anomaly-based detection only",
+      "B. IDS monitors traffic passively and alerts; IPS is inline and can actively block threats",
+      "C. IDS operates at Layer 3; IPS operates at Layer 7",
+      "D. IDS is deployed at the perimeter; IPS is deployed inside the network only"
+    ],
+    "answer": 1,
+    "explanation": "IDS(침입 탐지 시스템)는 트래픽을 수동으로 모니터링하고 위협을 감지하면 알림을 발생시키지만 트래픽을 차단하지는 않습니다. IPS(침입 방지 시스템)는 트래픽 경로 인라인에 배치되어 악성 트래픽을 실시간으로 탐지하고 차단할 수 있습니다."
+  },
+  {
+    "id": "ccna-010",
+    "examId": "ccna-200-301",
+    "category": "Routing",
+    "difficulty": "medium",
+    "question": "Which command would you use on a Cisco router to verify the current routing table?",
+    "options": [
+      "A. show ip interface brief",
+      "B. show ip route",
+      "C. show running-config",
+      "D. show cdp neighbors"
+    ],
+    "answer": 1,
+    "explanation": "'show ip route' 명령은 라우터의 라우팅 테이블을 표시하며, 각 네트워크 경로, 넥스트 홉, 메트릭, 관리 거리(AD) 및 경로 소스(C=직접 연결, S=정적, O=OSPF, E=EIGRP 등)를 보여줍니다. 네트워크 트러블슈팅에 필수적인 명령입니다."
+  }
+]

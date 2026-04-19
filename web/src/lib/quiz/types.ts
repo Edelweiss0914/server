@@ -1,0 +1,37 @@
+export interface Question {
+  id: string
+  examId: string
+  category: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  question: string
+  options: string[]       // 4 options, index 0-3
+  answer: number          // correct option index (0-indexed)
+  explanation: string
+}
+
+export interface ExamMeta {
+  id: string
+  slug: string
+  nameKo: string
+  nameEn: string
+  description: string
+  totalQuestions: number
+  color: string
+  bgColor: string
+  bgColorDark: string
+  icon: string            // SVG string
+}
+
+export interface ProgressRecord {
+  correct: string[]
+  wrong: string[]
+  seen: string[]
+}
+
+export interface QuizSession {
+  currentIndex: number
+  answers: Record<string, number>
+  completed: boolean
+  startTime: string       // ISO date string
+  timeLimit: number | null  // seconds, null = no limit
+}

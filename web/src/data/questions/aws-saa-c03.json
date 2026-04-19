@@ -1,0 +1,227 @@
+[
+  {
+    "id": "aws-saa-001",
+    "examId": "aws-saa-c03",
+    "category": "S3",
+    "difficulty": "medium",
+    "question": "A company needs to store user-uploaded images that are accessed frequently for the first 30 days, rarely for the next 60 days, and must be retained for 7 years for compliance. Which S3 lifecycle policy minimizes cost?",
+    "options": [
+      "A. S3 Standard → S3 Standard-IA at 30 days → S3 Glacier Flexible Retrieval at 90 days",
+      "B. S3 Standard → S3 Glacier Instant Retrieval at 30 days → delete at 90 days",
+      "C. S3 Intelligent-Tiering from day 1 → S3 Glacier Deep Archive at 90 days",
+      "D. S3 Standard → S3 One Zone-IA at 30 days → S3 Glacier Deep Archive at 90 days"
+    ],
+    "answer": 0,
+    "explanation": "Standard-IA는 접근 빈도가 낮지만 빠른 검색이 필요한 데이터에 적합합니다. 90일 이후 거의 접근하지 않는 데이터는 Glacier Flexible Retrieval로 이동하여 비용을 최소화하고 7년 보존 요건을 충족합니다. One Zone-IA는 가용성이 낮아 중요 데이터에는 부적합합니다."
+  },
+  {
+    "id": "aws-saa-002",
+    "examId": "aws-saa-c03",
+    "category": "S3",
+    "difficulty": "easy",
+    "question": "회사가 S3 버킷에 저장된 중요 데이터를 실수로 삭제되거나 덮어쓰이지 않도록 보호하려 합니다. 어떤 기능을 사용해야 합니까?",
+    "options": [
+      "A. S3 버전 관리(Versioning) 활성화",
+      "B. S3 Transfer Acceleration 활성화",
+      "C. S3 Cross-Region Replication 설정",
+      "D. S3 요청자 지불(Requester Pays) 활성화"
+    ],
+    "answer": 0,
+    "explanation": "S3 버전 관리를 활성화하면 모든 객체의 버전이 보존됩니다. 삭제 또는 덮어쓰기 시 이전 버전으로 복구할 수 있습니다. Transfer Acceleration은 업로드 속도 향상, CRR은 재해 복구용이며 삭제 보호와는 무관합니다."
+  },
+  {
+    "id": "aws-saa-003",
+    "examId": "aws-saa-c03",
+    "category": "EC2",
+    "difficulty": "medium",
+    "question": "A solutions architect needs to run a batch processing job that can tolerate interruption and must minimize cost. The job takes 6 hours to complete. Which EC2 purchasing option is MOST cost-effective?",
+    "options": [
+      "A. On-Demand Instances",
+      "B. Spot Instances with checkpointing",
+      "C. Reserved Instances (1-year, no upfront)",
+      "D. Dedicated Hosts"
+    ],
+    "answer": 1,
+    "explanation": "Spot 인스턴스는 온디맨드 대비 최대 90% 저렴합니다. 중단을 허용하는 배치 작업에 이상적이며, 체크포인팅을 사용하면 중단 후 재개할 수 있습니다. Reserved 인스턴스는 1~3년 약정이 필요하고, Dedicated Hosts는 규정 준수 목적으로 가장 비쌉니다."
+  },
+  {
+    "id": "aws-saa-004",
+    "examId": "aws-saa-c03",
+    "category": "EC2",
+    "difficulty": "hard",
+    "question": "An application running on EC2 in a VPC needs to download software packages from the internet without exposing the instances to inbound internet traffic. The instances are in private subnets. What should be configured?",
+    "options": [
+      "A. Internet Gateway attached to the private subnet route table",
+      "B. NAT Gateway in a public subnet with a route from private subnets",
+      "C. VPC Peering connection to a public VPC",
+      "D. AWS Direct Connect with a public virtual interface"
+    ],
+    "answer": 1,
+    "explanation": "NAT Gateway는 프라이빗 서브넷의 인스턴스가 아웃바운드 인터넷 트래픽을 시작할 수 있게 하면서, 외부에서 인바운드 연결은 허용하지 않습니다. 퍼블릭 서브넷에 NAT Gateway를 배치하고 프라이빗 서브넷 라우트 테이블에 0.0.0.0/0 → NAT Gateway 경로를 추가합니다."
+  },
+  {
+    "id": "aws-saa-005",
+    "examId": "aws-saa-c03",
+    "category": "VPC",
+    "difficulty": "medium",
+    "question": "회사가 AWS VPC와 온프레미스 데이터센터 간에 전용 고속 네트워크 연결을 원합니다. 인터넷을 통하지 않고 일관된 대역폭과 낮은 지연 시간이 필요합니다. 어떤 서비스를 사용해야 합니까?",
+    "options": [
+      "A. AWS Site-to-Site VPN",
+      "B. AWS Direct Connect",
+      "C. AWS Transit Gateway",
+      "D. VPC Peering"
+    ],
+    "answer": 1,
+    "explanation": "AWS Direct Connect는 온프레미스와 AWS 간 전용 물리 네트워크 연결을 제공합니다. 인터넷을 우회하므로 일관된 대역폭, 낮은 지연 시간, 높은 보안성을 보장합니다. Site-to-Site VPN은 인터넷을 통해 암호화된 터널을 사용하므로 대역폭 일관성이 낮습니다."
+  },
+  {
+    "id": "aws-saa-006",
+    "examId": "aws-saa-c03",
+    "category": "VPC",
+    "difficulty": "hard",
+    "question": "A company has multiple VPCs across different AWS accounts and needs them to communicate with each other and with on-premises networks through a central hub. Which architecture is MOST scalable?",
+    "options": [
+      "A. Create VPC Peering connections between every pair of VPCs",
+      "B. Use AWS Transit Gateway as the central hub for all VPC and on-premises connections",
+      "C. Deploy a VPN server on EC2 in each VPC to route traffic",
+      "D. Use AWS PrivateLink for all inter-VPC communication"
+    ],
+    "answer": 1,
+    "explanation": "AWS Transit Gateway는 중앙 허브 역할을 하여 수천 개의 VPC와 온프레미스 네트워크를 연결할 수 있습니다. VPC Peering은 N*(N-1)/2개의 연결이 필요해 확장성이 없고, PrivateLink는 서비스 노출용으로 전체 네트워크 연결에 적합하지 않습니다."
+  },
+  {
+    "id": "aws-saa-007",
+    "examId": "aws-saa-c03",
+    "category": "IAM",
+    "difficulty": "easy",
+    "question": "An EC2 instance needs to read objects from an S3 bucket. What is the MOST secure way to grant this access?",
+    "options": [
+      "A. Embed AWS access keys in the application code",
+      "B. Store access keys in environment variables on the instance",
+      "C. Attach an IAM role with the required S3 permissions to the EC2 instance",
+      "D. Create an IAM user and store its credentials in AWS Secrets Manager"
+    ],
+    "answer": 2,
+    "explanation": "IAM 역할을 EC2 인스턴스에 연결하면 임시 자격 증명이 자동으로 교체되어 제공됩니다. 장기 자격 증명(액세스 키)을 저장할 필요가 없어 가장 안전합니다. 코드나 환경 변수에 액세스 키를 저장하면 유출 위험이 있습니다."
+  },
+  {
+    "id": "aws-saa-008",
+    "examId": "aws-saa-c03",
+    "category": "IAM",
+    "difficulty": "medium",
+    "question": "회사가 AWS Organizations를 사용하고 있습니다. 특정 OU의 모든 계정에서 특정 리전 외부의 리소스 생성을 금지하고 싶습니다. 어떤 방법을 사용해야 합니까?",
+    "options": [
+      "A. 각 계정의 IAM 권한 경계(Permission Boundary)를 설정합니다",
+      "B. Service Control Policy(SCP)를 OU에 적용합니다",
+      "C. AWS Config 규칙을 각 계정에 배포합니다",
+      "D. 각 계정에 IAM 정책을 직접 설정합니다"
+    ],
+    "answer": 1,
+    "explanation": "SCP(서비스 제어 정책)는 Organizations의 OU 또는 계정 수준에서 최대 권한을 제한하는 가드레일입니다. 특정 리전만 허용하는 SCP를 OU에 적용하면 해당 OU의 모든 계정에 일괄 적용됩니다. AWS Config는 탐지용이며 예방적 통제가 아닙니다."
+  },
+  {
+    "id": "aws-saa-009",
+    "examId": "aws-saa-c03",
+    "category": "RDS",
+    "difficulty": "medium",
+    "question": "A web application uses Amazon RDS MySQL. During peak hours, read queries cause high CPU utilization on the primary instance. What is the MOST efficient solution to improve read performance?",
+    "options": [
+      "A. Upgrade to a larger RDS instance type",
+      "B. Enable Multi-AZ deployment on the RDS instance",
+      "C. Create one or more RDS Read Replicas and direct read traffic to them",
+      "D. Enable automated backups with a shorter backup window"
+    ],
+    "answer": 2,
+    "explanation": "읽기 전용 복제본(Read Replica)은 기본 인스턴스의 읽기 부하를 분산시킵니다. 애플리케이션의 읽기 쿼리를 복제본 엔드포인트로 라우팅하면 기본 인스턴스의 CPU 사용률이 감소합니다. Multi-AZ는 고가용성을 위한 것으로 읽기 성능 향상에 사용되지 않습니다."
+  },
+  {
+    "id": "aws-saa-010",
+    "examId": "aws-saa-c03",
+    "category": "RDS",
+    "difficulty": "hard",
+    "question": "A company needs a relational database that automatically scales storage, provides up to 15 read replicas, and supports both MySQL and PostgreSQL compatibility. Which AWS service best meets these requirements?",
+    "options": [
+      "A. Amazon RDS for MySQL with Multi-AZ",
+      "B. Amazon Aurora",
+      "C. Amazon DynamoDB",
+      "D. Amazon Redshift"
+    ],
+    "answer": 1,
+    "explanation": "Amazon Aurora는 MySQL 및 PostgreSQL 호환 관계형 데이터베이스로, 스토리지가 10GB 단위로 최대 128TB까지 자동 확장됩니다. 최대 15개의 읽기 전용 복제본을 지원하며 기본 RDS보다 최대 5배(MySQL), 3배(PostgreSQL) 빠릅니다. DynamoDB는 NoSQL, Redshift는 데이터 웨어하우스입니다."
+  },
+  {
+    "id": "aws-saa-011",
+    "examId": "aws-saa-c03",
+    "category": "Lambda",
+    "difficulty": "easy",
+    "question": "A company wants to run code in response to HTTP requests without managing servers. The workload is unpredictable and may have bursts of traffic. Which combination of services is MOST appropriate?",
+    "options": [
+      "A. Amazon EC2 Auto Scaling + Application Load Balancer",
+      "B. AWS Lambda + Amazon API Gateway",
+      "C. Amazon ECS on Fargate + Network Load Balancer",
+      "D. AWS Elastic Beanstalk + Amazon RDS"
+    ],
+    "answer": 1,
+    "explanation": "Lambda + API Gateway 조합은 서버리스 아키텍처로, 트래픽에 따라 자동으로 확장/축소되며 서버 관리가 불필요합니다. 실행한 만큼만 비용을 지불하므로 예측 불가능한 워크로드에 이상적입니다. EC2나 ECS는 서버 관리가 필요합니다."
+  },
+  {
+    "id": "aws-saa-012",
+    "examId": "aws-saa-c03",
+    "category": "Lambda",
+    "difficulty": "medium",
+    "question": "An AWS Lambda function needs to access an Amazon RDS database in a private VPC subnet. The function currently times out when trying to connect. What configuration is required?",
+    "options": [
+      "A. Enable Lambda function URL and configure an inbound rule in the RDS security group",
+      "B. Configure the Lambda function to run inside the VPC with appropriate subnet and security group settings",
+      "C. Use AWS PrivateLink to connect Lambda to RDS without VPC configuration",
+      "D. Place both Lambda and RDS in a public subnet and use an internet gateway"
+    ],
+    "answer": 1,
+    "explanation": "VPC 내 프라이빗 서브넷의 RDS에 접근하려면 Lambda 함수를 동일 VPC에 연결하고 적절한 서브넷과 보안 그룹을 지정해야 합니다. Lambda의 보안 그룹을 RDS 보안 그룹의 인바운드 규칙에 소스로 추가해야 연결이 허용됩니다."
+  },
+  {
+    "id": "aws-saa-013",
+    "examId": "aws-saa-c03",
+    "category": "CloudFront",
+    "difficulty": "easy",
+    "question": "글로벌 사용자에게 정적 웹사이트(HTML, CSS, JS, 이미지)를 빠르게 제공하려 합니다. S3에 콘텐츠를 저장하고 있습니다. 지연 시간을 최소화하는 가장 좋은 방법은 무엇입니까?",
+    "options": [
+      "A. S3 Transfer Acceleration을 활성화합니다",
+      "B. Amazon CloudFront 배포를 만들고 S3를 오리진으로 설정합니다",
+      "C. 각 대륙에 S3 버킷을 복제하여 배포합니다",
+      "D. EC2 인스턴스에서 Nginx로 파일을 서빙합니다"
+    ],
+    "answer": 1,
+    "explanation": "Amazon CloudFront는 전 세계 엣지 로케이션에 콘텐츠를 캐싱하여 사용자와 가장 가까운 엣지에서 제공합니다. S3를 오리진으로 설정하면 정적 자산을 글로벌하게 빠르게 배포할 수 있습니다. Transfer Acceleration은 업로드 속도 향상용입니다."
+  },
+  {
+    "id": "aws-saa-014",
+    "examId": "aws-saa-c03",
+    "category": "CloudFront",
+    "difficulty": "hard",
+    "question": "A company uses CloudFront to distribute content. They want to ensure that only authenticated users can access premium video content stored in S3, without making the S3 bucket publicly accessible. What should be configured?",
+    "options": [
+      "A. Use CloudFront signed URLs or signed cookies with an Origin Access Control (OAC) policy on S3",
+      "B. Enable S3 bucket versioning and configure CloudFront to check version headers",
+      "C. Set the S3 bucket policy to allow access only from the CloudFront IP range",
+      "D. Use Lambda@Edge to add an Authorization header to every request"
+    ],
+    "answer": 0,
+    "explanation": "CloudFront Signed URL/Cookie는 인증된 사용자에게만 콘텐츠 접근을 허용합니다. OAC(Origin Access Control)를 설정하면 S3 버킷을 비공개로 유지하면서 CloudFront만 접근을 허용할 수 있습니다. IP 범위 기반 허용은 CloudFront IP가 동적으로 변경되므로 신뢰할 수 없습니다."
+  },
+  {
+    "id": "aws-saa-015",
+    "examId": "aws-saa-c03",
+    "category": "EC2",
+    "difficulty": "medium",
+    "question": "A web application must remain available even if an entire AWS Availability Zone fails. The application runs on EC2 instances behind an Application Load Balancer. What architecture ensures high availability?",
+    "options": [
+      "A. Deploy all EC2 instances in a single AZ with enhanced monitoring enabled",
+      "B. Deploy EC2 instances across at least two AZs in an Auto Scaling group behind the ALB",
+      "C. Use a Reserved Instance in one AZ with a Spot Instance in another AZ as backup",
+      "D. Enable EC2 instance recovery using CloudWatch alarms in a single AZ"
+    ],
+    "answer": 1,
+    "explanation": "두 개 이상의 가용 영역에 EC2 인스턴스를 분산 배치하고 Auto Scaling 그룹을 구성하면 한 AZ가 장애를 겪더라도 ALB가 트래픽을 정상 AZ의 인스턴스로 자동 라우팅합니다. 이것이 AWS 고가용성 설계의 기본 원칙입니다."
+  }
+]

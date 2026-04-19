@@ -109,6 +109,32 @@ export const SERVICES: Service[] = [
     status: 'online',
   },
   {
+    id: 'learn',
+    name: 'Learn',
+    nameKo: '학습',
+    description: 'AWS SAA · CCNA 자격증 CBT 문제풀이 · 진도 추적 · 해설',
+    url: '/learn',
+    color: '#6366f1',
+    bgColor: '#eef2ff',
+    bgColorDark: '#1a1a3e',
+    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="18" y="22" width="52" height="64" rx="6" fill="#6366f1"/>
+      <rect x="24" y="30" width="40" height="5" rx="2.5" fill="white" opacity="0.9"/>
+      <rect x="24" y="40" width="32" height="4" rx="2" fill="white" opacity="0.6"/>
+      <rect x="24" y="49" width="36" height="4" rx="2" fill="white" opacity="0.6"/>
+      <rect x="24" y="58" width="28" height="4" rx="2" fill="white" opacity="0.6"/>
+      <circle cx="72" cy="34" r="16" fill="#4f46e5"/>
+      <path d="M65 34 L70 39 L79 28" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>`,
+    keywords: [
+      'learn', '학습', 'aws', 'ccna', '자격증', 'cbt', '문제', 'quiz', '공부',
+      'exam', '시험', 'certification', '문제풀이', 'study',
+    ],
+    category: '학습',
+    categoryIcon: 'EDU',
+    featured: true,
+  },
+  {
     id: 'ondemand',
     name: 'On-Demand 서버',
     nameKo: '온디맨드 서비스',
