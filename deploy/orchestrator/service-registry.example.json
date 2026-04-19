@@ -86,6 +86,29 @@
       }
     },
     {
+      "id": "minecraft-hardcore",
+      "type": "game-server",
+      "display_name": "Minecraft Hardcore",
+      "enabled": true,
+      "working_dir": "D:\\Servers\\Minecraft\\Hardcore",
+      "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\start.ps1",
+      "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\stop.ps1",
+      "process_name": "java.exe",
+      "ready_check": {
+        "type": "tcp",
+        "host": "127.0.0.1",
+        "port": 25567
+      },
+      "idle_policy": {
+        "stop_when_empty_minutes": 20
+      },
+      "metadata": {
+        "control_dir": "D:\\Servers\\Control\\minecraft-hardcore",
+        "public_mode": "direct-port",
+        "public_port": 25567
+      }
+    },
+    {
       "id": "minecraft-modpack-template",
       "type": "game-server",
       "display_name": "Minecraft Modpack Template",
