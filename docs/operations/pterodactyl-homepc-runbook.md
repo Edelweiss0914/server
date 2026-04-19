@@ -403,6 +403,7 @@ Gateway Docker Compose의 커스텀 Panel 이미지로 관리한다.
 
 - `deploy/docker/pterodactyl-panel/Dockerfile`
 - `deploy/docker/pterodactyl-panel/patch-panel.sh`
+- `deploy/docker/pterodactyl-panel/ko-patch.js`
 - `deploy/docker/docker-compose.yml`
 
 동작 방식:
@@ -410,7 +411,8 @@ Gateway Docker Compose의 커스텀 Panel 이미지로 관리한다.
 1. `ghcr.io/pterodactyl/panel:latest` 를 베이스 이미지로 사용
 2. 빌드 시 `patch-panel.sh` 가 `/app/app/Models/Server.php` 를 수정
 3. `io` validation을 `between:0,1000` 으로 완화
-4. Compose는 `cheeze-pterodactyl-panel:local` 이미지를 사용
+4. `/app/public/ko-patch.js` 를 추가하고 Blade 레이아웃에서 전역 로드
+5. Compose는 `cheeze-pterodactyl-panel:local` 이미지를 사용
 
 재배포 명령:
 
@@ -424,6 +426,7 @@ docker compose up -d pterodactyl-panel
 
 ```bash
 docker exec -it pterodactyl-panel sh -lc "grep -n \"between:0,1000\" /app/app/Models/Server.php"
+docker exec -it pterodactyl-panel sh -lc "test -f /app/public/ko-patch.js && echo ko-patch-present"
 docker compose ps pterodactyl-panel
 ```
 
@@ -431,4 +434,4 @@ docker compose ps pterodactyl-panel
 
 - 더 이상 컨테이너 내부에 직접 `sed` 패치를 하지 않는다.
 - `pterodactyl-panel` 관련 변경이 있으면 항상 `docker compose build pterodactyl-panel` 을 수행한다.
-- Panel 재배포 후에는 `io=0` 저장 가능 여부와 기존 서버 화면 접근을 함께 확인한다.
+- Panel 재배포 후에는 `io=0` 저장 가능 여부, 기존 서버 화면 접근, 주요 UI 한글 치환 여부를 함께 확인한다.
