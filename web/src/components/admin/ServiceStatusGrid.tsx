@@ -30,37 +30,55 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   const [hasLoaded, setHasLoaded] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
+  const fetchServiceArray = useCallback(async (url: string): Promise<AdminService[] | null> => {
+    const res = await fetch(url)
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      throw new Error(
+        typeof data?.message === 'string'
+          ? data.message
+          : typeof data?.error === 'string'
+            ? data.error
+            : '서비스 상태를 불러오지 못했습니다.'
+      )
+    }
+
+    if (!Array.isArray(data?.services)) {
+      return null
+    }
+
+    return data.services
+  }, [])
+
   const fetchServices = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/status')
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        const message =
-          typeof data?.message === 'string'
-            ? data.message
-            : typeof data?.error === 'string'
-              ? data.error
-              : '서비스 상태를 불러오지 못했습니다.'
-        setFetchError(message)
+      const adminServices = await fetchServiceArray('/api/admin/status')
+      if (adminServices) {
+        onServicesUpdate(adminServices)
+        setFetchError(null)
         setHasLoaded(true)
         return
       }
-
-      if (!Array.isArray(data?.services)) {
-        setFetchError('서비스 상태 응답 형식이 올바르지 않습니다.')
+    } catch (error) {
+      try {
+        const fallbackServices = await fetchServiceArray('/api/control/services')
+        if (fallbackServices) {
+          onServicesUpdate(fallbackServices)
+          setFetchError(null)
+          setHasLoaded(true)
+          return
+        }
+      } catch {
+        setFetchError(error instanceof Error ? error.message : '서비스 상태를 불러오지 못했습니다.')
         setHasLoaded(true)
         return
       }
-
-      onServicesUpdate(data.services)
-      setFetchError(null)
-      setHasLoaded(true)
-    } catch {
-      setFetchError('서비스 상태를 불러오지 못했습니다.')
-      setHasLoaded(true)
     }
-  }, [onServicesUpdate])
+
+    setFetchError('서비스 상태 응답 형식이 올바르지 않습니다.')
+    setHasLoaded(true)
+  }, [fetchServiceArray, onServicesUpdate])
 
   const hasTransition = useCallback(() => {
     return services.some((s) => isTransitioning(s.state))
@@ -118,7 +136,7 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
     )
   }
 
-  if (fetchError) {
+  if (fetchError && services.length === 0) {
     return (
       <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
         {fetchError}
@@ -133,52 +151,60 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {services.map((service) => (
-        <div
-          key={service.id}
-          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex flex-col gap-2"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm truncate">
-              {service.display_name || service.id}
-            </span>
-            <span className="flex items-center gap-1.5 shrink-0">
-              <span className={`inline-block w-2 h-2 rounded-full ${stateColorClass(service.state)}`} />
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                {stateLabel(service.state)}
-              </span>
-            </span>
-          </div>
+    <div className="flex flex-col gap-4">
+      {fetchError && (
+        <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          {fetchError}
+        </div>
+      )}
 
-          <div className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
-            <div className="flex justify-between">
-              <span>프로세스</span>
-              <span className={service.process_running ? 'text-green-600 dark:text-green-400' : ''}>
-                {service.process_running ? '실행 중' : '미실행'}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {services.map((service) => (
+          <div
+            key={service.id}
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex flex-col gap-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm truncate">
+                {service.display_name || service.id}
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className={`inline-block w-2 h-2 rounded-full ${stateColorClass(service.state)}`} />
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {stateLabel(service.state)}
+                </span>
               </span>
             </div>
-            <div className="flex justify-between">
-              <span>준비 상태</span>
-              <span className={service.ready ? 'text-green-600 dark:text-green-400' : ''}>
-                {service.ready ? '준비됨' : '준비 안 됨'}
-              </span>
-            </div>
-            {service.player_count != null && (
+
+            <div className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
               <div className="flex justify-between">
-                <span>플레이어</span>
-                <span>{service.player_count}명</span>
+                <span>프로세스</span>
+                <span className={service.process_running ? 'text-green-600 dark:text-green-400' : ''}>
+                  {service.process_running ? '실행 중' : '미실행'}
+                </span>
               </div>
+              <div className="flex justify-between">
+                <span>준비 상태</span>
+                <span className={service.ready ? 'text-green-600 dark:text-green-400' : ''}>
+                  {service.ready ? '준비됨' : '준비 안 됨'}
+                </span>
+              </div>
+              {service.player_count != null && (
+                <div className="flex justify-between">
+                  <span>플레이어</span>
+                  <span>{service.player_count}명</span>
+                </div>
+              )}
+            </div>
+
+            {service.message && (
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 border-t border-zinc-100 dark:border-zinc-800 pt-2 mt-1">
+                {service.message}
+              </p>
             )}
           </div>
-
-          {service.message && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 border-t border-zinc-100 dark:border-zinc-800 pt-2 mt-1">
-              {service.message}
-            </p>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
