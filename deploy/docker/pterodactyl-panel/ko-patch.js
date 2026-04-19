@@ -1,6 +1,12 @@
 (function () {
   const TEXT_REPLACEMENTS = new Map([
     ['BASIC ADMINISTRATION', '기본 관리'],
+    ['ADMINISTRATIVE OVERVIEW', '관리 개요'],
+    ['ADMINISTRATIVE', '관리'],
+    ['Basic Administration', '기본 관리'],
+    ['Administrative Overview', '관리 개요'],
+    ['Administrative', '관리'],
+    ['Administration', '관리'],
     ['SERVICE MANAGEMENT', '서비스 관리'],
     ['Allocation Management', '포트 할당 관리'],
     ['Application Feature Limits', '기능 제한'],
@@ -96,7 +102,8 @@
   const replaceText = (value) => {
     if (!value) return value;
     let next = value;
-    for (const [source, target] of TEXT_REPLACEMENTS.entries()) {
+    const replacements = Array.from(TEXT_REPLACEMENTS.entries()).sort((a, b) => b[0].length - a[0].length);
+    for (const [source, target] of replacements) {
       next = next.replaceAll(source, target);
     }
     return next;
