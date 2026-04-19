@@ -89,6 +89,7 @@ services:
     environment:
       - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
       - CHEEZE_CONTROL_LISTEN_PORT=11436
+      - CHEEZE_SERVICE_REGISTRY=/app/service-registry.example.json
     healthcheck:
       test:
         [
@@ -102,6 +103,8 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    volumes:
+      - ../orchestrator/service-registry.example.json:/app/service-registry.example.json:ro
     networks:
       - cheeze-net
 
