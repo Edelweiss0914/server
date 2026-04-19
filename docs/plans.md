@@ -445,6 +445,38 @@ wings --debug
 - 한국 개인정보보호법 기준 5개 항목 (수집 항목, 목적, 보유 기간, 제3자 제공, 이용자 권리)
 - ESC 키 닫기, 스크롤 잠금, 접근성(role="dialog", aria-modal) 적용
 
+---
+
+### 2026-04-19: 개인 학습 플랫폼 (/learn) 구축
+
+> 상태: 완료
+
+**배경:** AWS SAA-C03, Cisco CCNA 200-301 등 국제 자격증 준비를 위한 CBT 방식 문제 풀이 플랫폼 추가.
+
+**구현 내용:**
+
+| 구성 요소 | 설명 |
+|-----------|------|
+| 문제 데이터 | JSON 파일 기반 정적 데이터 (DB 불필요) — AWS SAA-C03 15문제, CCNA 200-301 10문제 |
+| 진도 추적 | `useProgress` 훅 + localStorage (정답/오답/열람 기록, 시험별 독립 저장) |
+| 시험 허브 | `/learn` — 시험 목록, 진도 표시 |
+| 시험 상세 | `/learn/[exam]` — 메타 정보, 진도 요약, 초기화 |
+| 퀴즈 엔진 | `/learn/[exam]/quiz` — 타이머, 문제 셔플, 정답 피드백, 해설, 합격/불합격 판정 |
+
+**타이머:** 시험별 제한 시간(timeLimit 분) 카운트다운, 0 도달 시 자동 종료. 타이머 ON/OFF 토글 제공.
+
+**결과 화면:** 점수(%), 합격 기준 대비 판정, 소요 시간, 다시 풀기 버튼.
+
+**파일:**
+- `web/src/lib/quiz/types.ts` — QuizQuestion, ExamMeta, ProgressRecord 타입
+- `web/src/lib/quiz/useProgress.ts` — 진도 훅
+- `web/src/data/questions/aws-saa-c03.json` — AWS 문제 데이터
+- `web/src/data/questions/ccna-200-301.json` — CCNA 문제 데이터
+- `web/src/data/questions/index.ts` — 시험 레지스트리 (getAllExams, getExamQuestions, getExamMeta)
+- `web/src/components/learn/ExamCard.tsx`, `ExamList.tsx` — 시험 카드 컴포넌트
+- `web/src/app/learn/layout.tsx`, `page.tsx`, `[exam]/page.tsx`, `[exam]/quiz/page.tsx`
+- `web/src/lib/services.ts` — `/learn` 서비스 항목 추가 (color: #6366f1, featured: true)
+
 **파일:**
 - `web/src/components/privacy/usePrivacyConsent.ts` (신규) — localStorage 훅 (PRIVACY_VERSION='1.0')
 - `web/src/components/privacy/PrivacyPolicyModal.tsx` (신규) — 모달 UI
