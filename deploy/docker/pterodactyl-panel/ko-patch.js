@@ -226,6 +226,28 @@
     ['User Details', '사용자 상세 정보'],
   ]);
 
+  const HELP_TEXT_REPLACEMENTS = new Map([
+    ['If you do not want to limit CPU usage, set the value to', 'CPU 사용량을 제한하지 않으려면 값을'],
+    ['To determine a value, take the number of threads and multiply it by', '적절한 값을 정하려면 스레드 수에'],
+    ['For example, on a quad core system without hyperthreading', '예를 들어 하이퍼스레딩이 없는 4코어 시스템에서는'],
+    ['there is', '사용 가능한 값은'],
+    ['available.', '입니다.'],
+    ['To limit a server to using half of a single thread, you would set the value to', '한 스레드의 절반만 사용하도록 제한하려면 값을'],
+    ['To allow a server to use up to two threads, set the value to', '최대 두 스레드를 사용하도록 하려면 값을'],
+    ['Advanced: Enter the specific CPU threads that this process can run on, or leave blank to allow all threads.', '고급 설정: 이 프로세스가 실행될 CPU 스레드를 지정하거나, 비워두어 모든 스레드를 허용할 수 있습니다.'],
+    ['This can be a single number, or a comma separated list.', '단일 숫자 또는 쉼표로 구분한 목록을 사용할 수 있습니다.'],
+    ['The maximum amount of memory allowed for this container.', '이 컨테이너에 허용할 최대 메모리입니다.'],
+    ['Setting this to 0 will allow unlimited memory in a container.', '0으로 설정하면 메모리 제한 없이 실행됩니다.'],
+    ['Setting this to 0 will disable swap space on this server.', '0으로 설정하면 이 서버의 스왑을 비활성화합니다.'],
+    ['Setting to -1 will allow unlimited swap.', '-1은 무제한 스왑을 허용합니다.'],
+    ['This server will not be allowed to boot if it is using more than this amount of space.', '이 서버가 이 값을 초과하는 디스크 공간을 사용 중이면 부팅되지 않습니다.'],
+    ['If a server goes over this limit while running it will be safely stopped and locked until enough space is available.', '실행 중 이 제한을 초과하면 안전하게 중지되고, 충분한 공간이 확보될 때까지 잠깁니다.'],
+    ['Set to 0 to allow unlimited disk usage.', '무제한 디스크 사용을 허용하려면 0으로 설정하세요.'],
+    ['Advanced: The IO performance of this server relative to other running containers on the system.', '고급 설정: 이 서버의 디스크 IO 성능을 같은 시스템에서 실행 중인 다른 컨테이너와 비교해 가중치로 지정합니다.'],
+    ['Value should be between 10 and 1000.', '값은 10에서 1000 사이여야 합니다.'],
+    ['Please see this documentation for more information about it.', '자세한 내용은 문서를 참고하세요.'],
+  ]);
+
   const ATTRIBUTE_REPLACEMENTS = new Map([
     ['placeholder', TEXT_REPLACEMENTS],
     ['value', TEXT_REPLACEMENTS],
@@ -236,7 +258,7 @@
   const replaceText = (value) => {
     if (!value) return value;
     let next = value;
-    const replacements = Array.from(TEXT_REPLACEMENTS.entries()).sort((a, b) => b[0].length - a[0].length);
+    const replacements = Array.from(new Map([...TEXT_REPLACEMENTS, ...HELP_TEXT_REPLACEMENTS]).entries()).sort((a, b) => b[0].length - a[0].length);
     for (const [source, target] of replacements) {
       next = next.replaceAll(source, target);
     }
