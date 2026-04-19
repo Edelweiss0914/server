@@ -74,7 +74,7 @@
 |------|------|
 | Panel 서브도메인 | `panel.edelweiss0297.cloud` |
 | Wings 호스트 | homepc WSL2 Ubuntu (이미 설치됨) |
-| Panel ↔ Wings 통신 | Tailscale VPN (homepc Tailscale IP:8080) — 외부 노출 불필요 |
+| Panel ↔ Wings 통신 | Tailscale VPN (`100.86.252.21:8080`) — 외부 노출 불필요 |
 | 기존 서버 처리 | 안정화 전까지 기존 방식 유지, **새 서버만 Wings로 운영** |
 | Panel 포트 | `127.0.0.1:8080:80` → nginx가 panel 서브도메인으로 프록시 |
 | DB | MariaDB 10.11 (Docker named volume) |
@@ -319,8 +319,11 @@ wings --debug
 - `/servers`는 안정화 전까지 기존 시작/종료 UX 유지
 
 **후속 작업:**
-1. homepc WSL2에서 Wings 설치 및 노드 등록
-2. 신규 서버 1개를 Pterodactyl로 실제 프로비저닝
+1. homepc WSL2에서 Wings 설치 및 노드 등록 — `docs/operations/wings-setup.md` 참조
+   - homepc Tailscale IP: `100.86.252.21`
+   - Panel 노드 FQDN: `100.86.252.21`, Daemon Port: `8080`, SFTP: `2022`, SSL: No
+   - 연결 방식: Windows Tailscale + WSL2 localhost 자동 포워딩 (portproxy 불필요)
+2. 신규 서버 1개를 Pterodactyl로 실제 프로비저닝 (Wings 노드 등록 후)
 3. 안정화 후 `/servers` 공개 페이지 병행 노출 검토
 
 ### 2026-04-19: /servers 대여 신청 패널 추가
@@ -346,6 +349,42 @@ wings --debug
 - 기존 서버는 그대로 운영
 - 신규 서버 수요만 먼저 수집
 - Pterodactyl/Wings 안정화 전까지 공개 페이지의 역할을 “기존 제어 + 신규 요청 접수”로 유지
+
+### 2026-04-19: 대여 신청 패널 모달 전환
+
+**변경 내용:**
+- `RentalRequestPanel` — 페이지 하단 인라인 섹션 → 모달 오버레이로 전환
+  - `isOpen` / `onClose` props 추가
+  - ESC 키 닫기, 배경 클릭 닫기, 스크롤 잠금 처리
+  - `role="dialog"`, `aria-modal`, `aria-labelledby` 접근성 속성 추가
+- `RentalRequestButton` (신규) — 모달 열림 상태 관리 클라이언트 컴포넌트
+- `/servers` 페이지 — 제목 우측에 "+ 대여 신청" 버튼 배치, 하단 인라인 패널 제거
+
+**파일:**
+- `web/src/components/servers/RentalRequestPanel.tsx`
+- `web/src/components/servers/RentalRequestButton.tsx` (신규)
+- `web/src/app/servers/page.tsx`
+
+### 2026-04-19: Phase 3 코드 검수 및 보안 수정
+
+**검수 결과 요약 (code-reviewer):**
+- 스펙 준수: PASS — plans.md 설계 결정 모두 구현 확인
+- CRITICAL 1건, HIGH 2건, MEDIUM 2건 수정
+
+**수정 완료:**
+
+| 심각도 | 항목 | 수정 내용 |
+|--------|------|-----------|
+| CRITICAL | `/api/server-rental` 레이트 리밋 없음 | IP 기반 슬라이딩 윈도우 (3회/10분) 추가 |
+| HIGH | `TRUSTED_PROXIES=*` | Docker bridge CIDR `172.16.0.0/12`로 제한 |
+| HIGH | MariaDB healthcheck 없음 | `healthcheck.sh` 기반 healthcheck 추가, panel 의존성 `service_healthy`로 변경 |
+| MEDIUM | webhook fetch try-catch 누락 | 네트워크 오류 시 502 반환하도록 try-catch 추가 |
+| MEDIUM | SleepManagementTab 데드코드 | 대체된 `conditionLabel` / `conditionDetail` 함수 제거 |
+
+**파일:**
+- `web/src/app/api/server-rental/route.ts`
+- `deploy/docker/docker-compose.yml`
+- `web/src/components/admin/SleepManagementTab.tsx`
 
 ---
 
