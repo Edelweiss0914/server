@@ -12,7 +12,7 @@ export const EXAMS: ExamMeta[] = [
     nameKo: 'AWS 솔루션스 아키텍트 어소시에이트',
     nameEn: 'AWS Solutions Architect Associate',
     description: 'AWS SAA-C03 자격증 대비 문제입니다. S3, EC2, VPC, IAM, RDS, Lambda, CloudFront 등 핵심 서비스를 다룹니다.',
-    totalQuestions: 15,
+    totalQuestions: 683,
     color: '#FF9900',
     bgColor: '#fff8f0',
     bgColorDark: '#2a1a00',

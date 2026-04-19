@@ -5,7 +5,7 @@ export interface Question {
   difficulty: 'easy' | 'medium' | 'hard'
   question: string
   options: string[]       // 4 options, index 0-3
-  answer: number          // correct option index (0-indexed)
+  answer: number | number[]  // single index or array of indices for multi-answer
   explanation: string
 }
 

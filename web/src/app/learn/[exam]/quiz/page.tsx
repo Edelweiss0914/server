@@ -39,6 +39,7 @@ export default function QuizPage({ params }: PageProps) {
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [selectedOptions, setSelectedOptions] = useState<number[]>([])
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState({ correct: 0, total: 0 })
   const [finished, setFinished] = useState(false)
@@ -62,6 +63,7 @@ export default function QuizPage({ params }: PageProps) {
     setQuestions(shuffled.slice(0, count))
     setCurrentIndex(0)
     setSelectedOption(null)
+    setSelectedOptions([])
     setSubmitted(false)
     setScore({ correct: 0, total: 0 })
     setFinished(false)
@@ -71,7 +73,6 @@ export default function QuizPage({ params }: PageProps) {
   // Timer setup
   useEffect(() => {
     if (!meta || questions.length === 0 || !timerEnabled) return
-    // estimate 2 min per question if no explicit timeLimit, else use timeLimit minutes
     const totalSeconds = (meta as unknown as { timeLimit?: number }).timeLimit
       ? ((meta as unknown as { timeLimit: number }).timeLimit * 60)
       : questions.length * 120
@@ -101,26 +102,47 @@ export default function QuizPage({ params }: PageProps) {
 
   const currentQuestion = questions[currentIndex]
 
+  const isMulti = currentQuestion ? Array.isArray(currentQuestion.answer) : false
+
   const handleSelect = useCallback((idx: number) => {
     if (submitted) return
-    setSelectedOption(idx)
-  }, [submitted])
+    if (isMulti) {
+      setSelectedOptions((prev) =>
+        prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+      )
+    } else {
+      setSelectedOption(idx)
+    }
+  }, [submitted, isMulti])
 
   const handleSubmit = useCallback(() => {
-    if (selectedOption === null || !currentQuestion) return
-    const isCorrect = selectedOption === currentQuestion.answer
-    setSubmitted(true)
-    setScore((prev) => ({
-      correct: isCorrect ? prev.correct + 1 : prev.correct,
-      total: prev.total + 1,
-    }))
-    markSeen(currentQuestion.id)
-    if (isCorrect) {
-      markCorrect(currentQuestion.id)
+    if (!currentQuestion) return
+    if (isMulti) {
+      if (selectedOptions.length === 0) return
+      const correct = (currentQuestion.answer as number[]).slice().sort()
+      const selected = selectedOptions.slice().sort()
+      const isCorrect = selected.join() === correct.join()
+      setSubmitted(true)
+      setScore((prev) => ({
+        correct: isCorrect ? prev.correct + 1 : prev.correct,
+        total: prev.total + 1,
+      }))
+      markSeen(currentQuestion.id)
+      if (isCorrect) markCorrect(currentQuestion.id)
+      else markWrong(currentQuestion.id)
     } else {
-      markWrong(currentQuestion.id)
+      if (selectedOption === null) return
+      const isCorrect = selectedOption === (currentQuestion.answer as number)
+      setSubmitted(true)
+      setScore((prev) => ({
+        correct: isCorrect ? prev.correct + 1 : prev.correct,
+        total: prev.total + 1,
+      }))
+      markSeen(currentQuestion.id)
+      if (isCorrect) markCorrect(currentQuestion.id)
+      else markWrong(currentQuestion.id)
     }
-  }, [selectedOption, currentQuestion, markSeen, markCorrect, markWrong])
+  }, [selectedOption, selectedOptions, currentQuestion, isMulti, markSeen, markCorrect, markWrong])
 
   const handleNext = useCallback(() => {
     if (currentIndex + 1 >= questions.length) {
@@ -129,6 +151,7 @@ export default function QuizPage({ params }: PageProps) {
     } else {
       setCurrentIndex((i) => i + 1)
       setSelectedOption(null)
+      setSelectedOptions([])
       setSubmitted(false)
     }
   }, [currentIndex, questions.length])
@@ -139,6 +162,7 @@ export default function QuizPage({ params }: PageProps) {
     setQuestions(reshuffled.slice(0, count))
     setCurrentIndex(0)
     setSelectedOption(null)
+    setSelectedOptions([])
     setSubmitted(false)
     setScore({ correct: 0, total: 0 })
     setFinished(false)
@@ -209,7 +233,15 @@ export default function QuizPage({ params }: PageProps) {
   }
 
   const q = currentQuestion
-  const optionLabels = ['A', 'B', 'C', 'D']
+  const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F']
+  const correctAnswers = Array.isArray(q.answer) ? q.answer : [q.answer]
+
+  // Determine overall correctness for feedback banner
+  const isAnswerCorrect = isMulti
+    ? selectedOptions.slice().sort().join() === (q.answer as number[]).slice().sort().join()
+    : selectedOption === (q.answer as number)
+
+  const submitEnabled = isMulti ? selectedOptions.length > 0 : selectedOption !== null
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -238,7 +270,14 @@ export default function QuizPage({ params }: PageProps) {
 
       {/* Progress */}
       <div className="mb-2 flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
-        <span>Q {currentIndex + 1} / {questions.length}</span>
+        <span className="flex items-center gap-2">
+          Q {currentIndex + 1} / {questions.length}
+          {isMulti && (
+            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+              복수 정답
+            </span>
+          )}
+        </span>
         <span>{score.correct} 정답</span>
       </div>
       <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
@@ -262,29 +301,89 @@ export default function QuizPage({ params }: PageProps) {
 
         <div className="flex flex-col gap-2">
           {q.options.map((opt, idx) => {
-            let cls = 'rounded-lg border px-4 py-3 text-left text-sm transition-colors '
+            const isCorrectOption = correctAnswers.includes(idx)
+
+            // Single-answer styling
+            if (!isMulti) {
+              let cls = 'rounded-lg border px-4 py-3 text-left text-sm transition-colors '
+              if (!submitted) {
+                cls += selectedOption === idx
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500'
+                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+              } else {
+                if (isCorrectOption) {
+                  cls += 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500'
+                } else if (idx === selectedOption) {
+                  cls += 'border-red-400 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-400'
+                } else {
+                  cls += 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500'
+                }
+              }
+              return (
+                <button key={idx} className={cls} onClick={() => handleSelect(idx)} disabled={submitted}>
+                  <span className="font-medium">{optionLabels[idx]}.</span> {opt.replace(/^[A-F]\.\s*/, '')}
+                </button>
+              )
+            }
+
+            // Multi-answer styling with checkbox indicator
+            const isSelected = selectedOptions.includes(idx)
+            let cls = 'flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors '
             if (!submitted) {
-              cls += selectedOption === idx
+              cls += isSelected
                 ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500'
                 : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
             } else {
-              if (idx === q.answer) {
+              if (isCorrectOption && isSelected) {
+                // Correctly selected
                 cls += 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500'
-              } else if (idx === selectedOption) {
+              } else if (isCorrectOption && !isSelected) {
+                // Should have been selected but wasn't
+                cls += 'border-green-400 bg-green-50/50 text-green-600 dark:bg-green-900/20 dark:text-green-400 dark:border-green-600'
+              } else if (!isCorrectOption && isSelected) {
+                // Wrongly selected
                 cls += 'border-red-400 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-400'
               } else {
                 cls += 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500'
               }
             }
+
+            // Checkbox indicator
+            let checkboxCls = 'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2 '
+            if (!submitted) {
+              checkboxCls += isSelected
+                ? 'border-blue-500 bg-blue-500'
+                : 'border-zinc-400 bg-white dark:border-zinc-500 dark:bg-zinc-700'
+            } else {
+              if (isCorrectOption && isSelected) {
+                checkboxCls += 'border-green-500 bg-green-500'
+              } else if (isCorrectOption && !isSelected) {
+                checkboxCls += 'border-green-400 bg-white dark:bg-zinc-800'
+              } else if (!isCorrectOption && isSelected) {
+                checkboxCls += 'border-red-400 bg-red-400'
+              } else {
+                checkboxCls += 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-700'
+              }
+            }
+
             return (
               <button key={idx} className={cls} onClick={() => handleSelect(idx)} disabled={submitted}>
-                <span className="font-medium">{optionLabels[idx]}.</span> {opt.replace(/^[A-D]\.\s*/, '')}
+                <span className={checkboxCls}>
+                  {(isSelected || (submitted && isCorrectOption)) && (
+                    <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </span>
+                <span>
+                  <span className="font-medium">{optionLabels[idx]}.</span> {opt.replace(/^[A-F]\.\s*/, '')}
+                </span>
               </button>
             )
           })}
         </div>
 
-        {!submitted && selectedOption !== null && (
+        {!submitted && submitEnabled && (
           <button
             onClick={handleSubmit}
             className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
@@ -294,9 +393,11 @@ export default function QuizPage({ params }: PageProps) {
         )}
 
         {submitted && (
-          <div className={`mt-4 rounded-lg border p-4 ${selectedOption === q.answer ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'}`}>
-            <p className={`mb-2 text-sm font-medium ${selectedOption === q.answer ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
-              {selectedOption === q.answer ? '정답입니다!' : `오답입니다. 정답: ${optionLabels[q.answer]}`}
+          <div className={`mt-4 rounded-lg border p-4 ${isAnswerCorrect ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'}`}>
+            <p className={`mb-2 text-sm font-medium ${isAnswerCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+              {isAnswerCorrect
+                ? '정답입니다!'
+                : `오답입니다. 정답: ${correctAnswers.map((i) => optionLabels[i]).join(', ')}`}
             </p>
             <p className="text-sm text-zinc-600 dark:text-zinc-300">{q.explanation}</p>
           </div>
