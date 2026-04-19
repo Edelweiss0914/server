@@ -35,7 +35,7 @@ export default function QuizPage({ params }: PageProps) {
 
   const meta = getExamMeta(exam)
   const allQuestions = getExamQuestions(exam)
-  const { progress, loaded: progressLoaded, markCorrect, markWrong, markSeen } = useProgress(exam)
+  const { progress, loaded: progressLoaded, markCorrect, markWrong, markSeen, saveNote } = useProgress(exam)
 
   // Keep a ref so the questions effect can read progress.wrong without it being a dep
   const progressWrongRef = useRef<string[]>([])
@@ -170,8 +170,51 @@ export default function QuizPage({ params }: PageProps) {
       setSelectedOption(null)
       setSelectedOptions([])
       setSubmitted(false)
+      setNoteDraft('')
+      setNoteSaved(false)
     }
   }, [currentIndex, questions.length])
+
+  // Skip
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
+
+  const handleSkip = useCallback(() => {
+    if (submitted || !currentQuestion) return
+    const q = currentQuestion
+    setSkippedIds((prev) => new Set([...prev, q.id]))
+    setQuestions((prev) => {
+      const next = [...prev]
+      next.splice(currentIndex, 1)
+      next.push(q)
+      return next
+    })
+    setSelectedOption(null)
+    setSelectedOptions([])
+  }, [submitted, currentQuestion, currentIndex])
+
+  // Note
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
+  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (currentQuestion && submitted) {
+      setNoteDraft(progress.notes?.[currentQuestion.id] ?? '')
+      setNoteSaved(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion?.id, submitted])
+
+  const handleNoteChange = useCallback((text: string) => {
+    setNoteDraft(text)
+    setNoteSaved(false)
+    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
+    noteSaveTimer.current = setTimeout(() => {
+      saveNote(currentQuestion!.id, text)
+      setNoteSaved(true)
+      setTimeout(() => setNoteSaved(false), 1500)
+    }, 500)
+  }, [currentQuestion, saveNote])
 
   const handleRestart = useCallback(() => {
     const reshuffled = shuffle(allQuestions)
@@ -183,6 +226,9 @@ export default function QuizPage({ params }: PageProps) {
     setSubmitted(false)
     setScore({ correct: 0, total: 0 })
     setFinished(false)
+    setSkippedIds(new Set())
+    setNoteDraft('')
+    setNoteSaved(false)
     if (meta && timerEnabled) {
       let totalSeconds: number
       if (mode === 'exam') {
@@ -334,7 +380,12 @@ export default function QuizPage({ params }: PageProps) {
             </span>
           )}
         </span>
-        <span>{score.correct} 정답</span>
+        <span className="flex items-center gap-2">
+          <span>{score.correct} 정답</span>
+          {skippedIds.size > 0 && (
+            <span className="text-xs text-amber-500">건너뜀 {skippedIds.size}</span>
+          )}
+        </span>
       </div>
       <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
         <div
@@ -349,6 +400,11 @@ export default function QuizPage({ params }: PageProps) {
           <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {q.category}
           </span>
+          {skippedIds.has(q.id) && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+              재시도
+            </span>
+          )}
         </div>
 
         <p className="mb-6 text-base leading-relaxed text-zinc-900 dark:text-zinc-50">
@@ -439,6 +495,15 @@ export default function QuizPage({ params }: PageProps) {
           })}
         </div>
 
+        {!submitted && !skippedIds.has(q.id) && (
+          <button
+            onClick={handleSkip}
+            className="mt-3 w-full rounded-lg border border-zinc-200 py-2 text-sm text-zinc-500 hover:bg-zinc-50 transition-colors dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            건너뛰기
+          </button>
+        )}
+
         {!submitted && submitEnabled && (
           <button
             onClick={handleSubmit}
@@ -456,6 +521,21 @@ export default function QuizPage({ params }: PageProps) {
                 : `오답입니다. 정답: ${correctAnswers.map((i) => optionLabels[i]).join(', ')}`}
             </p>
             <p className="text-sm text-zinc-600 dark:text-zinc-300">{q.explanation}</p>
+          </div>
+        )}
+
+        {submitted && (
+          <div className="mt-3 relative">
+            <textarea
+              value={noteDraft}
+              onChange={(e) => handleNoteChange(e.target.value)}
+              placeholder="이 문제에 대한 메모..."
+              rows={2}
+              className="w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:placeholder-zinc-500"
+            />
+            {noteSaved && (
+              <span className="absolute bottom-2 right-2 text-xs text-zinc-400">저장됨</span>
+            )}
           </div>
         )}
 

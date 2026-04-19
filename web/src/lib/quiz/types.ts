@@ -26,6 +26,7 @@ export interface ProgressRecord {
   correct: string[]
   wrong: string[]
   seen: string[]
+  notes: Record<string, string>
 }
 
 export interface QuizSession {
