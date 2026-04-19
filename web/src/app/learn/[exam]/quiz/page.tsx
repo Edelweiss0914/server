@@ -31,10 +31,15 @@ export default function QuizPage({ params }: PageProps) {
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') ?? 'all'
   const countParam = parseInt(searchParams.get('count') ?? '0', 10)
+  const tParam = searchParams.get('t') ?? ''
 
   const meta = getExamMeta(exam)
   const allQuestions = getExamQuestions(exam)
-  const { progress, markCorrect, markWrong, markSeen } = useProgress(exam)
+  const { progress, loaded: progressLoaded, markCorrect, markWrong, markSeen } = useProgress(exam)
+
+  // Keep a ref so the questions effect can read progress.wrong without it being a dep
+  const progressWrongRef = useRef<string[]>([])
+  useEffect(() => { progressWrongRef.current = progress.wrong }, [progress.wrong])
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [noWrongAnswers, setNoWrongAnswers] = useState(false)
@@ -54,25 +59,19 @@ export default function QuizPage({ params }: PageProps) {
     if (allQuestions.length === 0) return
     let pool: QuizQuestion[] = []
     if (mode === 'wrong') {
-      pool = allQuestions.filter((q) => progress.wrong.includes(q.id))
+      // Wait until progress is loaded from localStorage
+      if (!progressLoaded) return
+      pool = allQuestions.filter((q) => progressWrongRef.current.includes(q.id))
       if (pool.length === 0) {
         setNoWrongAnswers(true)
         return
       }
       setNoWrongAnswers(false)
-    } else if (mode === 'exam') {
-      pool = allQuestions
     } else {
-      // 'all' and any other mode: use all questions
       pool = allQuestions
     }
     const shuffled = shuffle(pool)
-    let count: number
-    if (mode === 'exam') {
-      count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
-    } else {
-      count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
-    }
+    const count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
     setQuestions(shuffled.slice(0, count))
     setCurrentIndex(0)
     setSelectedOption(null)
@@ -81,7 +80,7 @@ export default function QuizPage({ params }: PageProps) {
     setScore({ correct: 0, total: 0 })
     setFinished(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exam, mode, countParam])
+  }, [exam, mode, countParam, tParam, progressLoaded])
 
   // Timer setup
   useEffect(() => {

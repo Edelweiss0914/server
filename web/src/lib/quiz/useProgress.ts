@@ -23,9 +23,11 @@ function saveToStorage(examSlug: string, record: ProgressRecord): void {
 
 export function useProgress(examSlug: string) {
   const [progress, setProgress] = useState<ProgressRecord>({ correct: [], wrong: [], seen: [] })
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     setProgress(loadFromStorage(examSlug))
+    setLoaded(true)
   }, [examSlug])
 
   const markCorrect = useCallback((id: string) => {
@@ -69,5 +71,5 @@ export function useProgress(examSlug: string) {
     setProgress(empty)
   }, [examSlug])
 
-  return { progress, markCorrect, markWrong, markSeen, reset }
+  return { progress, loaded, markCorrect, markWrong, markSeen, reset }
 }

@@ -1,6 +1,6 @@
 'use client'
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import type { ProgressRecord } from '@/lib/quiz/types'
 
 interface ModeSelectorProps {
@@ -9,7 +9,14 @@ interface ModeSelectorProps {
 }
 
 export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorProps) {
+  const router = useRouter()
   const [wrongCount, setWrongCount] = useState<number | null>(null)
+
+  const startQuiz = useCallback((mode: string, count?: number) => {
+    const t = Date.now()
+    const countPart = count ? `&count=${count}` : ''
+    router.push(`/learn/${examSlug}/quiz?mode=${mode}${countPart}&t=${t}`)
+  }, [examSlug, router])
 
   useEffect(() => {
     try {
@@ -30,9 +37,9 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {/* Card 1 — 실전 모의고사 */}
-      <Link
-        href={`/learn/${examSlug}/quiz?mode=exam&count=65`}
-        className="group flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 transition-all hover:border-blue-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
+      <button
+        onClick={() => startQuiz('exam', 65)}
+        className="group flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 text-left transition-all hover:border-blue-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
       >
         <div className="flex items-center justify-between">
           <span className="text-2xl">📝</span>
@@ -44,12 +51,12 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
           <p className="font-semibold text-zinc-900 dark:text-zinc-50">실전 모의고사</p>
           <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">65문항 · 130분 제한</p>
         </div>
-      </Link>
+      </button>
 
       {/* Card 2 — 전체 랜덤 */}
-      <Link
-        href={`/learn/${examSlug}/quiz?mode=all`}
-        className="group flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 transition-all hover:border-purple-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-purple-500"
+      <button
+        onClick={() => startQuiz('all')}
+        className="group flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 text-left transition-all hover:border-purple-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-purple-500"
       >
         <div className="flex items-center justify-between">
           <span className="text-2xl">🔀</span>
@@ -61,7 +68,7 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
           <p className="font-semibold text-zinc-900 dark:text-zinc-50">전체 랜덤</p>
           <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{totalQuestions}문제 무작위</p>
         </div>
-      </Link>
+      </button>
 
       {/* Card 3 — 오답 노트*/}
       <div
@@ -74,9 +81,9 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
         }`}
       >
         {hasWrong ? (
-          <Link
-            href={`/learn/${examSlug}/quiz?mode=wrong`}
-            className="flex h-full flex-col gap-3"
+          <button
+            onClick={() => startQuiz('wrong')}
+            className="flex h-full w-full flex-col gap-3 text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-2xl">❌</span>
@@ -88,7 +95,7 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
               <p className="font-semibold text-zinc-900 dark:text-zinc-50">오답 노트</p>
               <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{wrongCount}문제</p>
             </div>
-          </Link>
+          </button>
         ) : (
           <>
             <div className="flex items-center justify-between">
