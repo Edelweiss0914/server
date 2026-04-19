@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { use, useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getExamMeta, getExamQuestions } from '@/data/questions/index'
@@ -8,7 +8,7 @@ import type { QuizQuestion, ExamMeta } from '@/data/questions/index'
 import { useProgress } from '@/lib/quiz/useProgress'
 
 interface PageProps {
-  params: { exam: string }
+  params: Promise<{ exam: string }>
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -27,13 +27,14 @@ function formatTime(seconds: number): string {
 }
 
 export default function QuizPage({ params }: PageProps) {
+  const { exam } = use(params)
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') ?? 'all'
   const countParam = parseInt(searchParams.get('count') ?? '0', 10)
 
-  const meta = getExamMeta(params.exam)
-  const allQuestions = getExamQuestions(params.exam)
-  const { progress, markCorrect, markWrong, markSeen } = useProgress(params.exam)
+  const meta = getExamMeta(exam)
+  const allQuestions = getExamQuestions(exam)
+  const { progress, markCorrect, markWrong, markSeen } = useProgress(exam)
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -65,7 +66,7 @@ export default function QuizPage({ params }: PageProps) {
     setScore({ correct: 0, total: 0 })
     setFinished(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.exam, mode, countParam])
+  }, [exam, mode, countParam])
 
   // Timer setup
   useEffect(() => {
@@ -215,7 +216,7 @@ export default function QuizPage({ params }: PageProps) {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <Link
-          href={`/learn/${params.exam}`}
+          href={`/learn/${exam}`}
           className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
         >
           &larr; {meta.nameKo}
