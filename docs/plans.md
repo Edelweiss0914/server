@@ -410,6 +410,26 @@ wings --debug
 
 ---
 
+### 2026-04-19: 메인 페이지 개인정보처리방침 모달 추가
+
+> 상태: 완료
+
+**구현 내용:**
+- 최초 방문 시 자동으로 개인정보처리방침 모달 표시
+- "동의합니다" 클릭 시 localStorage에 버전·타임스탬프 기록 (재방문 시 미표시)
+- "나중에 보기" 클릭 시 모달 닫힘, 다음 방문 시 재표시
+- 푸터 "개인정보 처리방침" 링크로 언제든 재열람 가능
+- 한국 개인정보보호법 기준 5개 항목 (수집 항목, 목적, 보유 기간, 제3자 제공, 이용자 권리)
+- ESC 키 닫기, 스크롤 잠금, 접근성(role="dialog", aria-modal) 적용
+
+**파일:**
+- `web/src/components/privacy/usePrivacyConsent.ts` (신규) — localStorage 훅 (PRIVACY_VERSION='1.0')
+- `web/src/components/privacy/PrivacyPolicyModal.tsx` (신규) — 모달 UI
+- `web/src/app/page.tsx` — 훅·모달 통합
+- `web/src/components/layout/Footer.tsx` — "개인정보 처리방침" 링크 추가
+
+---
+
 ## 사용법
 
 이 디렉토리에 계획 문서를 자유롭게 추가하세요.

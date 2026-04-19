@@ -9,6 +9,8 @@ import { SearchResults } from '@/components/home/SearchResults'
 import { AiSection } from '@/components/home/AiSection'
 import { OllamaStatus, useOllamaState } from '@/components/home/OllamaStatus'
 import { searchServices } from '@/lib/services'
+import { PrivacyPolicyModal } from '@/components/privacy/PrivacyPolicyModal'
+import { usePrivacyConsent } from '@/components/privacy/usePrivacyConsent'
 
 export default function Home() {
   const [query, setQuery] = useState('')
@@ -16,6 +18,7 @@ export default function Home() {
   const ollamaState = useOllamaState()
   const [aiTrigger, setAiTrigger] = useState(0)
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0)
+  const { isOpen, recordConsent, openModal, closeModal } = usePrivacyConsent()
 
   // Re-sync on route restore (browser back/forward)
   useEffect(() => {
@@ -74,7 +77,10 @@ export default function Home() {
           )}
         </div>
       </main>
-      <Footer />
+      <Footer onPrivacyClick={openModal} />
+      {isOpen && (
+        <PrivacyPolicyModal onConsent={recordConsent} onDismiss={closeModal} />
+      )}
     </div>
   )
 }
