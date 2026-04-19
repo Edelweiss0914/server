@@ -5,6 +5,22 @@ interface RentalRequestBody {
   expectedPlayers?: string
   preferredSchedule?: string
   notes?: string
+  website?: string // honeypot — must remain empty
+}
+
+const VALID_SERVER_OPTIONS = new Set([
+  'Minecraft Vanilla',
+  'Cobbleverse',
+  'Hardcore Vanilla',
+  '새 모드팩 서버',
+  '기타',
+])
+
+function hasSpamPattern(value: string): boolean {
+  if (!value) return false
+  if (/(.)\1{5,}/.test(value)) return true            // 동일 문자 6회 이상 반복
+  if (/https?:\/\/|www\./i.test(value)) return true   // URL 패턴
+  return false
 }
 
 // IP당 최대 3회 / 10분 슬라이딩 윈도우
@@ -36,7 +52,7 @@ function normalize(value: unknown, maxLength: number) {
   return truncate(value.trim(), maxLength)
 }
 
-function buildWebhookContent(payload: Required<RentalRequestBody>) {
+function buildWebhookContent(payload: Omit<Required<RentalRequestBody>, 'website'>) {
   return [
     '새 서버 대여 신청이 접수되었습니다.',
     `신청자: ${payload.requesterName}`,
@@ -72,6 +88,14 @@ export async function POST(request: Request) {
     return Response.json({ error: '잘못된 요청 형식입니다.' }, { status: 400 })
   }
 
+  // 허니팟: 사람은 이 필드를 비워둠, 봇은 채움
+  if (body.website) {
+    return Response.json(
+      { ok: true, message: '대여 신청이 접수되었습니다. 운영자가 확인 후 연락드릴 예정입니다.' },
+      { status: 201 }
+    )
+  }
+
   const payload = {
     requesterName: normalize(body.requesterName, 60),
     contact: normalize(body.contact, 120),
@@ -84,6 +108,30 @@ export async function POST(request: Request) {
   if (!payload.requesterName || !payload.contact || !payload.desiredServer) {
     return Response.json(
       { error: '신청자 이름, 연락 수단, 희망 서버 유형은 필수입니다.' },
+      { status: 400 }
+    )
+  }
+
+  // 최소 길이
+  if (payload.requesterName.length < 2 || payload.contact.length < 3) {
+    return Response.json(
+      { error: '신청자 이름과 연락 수단을 올바르게 입력해주세요.' },
+      { status: 400 }
+    )
+  }
+
+  // 서버 유형 화이트리스트
+  if (!VALID_SERVER_OPTIONS.has(payload.desiredServer)) {
+    return Response.json(
+      { error: '유효하지 않은 서버 유형입니다.' },
+      { status: 400 }
+    )
+  }
+
+  // 스팸 패턴 감지 (URL 삽입, 반복 문자)
+  if ([payload.requesterName, payload.contact, payload.notes].some(hasSpamPattern)) {
+    return Response.json(
+      { error: '스팸 패턴이 감지되었습니다. 내용을 확인해주세요.' },
       { status: 400 }
     )
   }

@@ -17,6 +17,7 @@ const INITIAL_FORM = {
   expectedPlayers: '',
   preferredSchedule: '',
   notes: '',
+  website: '', // honeypot — must remain empty
 }
 
 interface RentalRequestPanelProps {
@@ -146,6 +147,17 @@ export function RentalRequestPanel({ isOpen, onClose }: RentalRequestPanelProps)
         )}
 
         <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+          {/* 허니팟: 사람에게는 보이지 않음, 봇 감지용 */}
+          <input
+            type="text"
+            name="website"
+            value={form.website}
+            onChange={(e) => updateField('website', e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
+          />
           <label className="flex flex-col gap-2 text-sm text-zinc-700 dark:text-zinc-300">
             신청자 이름
             <input
