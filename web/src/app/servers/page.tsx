@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ServersGrid } from '@/components/servers/ServersGrid'
-import { RentalRequestPanel } from '@/components/servers/RentalRequestPanel'
+import { RentalRequestButton } from '@/components/servers/RentalRequestButton'
 
 export default function ServersPage() {
   return (
@@ -12,9 +12,12 @@ export default function ServersPage() {
         >
           &larr; 메인으로
         </Link>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-1">
-          On-Demand 서버
-        </h1>
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+            On-Demand 서버
+          </h1>
+          <RentalRequestButton />
+        </div>
         <p className="text-zinc-500 dark:text-zinc-400 mb-8">
           필요할 때만 켜지는 게임 서버
         </p>
@@ -23,9 +26,6 @@ export default function ServersPage() {
           이 페이지의 기존 시작·종료 기능은 안정화 전까지 그대로 운영합니다.
         </section>
         <ServersGrid />
-        <div className="mt-8">
-          <RentalRequestPanel />
-        </div>
       </div>
     </main>
   )
