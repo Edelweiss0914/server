@@ -198,7 +198,7 @@ export function SleepManagementTab() {
               <tbody>
                 {Object.entries(hibernate.conditions).map(([key, cond]) => (
                   <tr key={key} className="border-t border-zinc-100 dark:border-zinc-800">
-                    <td className="px-4 py-2.5 font-mono text-xs text-zinc-700 dark:text-zinc-300">{conditionLabel(key)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-zinc-700 dark:text-zinc-300">{conditionLabelV2(key)}</td>
                     <td className="px-4 py-2.5">
                       <span className={[
                         'inline-block px-2 py-0.5 rounded-full text-xs font-bold',
@@ -209,7 +209,7 @@ export function SleepManagementTab() {
                         {cond.pass ? '통과' : '차단'}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-500 dark:text-zinc-400">{conditionDetail(key, cond)}</td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-500 dark:text-zinc-400">{conditionDetailV2(key, cond)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -221,38 +221,49 @@ export function SleepManagementTab() {
   )
 }
 
-function conditionLabel(key: string): string {
+function conditionLabelV2(key: string): string {
   const labels: Record<string, string> = {
-    policy_enabled: '정책 활성화',
-    inhibit_timer: '억제 타이머',
-    user_activity_guard: '사용자 활동',
-    all_services_offline: '전체 서비스 오프라인',
-    no_active_user_session: '활성 세션 없음',
-    not_in_inhibit_schedule: '억제 스케줄 외',
-    disk_space: '디스크 여유 공간',
-    no_sleep_flag_absent: '절전 방지 플래그',
+    policy_enabled: 'Policy enabled',
+    inhibit_timer: 'Inhibit timer',
+    user_activity_guard: 'User input idle',
+    all_services_offline: 'All services offline',
+    no_active_user_session: 'No active user session',
+    not_in_inhibit_schedule: 'Outside inhibit schedule',
+    disk_space: 'Disk space',
+    no_sleep_flag_absent: 'No-sleep flag',
   }
   return labels[key] || key
 }
 
-function conditionDetail(key: string, cond: HibernateCondition): string {
+function conditionDetailV2(key: string, cond: HibernateCondition): string {
   if (key === 'inhibit_timer' && !cond.pass) {
     const remaining = cond.remaining_seconds as number
-    return `${remaining}초 남음`
+    return `${remaining}s remaining`
   }
-  if (key === 'user_activity_guard' && cond.idle_seconds != null) {
-    return `유휴 ${cond.idle_seconds}초 / 필요 ${cond.required_seconds}초`
+  if (key === 'user_activity_guard') {
+    const required = cond.required_seconds as number | undefined
+    const idle = cond.idle_seconds as number | undefined
+    const blocking = cond.blocking_sessions as Array<{ username?: string; idle_seconds?: number }> | undefined
+    if (idle != null && required != null) {
+      const base = `idle ${idle}s / required ${required}s`
+      if (blocking && blocking.length > 0) {
+        const users = blocking.map((s) => `${s.username ?? 'session'}:${s.idle_seconds ?? '?'}s`).join(', ')
+        return `${base} / blocking ${users}`
+      }
+      return base
+    }
+    if (cond.error) return String(cond.error)
   }
   if (key === 'not_in_inhibit_schedule' && cond.current_time) {
-    return `현재 ${cond.current_time}`
+    return `current ${cond.current_time}`
   }
   if (key === 'all_services_offline' && cond.services) {
     const svcs = cond.services as Record<string, { state: string }>
     return Object.entries(svcs).map(([id, s]) => `${id}:${s.state}`).join(', ')
   }
   if (key === 'disk_space') {
-    if (cond.error) return `오류: ${cond.error}`
-    return `여유 ${cond.free_gb}GB / 필요 ${cond.required_gb}GB`
+    if (cond.error) return `error: ${cond.error}`
+    return `free ${cond.free_gb}GB / required ${cond.required_gb}GB`
   }
   if (key === 'no_sleep_flag_absent' && cond.flag_path) {
     return String(cond.flag_path)

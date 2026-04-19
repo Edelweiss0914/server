@@ -143,6 +143,12 @@ services:
       - MYSQL_PASSWORD=${PTERO_DB_PASSWORD}
     volumes:
       - pterodactyl-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     networks:
       - cheeze-net
@@ -150,6 +156,12 @@ services:
   pterodactyl-cache:
     image: redis:alpine
     container_name: pterodactyl-cache
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
     networks:
       - cheeze-net
@@ -171,15 +183,17 @@ services:
       - DB_USE_SSL=false
       - REDIS_HOST=pterodactyl-cache
       - REDIS_PORT=6379
-      - TRUSTED_PROXIES=*
+      - TRUSTED_PROXIES=172.16.0.0/12
       - APP_KEY=${PTERO_APP_KEY}
     volumes:
       - pterodactyl-data:/app/var
       - pterodactyl-logs:/app/storage/logs
       - ./pterodactyl-panel/.my.cnf:/root/.my.cnf:ro
     depends_on:
-      - pterodactyl-db
-      - pterodactyl-cache
+      pterodactyl-db:
+        condition: service_healthy
+      pterodactyl-cache:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - cheeze-net

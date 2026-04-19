@@ -7,6 +7,22 @@ interface RentalRequestBody {
   notes?: string
 }
 
+// IP당 최대 3회 / 10분 슬라이딩 윈도우
+const RATE_LIMIT_MAX = 3
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const rateLimitMap = new Map<string, number[]>()
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const timestamps = (rateLimitMap.get(ip) ?? []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW_MS
+  )
+  if (timestamps.length >= RATE_LIMIT_MAX) return true
+  timestamps.push(now)
+  rateLimitMap.set(ip, timestamps)
+  return false
+}
+
 const WEBHOOK_URL = process.env.SERVER_RENTAL_WEBHOOK_URL || ''
 const WEBHOOK_USERNAME =
   process.env.SERVER_RENTAL_WEBHOOK_USERNAME || 'CHEEZE Rental Intake'
@@ -33,6 +49,15 @@ function buildWebhookContent(payload: Required<RentalRequestBody>) {
 }
 
 export async function POST(request: Request) {
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  if (isRateLimited(ip)) {
+    return Response.json(
+      { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+      { status: 429 }
+    )
+  }
+
   if (!WEBHOOK_URL) {
     return Response.json(
       { error: '대여 신청 웹훅이 아직 설정되지 않았습니다.' },
@@ -63,19 +88,27 @@ export async function POST(request: Request) {
     )
   }
 
-  const webhookResponse = await fetch(`${WEBHOOK_URL}?wait=true`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      username: WEBHOOK_USERNAME,
-      content: buildWebhookContent(payload),
-      allowed_mentions: {
-        parse: [],
+  let webhookResponse: Response
+  try {
+    webhookResponse = await fetch(`${WEBHOOK_URL}?wait=true`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  })
+      body: JSON.stringify({
+        username: WEBHOOK_USERNAME,
+        content: buildWebhookContent(payload),
+        allowed_mentions: {
+          parse: [],
+        },
+      }),
+    })
+  } catch {
+    return Response.json(
+      { error: '대여 신청 전달 중 네트워크 오류가 발생했습니다.' },
+      { status: 502 }
+    )
+  }
 
   if (!webhookResponse.ok) {
     return Response.json(
