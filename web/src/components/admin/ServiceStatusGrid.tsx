@@ -27,20 +27,38 @@ interface Props {
 
 export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [fetchError, setFetchError] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const fetchServices = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/status')
+      const data = await res.json().catch(() => null)
+
       if (!res.ok) {
-        setFetchError(true)
+        const message =
+          typeof data?.message === 'string'
+            ? data.message
+            : typeof data?.error === 'string'
+              ? data.error
+              : '서비스 상태를 불러오지 못했습니다.'
+        setFetchError(message)
+        setHasLoaded(true)
         return
       }
-      const data = await res.json()
-      onServicesUpdate(data.services ?? [])
-      setFetchError(false)
+
+      if (!Array.isArray(data?.services)) {
+        setFetchError('서비스 상태 응답 형식이 올바르지 않습니다.')
+        setHasLoaded(true)
+        return
+      }
+
+      onServicesUpdate(data.services)
+      setFetchError(null)
+      setHasLoaded(true)
     } catch {
-      setFetchError(true)
+      setFetchError('서비스 상태를 불러오지 못했습니다.')
+      setHasLoaded(true)
     }
   }, [onServicesUpdate])
 
@@ -49,20 +67,26 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
   }, [services])
 
   const scheduleRefresh = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(async () => {
-      await fetchServices()
-      scheduleRefresh()
-    }, hasTransition() ? ACTIVE_POLL_MS : NORMAL_POLL_MS)
+    const queueNext = (delay: number) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(async () => {
+        await fetchServices()
+        queueNext(hasTransition() ? ACTIVE_POLL_MS : NORMAL_POLL_MS)
+      }, delay)
+    }
+
+    queueNext(hasTransition() ? ACTIVE_POLL_MS : NORMAL_POLL_MS)
   }, [fetchServices, hasTransition])
 
   useEffect(() => {
-    fetchServices()
+    const initialLoadTimer = setTimeout(() => {
+      void fetchServices()
+    }, 0)
     return () => {
+      clearTimeout(initialLoadTimer)
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchServices])
 
   useEffect(() => {
     scheduleRefresh()
@@ -88,16 +112,23 @@ export function ServiceStatusGrid({ services, onServicesUpdate }: Props) {
     }
   }, [fetchServices, scheduleRefresh])
 
-  if (services.length === 0) {
-    if (fetchError) {
-      return (
-        <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-          서비스 상태를 불러오지 못했습니다.
-        </div>
-      )
-    }
+  if (!hasLoaded) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">서비스 정보를 불러오는 중...</p>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+        {fetchError}
+      </div>
+    )
+  }
+
+  if (services.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">등록된 서비스가 없습니다.</p>
     )
   }
 
