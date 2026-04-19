@@ -485,6 +485,32 @@ wings --debug
 
 ---
 
+### 2026-04-20: AWS SAA-C03 덤프 임포트 + 퀴즈 모드 확장
+
+> 상태: 완료
+
+**AWS SAA-C03 문제 임포트:**
+- 683문제 전체 임포트 (`AWS_Total_Clean.md` 파싱)
+- 69개 복수정답 문항 지원 (`answer: number | number[]`)
+- 체크박스 멀티셀렉트 UI, 완전일치 채점, "복수 정답" 뱃지
+
+**퀴즈 모드 3종 추가:**
+
+| 모드 | URL 파라미터 | 설명 |
+|------|-------------|------|
+| 실전 모의고사 | `?mode=exam&count=65` | 65문항, 130분 고정 타이머 |
+| 전체 랜덤 | `?mode=all` | 전체 문제 무작위 |
+| 오답 노트 | `?mode=wrong` | 틀린 문제만, 오답 없으면 빈 상태 |
+
+**파일:**
+- `web/src/data/questions/aws-saa-c03.json` — 683문제 (교체)
+- `web/src/lib/quiz/types.ts` — `answer: number | number[]`
+- `web/src/components/learn/ModeSelector.tsx` — 모드 카드 (localStorage 오답 수 뱃지)
+- `web/src/app/learn/[exam]/page.tsx` — ModeSelector 통합
+- `web/src/app/learn/[exam]/quiz/page.tsx` — 3모드 + 빈상태 + 모드 라벨
+
+---
+
 ## 사용법
 
 이 디렉토리에 계획 문서를 자유롭게 추가하세요.
