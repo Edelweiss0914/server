@@ -37,6 +37,7 @@ export default function QuizPage({ params }: PageProps) {
   const { progress, markCorrect, markWrong, markSeen } = useProgress(exam)
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
+  const [noWrongAnswers, setNoWrongAnswers] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [selectedOptions, setSelectedOptions] = useState<number[]>([])
@@ -54,12 +55,24 @@ export default function QuizPage({ params }: PageProps) {
     let pool: QuizQuestion[] = []
     if (mode === 'wrong') {
       pool = allQuestions.filter((q) => progress.wrong.includes(q.id))
-      if (pool.length === 0) pool = allQuestions
+      if (pool.length === 0) {
+        setNoWrongAnswers(true)
+        return
+      }
+      setNoWrongAnswers(false)
+    } else if (mode === 'exam') {
+      pool = allQuestions
     } else {
+      // 'all' and any other mode: use all questions
       pool = allQuestions
     }
     const shuffled = shuffle(pool)
-    const count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
+    let count: number
+    if (mode === 'exam') {
+      count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
+    } else {
+      count = countParam > 0 ? Math.min(countParam, shuffled.length) : shuffled.length
+    }
     setQuestions(shuffled.slice(0, count))
     setCurrentIndex(0)
     setSelectedOption(null)
@@ -73,11 +86,16 @@ export default function QuizPage({ params }: PageProps) {
   // Timer setup
   useEffect(() => {
     if (!meta || questions.length === 0 || !timerEnabled) return
-    const totalSeconds = (meta as unknown as { timeLimit?: number }).timeLimit
-      ? ((meta as unknown as { timeLimit: number }).timeLimit * 60)
-      : questions.length * 120
+    let totalSeconds: number
+    if (mode === 'exam') {
+      totalSeconds = 130 * 60
+    } else if ((meta as unknown as { timeLimit?: number }).timeLimit) {
+      totalSeconds = (meta as unknown as { timeLimit: number }).timeLimit * 60
+    } else {
+      totalSeconds = questions.length * 120
+    }
     setTimeLeft(totalSeconds)
-  }, [meta, questions, timerEnabled])
+  }, [meta, questions, timerEnabled, mode])
 
   // Timer countdown
   useEffect(() => {
@@ -167,12 +185,17 @@ export default function QuizPage({ params }: PageProps) {
     setScore({ correct: 0, total: 0 })
     setFinished(false)
     if (meta && timerEnabled) {
-      const totalSeconds = (meta as unknown as { timeLimit?: number }).timeLimit
-        ? ((meta as unknown as { timeLimit: number }).timeLimit * 60)
-        : reshuffled.length * 120
+      let totalSeconds: number
+      if (mode === 'exam') {
+        totalSeconds = 130 * 60
+      } else if ((meta as unknown as { timeLimit?: number }).timeLimit) {
+        totalSeconds = (meta as unknown as { timeLimit: number }).timeLimit * 60
+      } else {
+        totalSeconds = reshuffled.length * 120
+      }
       setTimeLeft(totalSeconds)
     }
-  }, [allQuestions, countParam, meta, timerEnabled])
+  }, [allQuestions, countParam, meta, timerEnabled, mode])
 
   if (!meta) {
     return (
@@ -181,6 +204,20 @@ export default function QuizPage({ params }: PageProps) {
           &larr; 목록으로
         </Link>
         <p className="mt-4 text-zinc-500 dark:text-zinc-400">시험을 찾을 수 없습니다.</p>
+      </main>
+    )
+  }
+
+  // Empty state for wrong mode with no wrong answers
+  if (mode === 'wrong' && noWrongAnswers) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-10 text-center">
+        <p className="text-4xl mb-4">✅</p>
+        <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-2">오답이 없습니다!</p>
+        <p className="text-zinc-500 dark:text-zinc-400 mb-6">아직 틀린 문제가 없거나 모두 복습 완료했습니다.</p>
+        <Link href={`/learn/${exam}`} className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          시험으로 돌아가기
+        </Link>
       </main>
     )
   }
@@ -243,6 +280,16 @@ export default function QuizPage({ params }: PageProps) {
 
   const submitEnabled = isMulti ? selectedOptions.length > 0 : selectedOption !== null
 
+  // Mode badge config
+  const modeBadge =
+    mode === 'exam'
+      ? { label: '실전 모의고사', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' }
+      : mode === 'all'
+      ? { label: '전체 랜덤', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' }
+      : mode === 'wrong'
+      ? { label: '오답 노트', cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' }
+      : null
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       {/* Header */}
@@ -259,12 +306,14 @@ export default function QuizPage({ params }: PageProps) {
               {formatTime(timeLeft)}
             </span>
           )}
-          <button
-            onClick={() => setTimerEnabled((v) => !v)}
-            className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-          >
-            {timerEnabled ? '타이머 끄기' : '타이머 켜기'}
-          </button>
+          {mode !== 'exam' && (
+            <button
+              onClick={() => setTimerEnabled((v) => !v)}
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+            >
+              {timerEnabled ? '타이머 끄기' : '타이머 켜기'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -272,6 +321,14 @@ export default function QuizPage({ params }: PageProps) {
       <div className="mb-2 flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
         <span className="flex items-center gap-2">
           Q {currentIndex + 1} / {questions.length}
+          {modeBadge && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${modeBadge.cls}`}>
+              {modeBadge.label}
+              {mode === 'wrong' && (
+                <span className="ml-1">({progress.wrong.length})</span>
+              )}
+            </span>
+          )}
           {isMulti && (
             <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
               복수 정답

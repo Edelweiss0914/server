@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getExamMeta, loadQuestions } from '@/data/questions/index'
+import ModeSelector from '@/components/learn/ModeSelector'
 
 interface PageProps {
   params: Promise<{ exam: string }>
@@ -69,26 +70,7 @@ export default async function ExamDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Link
-          href={`/learn/${exam}/quiz`}
-          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-        >
-          전체 문제 풀기
-        </Link>
-        <Link
-          href={`/learn/${exam}/quiz?mode=random&count=20`}
-          className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        >
-          랜덤 20문제
-        </Link>
-        <Link
-          href={`/learn/${exam}/quiz?mode=wrong`}
-          className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        >
-          오답 복습
-        </Link>
-      </div>
+      <ModeSelector examSlug={exam} totalQuestions={meta.totalQuestions} />
     </main>
   )
 }
