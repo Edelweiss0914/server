@@ -56,3 +56,8 @@
 | 문서 | 설명 |
 |------|------|
 | [계획 및 구상](plans.md) | 인프라 개선, 신규 기능, 아키텍처 변경 구상 |
+## Admin Panel
+
+| Document | Description |
+|------|------|
+| [Admin Panel Runbook](frontend/admin-panel-runbook.md) | Workflow, service-panel troubleshooting, and gateway deploy verification for `/admin` |

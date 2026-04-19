@@ -720,3 +720,8 @@ docker compose exec -T nginx nginx -s reload
 | 실제 원인 | `listen [::]:80` 누락으로 IPv6 요청이 default_server(Next.js)로 폴백 |
 
 > 참고: [nginx + cloudflared IPv6 라우팅 구성 참조](nginx-cloudflared-ipv6.md)
+## Admin Panel Cross-Reference
+
+For the `/admin` page implementation workflow and the recent service-panel troubleshooting history, see:
+
+- [`../frontend/admin-panel-runbook.md`](../frontend/admin-panel-runbook.md)
