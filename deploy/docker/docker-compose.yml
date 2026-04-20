@@ -90,6 +90,7 @@ services:
       - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
       - CHEEZE_CONTROL_LISTEN_PORT=11436
       - CHEEZE_SERVICE_REGISTRY=/app/service-registry.example.json
+      - CHEEZE_BACKEND_TIMEOUT=20
     healthcheck:
       test:
         [

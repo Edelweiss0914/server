@@ -20,6 +20,7 @@ This initial scaffold is intentionally conservative. It supports:
 
 from __future__ import annotations
 
+import concurrent.futures
 import ctypes
 import datetime
 import hashlib
@@ -911,21 +912,26 @@ def _hibernate_debug_info(config: dict) -> dict:
     "remaining_seconds": max(0, int(inhibit_until - time.time())) if inhibit_active else 0,
   }
 
-  # all services offline
+  # all services offline — run checks in parallel to avoid sequential timeout accumulation
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
   active_states = {"running", "starting", "waking", "stopping"}
   services_detail = {}
   all_offline = True
-  for svc in services:
+
+  def _check_one(svc):
     try:
       st = service_status(svc)
       state = st["state"]
       offline = state not in active_states
-      services_detail[svc["id"]] = {"state": state, "pass": offline}
-      if not offline:
-        all_offline = False
+      return svc["id"], {"state": state, "pass": offline}
     except Exception as exc:
-      services_detail[svc["id"]] = {"state": "check_error", "error": str(exc), "pass": True}
+      return svc["id"], {"state": "check_error", "error": str(exc), "pass": True}
+
+  with concurrent.futures.ThreadPoolExecutor(max_workers=len(services) or 1) as pool:
+    for svc_id, detail in pool.map(_check_one, services):
+      services_detail[svc_id] = detail
+      if not detail["pass"]:
+        all_offline = False
   conditions["all_services_offline"] = {"pass": all_offline, "services": services_detail}
 
   # not in inhibit schedule
