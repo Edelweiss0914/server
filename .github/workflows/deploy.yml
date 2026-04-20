@@ -98,16 +98,21 @@ jobs:
 
           if (-not (Test-Path $workDir)) { New-Item -ItemType Directory -Path $workDir -Force | Out-Null }
           Copy-Item $src $dst -Force
+          Copy-Item "deploy\backend\restart-loop.ps1" (Join-Path $workDir "restart-loop.ps1") -Force
           $srcHash = (Get-FileHash $dst -Algorithm MD5).Hash
           Write-Host "Backend agent deployed to $dst (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
 
           # ── Scheduled Task: AtStartup + hibernate/sleep resume (EventID 107) ──
-          # Start-Process alone cannot restart the agent after WoL wakes the PC from
-          # hibernate. A Scheduled Task with an EventID=107 trigger fires on every
-          # resume from sleep/hibernate, ensuring the agent is always running when
-          # the PC is reachable on the network.
-          $TaskName = "CHEEZE Backend Agent"
-          $Action   = New-ScheduledTaskAction -Execute "python" -Argument $dst -WorkingDirectory $workDir
+          # The task runs restart-loop.ps1 instead of python directly.
+          # restart-loop.ps1 loops forever and restarts the agent within 5 s on any
+          # exit (crash, external kill, self-update). Combined with the EventID=107
+          # trigger, the agent recovers from both process death and hibernate resume.
+          $TaskName   = "CHEEZE Backend Agent"
+          $loopScript = Join-Path $workDir "restart-loop.ps1"
+          $Action     = New-ScheduledTaskAction `
+              -Execute "powershell" `
+              -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$loopScript`"" `
+              -WorkingDirectory $workDir
           $Startup  = New-ScheduledTaskTrigger -AtStartup
           $Settings = New-ScheduledTaskSettingsSet `
               -AllowStartIfOnBatteries `

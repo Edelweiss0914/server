@@ -9,9 +9,14 @@ $TaskName    = "CHEEZE Backend Agent"
 
 New-Item -ItemType Directory -Path $AppRoot -Force | Out-Null
 Copy-Item $AgentSource $AgentDst -Force
+Copy-Item (Join-Path (Split-Path $AgentSource) "restart-loop.ps1") (Join-Path $AppRoot "restart-loop.ps1") -Force
 Copy-Item $ConfigSource (Join-Path $AppRoot "config.json") -Force
 
-$Action   = New-ScheduledTaskAction -Execute $PythonExe -Argument $AgentDst -WorkingDirectory $AppRoot
+$LoopScript = Join-Path $AppRoot "restart-loop.ps1"
+$Action     = New-ScheduledTaskAction `
+    -Execute "powershell" `
+    -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$LoopScript`"" `
+    -WorkingDirectory $AppRoot
 $Startup  = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
