@@ -51,8 +51,11 @@ DEFAULT_CONFIG_CANDIDATES = [
 CONFIG_PATH = Path(os.environ["CHEEZE_BACKEND_CONFIG"]) if "CHEEZE_BACKEND_CONFIG" in os.environ else None
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_REQUEST_TIMEOUT", "5"))
 
-WTS_ACTIVE = 0
-WTS_USERNAME = 5
+CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+DETACHED_PROCESS = getattr(subprocess, "DETACHED_PROCESS", 0)
+CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+STARTF_USESHOWWINDOW = getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
+SW_HIDE = 0
 
 
 class _Tee:
@@ -86,6 +89,23 @@ def _compute_script_hash() -> str:
 _startup_script_hash: str = _compute_script_hash()
 
 
+def _background_creationflags(*extra_flags: int) -> int:
+  flags = CREATE_NO_WINDOW
+  for flag in extra_flags:
+    flags |= flag
+  return flags
+
+
+def _background_subprocess_kwargs(*extra_flags: int) -> dict:
+  kwargs = {"creationflags": _background_creationflags(*extra_flags)}
+  if hasattr(subprocess, "STARTUPINFO"):
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = SW_HIDE
+    kwargs["startupinfo"] = startupinfo
+  return kwargs
+
+
 def _check_self_update() -> None:
   """Restart the agent process if the script file changed since startup."""
   current_hash = _compute_script_hash()
@@ -95,7 +115,7 @@ def _check_self_update() -> None:
   subprocess.Popen(
     [sys.executable] + sys.argv,
     close_fds=True,
-    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+    **_background_subprocess_kwargs(DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP),
   )
   time.sleep(2)  # Let the new process initialize before releasing the port
   os._exit(0)
@@ -130,17 +150,49 @@ def json_bytes(payload):
   return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
 
+TH32CS_SNAPPROCESS = 0x00000002
+INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+
+class PROCESSENTRY32W(ctypes.Structure):
+  _fields_ = [
+    ("dwSize", wintypes.DWORD),
+    ("cntUsage", wintypes.DWORD),
+    ("th32ProcessID", wintypes.DWORD),
+    ("th32DefaultHeapID", ctypes.c_size_t),
+    ("th32ModuleID", wintypes.DWORD),
+    ("cntThreads", wintypes.DWORD),
+    ("th32ParentProcessID", wintypes.DWORD),
+    ("pcPriClassBase", ctypes.c_long),
+    ("dwFlags", wintypes.DWORD),
+    ("szExeFile", wintypes.WCHAR * 260),
+  ]
+
+
+def _list_process_entries() -> list[tuple[int, str]]:
+  snapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+  if snapshot == INVALID_HANDLE_VALUE:
+    return []
+
+  entries = []
+  entry = PROCESSENTRY32W()
+  entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+  try:
+    has_entry = ctypes.windll.kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+    while has_entry:
+      entries.append((int(entry.th32ProcessID), entry.szExeFile))
+      has_entry = ctypes.windll.kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+  finally:
+    ctypes.windll.kernel32.CloseHandle(snapshot)
+  return entries
+
+
 def is_process_running(process_name):
   if not process_name:
     return False
 
-  result = subprocess.run(
-    ["tasklist", "/FI", f"IMAGENAME eq {process_name}"],
-    text=True,
-    capture_output=True,
-    check=False,
-  )
-  return process_name.lower() in result.stdout.lower()
+  expected = process_name.lower()
+  return any(exe_name.lower() == expected for _, exe_name in _list_process_entries())
 
 
 def tracked_pid_running(pid_path):
@@ -155,13 +207,12 @@ def tracked_pid_running(pid_path):
   if not tracked_pid:
     return False
 
-  result = subprocess.run(
-    ["tasklist", "/FI", f"PID eq {tracked_pid}"],
-    text=True,
-    capture_output=True,
-    check=False,
-  )
-  return tracked_pid in result.stdout
+  try:
+    target_pid = int(tracked_pid)
+  except ValueError:
+    return False
+
+  return any(pid == target_pid for pid, _ in _list_process_entries())
 
 
 def control_dir_process_running(control_dir):
@@ -251,7 +302,7 @@ def start_service(service):
     command,
     cwd=service.get("working_dir") or None,
     shell=True,
-    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+    **_background_subprocess_kwargs(CREATE_NEW_PROCESS_GROUP),
   )
   return 202, {
     "accepted": True,
@@ -276,7 +327,7 @@ def stop_service(service):
       stop_command,
       cwd=service.get("working_dir") or None,
       shell=True,
-      creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+      **_background_subprocess_kwargs(CREATE_NEW_PROCESS_GROUP),
     )
     return 202, {
       "accepted": True,
@@ -290,6 +341,7 @@ def stop_service(service):
       ["taskkill", "/IM", process_name, "/F"],
       text=True,
       capture_output=True,
+      **_background_subprocess_kwargs(),
       check=False,
     )
     return 202, {
@@ -669,77 +721,6 @@ def maybe_enforce_time_restriction_stop(service: dict, grace_seconds: int) -> bo
     return False
 
 
-class WTS_SESSION_INFO(ctypes.Structure):
-  _fields_ = [
-    ("SessionId", wintypes.DWORD),
-    ("pWinStationName", wintypes.LPWSTR),
-    ("State", wintypes.DWORD),
-  ]
-
-
-def _wts_query_string(session_id: int, info_class: int) -> str:
-  buffer = wintypes.LPWSTR()
-  bytes_returned = wintypes.DWORD()
-  ok = ctypes.windll.Wtsapi32.WTSQuerySessionInformationW(
-    wintypes.HANDLE(0),
-    session_id,
-    info_class,
-    ctypes.byref(buffer),
-    ctypes.byref(bytes_returned),
-  )
-  if not ok:
-    return ""
-  try:
-    return ctypes.wstring_at(buffer) if buffer else ""
-  finally:
-    ctypes.windll.Wtsapi32.WTSFreeMemory(buffer)
-
-
-def has_active_user_session() -> bool | None:
-  """Return True when any real console/RDP user session is active."""
-  sessions_ptr = ctypes.POINTER(WTS_SESSION_INFO)()
-  count = wintypes.DWORD()
-  ok = ctypes.windll.Wtsapi32.WTSEnumerateSessionsW(
-    wintypes.HANDLE(0),
-    0,
-    1,
-    ctypes.byref(sessions_ptr),
-    ctypes.byref(count),
-  )
-  if not ok:
-    return None
-
-  try:
-    sessions = sessions_ptr[:count.value]
-    for session in sessions:
-      if session.State != WTS_ACTIVE:
-        continue
-      username = _wts_query_string(int(session.SessionId), WTS_USERNAME).strip()
-      if username:
-        return True
-    return False
-  finally:
-    ctypes.windll.Wtsapi32.WTSFreeMemory(sessions_ptr)
-
-
-def get_user_idle_seconds() -> float | None:
-  """Return seconds since last keyboard/mouse input on Windows. None on error.
-
-  GetLastInputInfo is session/window-station specific and unreliable when
-  called from a background process (service, CI runner, hidden window).
-  Instead, proxy through WTS session detection:
-    - active user session present → 0.0  (treat as not idle)
-    - no active user session      → inf  (safe to treat as fully idle)
-    - WTS API failure             → None (block hibernation, safe default)
-  """
-  active = has_active_user_session()
-  if active is None:
-    return None
-  if active:
-    return 0.0
-  return float("inf")
-
-
 def _no_sleep_flag_path(hibernate_policy: dict) -> Path:
   raw = hibernate_policy.get("no_sleep_flag_path", "")
   if raw:
@@ -793,17 +774,6 @@ def _check_hibernate_conditions(config: dict) -> bool:
   if _hibernate_inhibit_active():
     return False
 
-  # 0. User activity guard
-  host_cfg = config.get("host", {})
-  activity_guard = host_cfg.get("user_activity_guard", {})
-  if activity_guard.get("enabled", False):
-    min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
-    idle_seconds = get_user_idle_seconds()
-    if idle_seconds is None:
-      return False
-    if idle_seconds < min_idle_minutes * 60:
-      return False
-
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
 
   # 1. All services must be offline
@@ -816,14 +786,7 @@ def _check_hibernate_conditions(config: dict) -> bool:
     except Exception:
       pass
 
-  # 2. No active console/RDP sessions
-  active_session = has_active_user_session()
-  if active_session is None:
-    return False
-  if active_session:
-    return False
-
-  # 3. Not within inhibit schedule
+  # 2. Not within inhibit schedule
   now_time = datetime.datetime.now().time()
   for window in hibernate_policy.get("inhibit_schedule", []):
     try:
@@ -832,7 +795,7 @@ def _check_hibernate_conditions(config: dict) -> bool:
     except Exception:
       pass
 
-  # 4. Free space on check_drive >= min_free_space_gb
+  # 3. Free space on check_drive >= min_free_space_gb
   check_drive = hibernate_policy.get("check_drive", "C:\\")
   min_free_gb = hibernate_policy.get("min_free_space_gb", 20)
   try:
@@ -843,7 +806,7 @@ def _check_hibernate_conditions(config: dict) -> bool:
   except Exception:
     pass
 
-  # 5. No no-sleep.flag file
+  # 4. No no-sleep.flag file
   flag_path = _no_sleep_flag_path(hibernate_policy)
   if flag_path.exists():
     return False
@@ -890,7 +853,7 @@ def _get_system_resources() -> dict:
     out = subprocess.check_output(
       ["powershell", "-NoProfile", "-Command",
        "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average"],
-      timeout=5, text=True, creationflags=0x08000000,
+      timeout=5, text=True, **_background_subprocess_kwargs(),
     )
     result["cpu"] = {"percent": int(out.strip())}
   except Exception as exc:
@@ -948,26 +911,6 @@ def _hibernate_debug_info(config: dict) -> dict:
     "remaining_seconds": max(0, int(inhibit_until - time.time())) if inhibit_active else 0,
   }
 
-  # user activity guard
-  host_cfg = config.get("host", {})
-  activity_guard = host_cfg.get("user_activity_guard", {})
-  if activity_guard.get("enabled", False):
-    min_idle_minutes = activity_guard.get("input_idle_minutes", 20)
-    idle_seconds = get_user_idle_seconds()
-    if idle_seconds is not None and idle_seconds == float("inf"):
-      idle_display = None  # no user session; infinity not JSON-serialisable
-    elif idle_seconds is not None:
-      idle_display = round(idle_seconds, 1)
-    else:
-      idle_display = None
-    conditions["user_activity_guard"] = {
-      "pass": idle_seconds is not None and idle_seconds >= min_idle_minutes * 60,
-      "idle_seconds": idle_display,
-      "required_seconds": min_idle_minutes * 60,
-    }
-  else:
-    conditions["user_activity_guard"] = {"pass": True, "enabled": False}
-
   # all services offline
   services = [s for s in config.get("services", []) if s.get("enabled", True)]
   active_states = {"running", "starting", "waking", "stopping"}
@@ -984,13 +927,6 @@ def _hibernate_debug_info(config: dict) -> dict:
     except Exception as exc:
       services_detail[svc["id"]] = {"state": "check_error", "error": str(exc), "pass": True}
   conditions["all_services_offline"] = {"pass": all_offline, "services": services_detail}
-
-  # no active user session
-  active_session = has_active_user_session()
-  conditions["no_active_user_session"] = {
-    "pass": active_session is False,
-    "raw_value": active_session,
-  }
 
   # not in inhibit schedule
   now_time = datetime.datetime.now().time()

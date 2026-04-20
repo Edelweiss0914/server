@@ -88,10 +88,13 @@ jobs:
           git fetch origin main
           git pull origin main
 
+          # Copy backend agent to its running location.
           # The agent watches its own file hash and self-restarts within one watchdog
-          # interval (~30s) when the script changes. No external process control needed.
+          # interval (~60s) when the script changes. No external process control needed.
           $src = "deploy\backend\cheeze-backend-agent.py"
-          $srcHash = (Get-FileHash $src -Algorithm MD5).Hash
-          Write-Host "Backend agent deployed (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
+          $dst = "D:\Servers\Control\backend-agent\cheeze-backend-agent.py"
+          Copy-Item $src $dst -Force
+          $srcHash = (Get-FileHash $dst -Algorithm MD5).Hash
+          Write-Host "Backend agent deployed to $dst (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
 
           Write-Host "Homepc deploy complete."
