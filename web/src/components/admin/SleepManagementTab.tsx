@@ -126,7 +126,7 @@ export function SleepManagementTab() {
             actionPending ? 'opacity-50 cursor-not-allowed' : '',
           ].join(' ')}
         >
-          {noSleepActive ? '절전 방지 켜짐' : '절전 방지 꺼짐'}
+          {noSleepActive ? '절전 켜기' : '절전 끄기'}
         </button>
       </div>
 
