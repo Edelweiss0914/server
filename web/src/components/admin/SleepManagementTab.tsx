@@ -38,6 +38,7 @@ function formatDuration(seconds: number | null): string {
 export function SleepManagementTab() {
   const [idle, setIdle] = useState<IdleStatus | null>(null)
   const [hibernate, setHibernate] = useState<HibernateDebug | null>(null)
+  const [hibernateError, setHibernateError] = useState<string | null>(null)
   const [noSleepActive, setNoSleepActive] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,7 +52,13 @@ export function SleepManagementTab() {
         fetch('/api/admin/no-sleep'),
       ])
       if (idleRes.ok) setIdle(await idleRes.json())
-      if (hibRes.ok) setHibernate(await hibRes.json())
+      if (hibRes.ok) {
+        setHibernate(await hibRes.json())
+        setHibernateError(null)
+      } else {
+        setHibernate(null)
+        setHibernateError(`절전 조건 로드 실패 (HTTP ${hibRes.status})`)
+      }
       if (nsRes.ok) {
         const data = await nsRes.json()
         setNoSleepActive(data.active ?? null)
@@ -172,6 +179,16 @@ export function SleepManagementTab() {
         </section>
       )}
 
+      {/* Hibernate debug error */}
+      {hibernateError && !hibernate && (
+        <section>
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">절전 조건 디버그</h3>
+          <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+            {hibernateError} — 백엔드 에이전트가 실행 중인지 확인하세요.
+          </div>
+        </section>
+      )}
+
       {/* Hibernate debug */}
       {hibernate && (
         <section>
@@ -196,7 +213,7 @@ export function SleepManagementTab() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(hibernate.conditions).map(([key, cond]) => (
+                {Object.entries(hibernate.conditions ?? {}).map(([key, cond]) => (
                   <tr key={key} className="border-t border-zinc-100 dark:border-zinc-800">
                     <td className="px-4 py-2.5 font-mono text-xs text-zinc-700 dark:text-zinc-300">{conditionLabelV2(key)}</td>
                     <td className="px-4 py-2.5">
@@ -225,9 +242,7 @@ function conditionLabelV2(key: string): string {
   const labels: Record<string, string> = {
     policy_enabled: 'Policy enabled',
     inhibit_timer: 'Inhibit timer',
-    user_activity_guard: 'User input idle',
     all_services_offline: 'All services offline',
-    no_active_user_session: 'No active user session',
     not_in_inhibit_schedule: 'Outside inhibit schedule',
     disk_space: 'Disk space',
     no_sleep_flag_absent: 'No-sleep flag',
@@ -239,20 +254,6 @@ function conditionDetailV2(key: string, cond: HibernateCondition): string {
   if (key === 'inhibit_timer' && !cond.pass) {
     const remaining = cond.remaining_seconds as number
     return `${remaining}s remaining`
-  }
-  if (key === 'user_activity_guard') {
-    const required = cond.required_seconds as number | undefined
-    const idle = cond.idle_seconds as number | undefined
-    const blocking = cond.blocking_sessions as Array<{ username?: string; idle_seconds?: number }> | undefined
-    if (idle != null && required != null) {
-      const base = `idle ${idle}s / required ${required}s`
-      if (blocking && blocking.length > 0) {
-        const users = blocking.map((s) => `${s.username ?? 'session'}:${s.idle_seconds ?? '?'}s`).join(', ')
-        return `${base} / blocking ${users}`
-      }
-      return base
-    }
-    if (cond.error) return String(cond.error)
   }
   if (key === 'not_in_inhibit_schedule' && cond.current_time) {
     return `current ${cond.current_time}`

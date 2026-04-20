@@ -16,12 +16,6 @@ DiskUsage = namedtuple("DiskUsage", ["total", "used", "free"])
 
 def hibernate_ready_config() -> dict:
   return {
-    "host": {
-      "user_activity_guard": {
-        "enabled": True,
-        "input_idle_minutes": 20,
-      }
-    },
     "hibernate_policy": {
       "enabled": True,
       "check_interval_seconds": 60,
@@ -41,10 +35,22 @@ class HibernateGraceTests(unittest.TestCase):
     config = hibernate_ready_config()
     backend_agent._hibernate_inhibit_until = time.time() + 120
 
-    with mock.patch.object(backend_agent, "get_user_idle_seconds", return_value=3600), \
-         mock.patch.object(backend_agent, "has_active_user_session", return_value=False), \
-         mock.patch.object(backend_agent, "_no_sleep_flag_path", return_value=Path(__file__).with_name("missing-no-sleep.flag")), \
+    with mock.patch.object(backend_agent, "_no_sleep_flag_path", return_value=Path(__file__).with_name("missing-no-sleep.flag")), \
          mock.patch.object(backend_agent.shutil, "disk_usage", return_value=DiskUsage(100, 10, 90)):
+      self.assertFalse(backend_agent._check_hibernate_conditions(config))
+
+  def test_check_hibernate_conditions_allows_when_no_sleep_flag_absent(self) -> None:
+    config = hibernate_ready_config()
+
+    with mock.patch.object(backend_agent, "_no_sleep_flag_path", return_value=Path(__file__).with_name("missing-no-sleep.flag")), \
+         mock.patch.object(backend_agent.shutil, "disk_usage", return_value=DiskUsage(100, 10, 90 * (1024 ** 3))):
+      self.assertTrue(backend_agent._check_hibernate_conditions(config))
+
+  def test_check_hibernate_conditions_blocks_when_no_sleep_flag_present(self) -> None:
+    config = hibernate_ready_config()
+
+    with mock.patch.object(backend_agent, "_no_sleep_flag_path", return_value=Path(__file__)), \
+         mock.patch.object(backend_agent.shutil, "disk_usage", return_value=DiskUsage(100, 10, 90 * (1024 ** 3))):
       self.assertFalse(backend_agent._check_hibernate_conditions(config))
 
   def test_watchdog_tick_arms_inhibit_after_resume_gap(self) -> None:
@@ -52,8 +58,6 @@ class HibernateGraceTests(unittest.TestCase):
     backend_agent._last_watchdog_wallclock = time.time() - 600
 
     with mock.patch.object(backend_agent, "load_config", return_value=config), \
-         mock.patch.object(backend_agent, "get_user_idle_seconds", return_value=3600), \
-         mock.patch.object(backend_agent, "has_active_user_session", return_value=False), \
          mock.patch.object(backend_agent, "_no_sleep_flag_path", return_value=Path(__file__).with_name("missing-no-sleep.flag")), \
          mock.patch.object(backend_agent.shutil, "disk_usage", return_value=DiskUsage(100, 10, 90)), \
          mock.patch.object(backend_agent.subprocess, "run") as mock_run:
