@@ -128,7 +128,7 @@ export function SleepManagementTab() {
             actionPending ? 'opacity-50 cursor-not-allowed' : '',
           ].join(' ')}
         >
-          {noSleepActive ? '차단' : '허용'}
+          {noSleepActive ? '절전 차단' : '절전 허용'}
         </button>
       </div>
 
