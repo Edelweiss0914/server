@@ -1,34 +1,45 @@
 $ErrorActionPreference = "Stop"
 
-$AppRoot = "C:\ProgramData\CHEEZE\backend-agent"
-$ConfigSource = "D:\Project\deploy\backend\cheeze-backend-agent-config.example.json"
+$AppRoot     = "C:\ProgramData\CHEEZE\backend-agent"
 $AgentSource = "D:\Project\deploy\backend\cheeze-backend-agent.py"
-$PythonExe = "python"
-$TaskName = "CHEEZE Backend Agent"
+$ConfigSource= "D:\Project\deploy\backend\cheeze-backend-agent-config.example.json"
+$AgentDst    = Join-Path $AppRoot "cheeze-backend-agent.py"
+$PythonExe   = "python"
+$TaskName    = "CHEEZE Backend Agent"
 
 New-Item -ItemType Directory -Path $AppRoot -Force | Out-Null
-Copy-Item $AgentSource (Join-Path $AppRoot "cheeze-backend-agent.py") -Force
+Copy-Item $AgentSource $AgentDst -Force
 Copy-Item $ConfigSource (Join-Path $AppRoot "config.json") -Force
 
-$Action = New-ScheduledTaskAction `
-    -Execute $PythonExe `
-    -Argument (Join-Path $AppRoot "cheeze-backend-agent.py")
-
-$Trigger = New-ScheduledTaskTrigger -AtStartup
-
+$Action   = New-ScheduledTaskAction -Execute $PythonExe -Argument $AgentDst -WorkingDirectory $AppRoot
+$Startup  = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
-    -StartWhenAvailable
+    -StartWhenAvailable `
+    -ExecutionTimeLimit 0 `
+    -RestartCount 10 `
+    -RestartInterval (New-TimeSpan -Minutes 1)
 
 Register-ScheduledTask `
     -TaskName $TaskName `
     -Action $Action `
-    -Trigger $Trigger `
+    -Trigger $Startup `
     -Settings $Settings `
     -User "SYSTEM" `
     -RunLevel Highest `
-    -Force
+    -Force | Out-Null
+
+# New-ScheduledTaskTrigger does not support event triggers.
+# Inject a sleep/hibernate resume trigger (EventID=107) via task XML so the
+# agent restarts automatically after WoL wakes the PC from hibernate/sleep.
+$taskXml = Export-ScheduledTask -TaskName $TaskName
+$sub = '&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=107)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;'
+$resumeTrigger = "<EventTrigger><Enabled>true</Enabled><Subscription>$sub</Subscription></EventTrigger>"
+$taskXml = $taskXml.Replace('</Triggers>', "$resumeTrigger</Triggers>")
+Register-ScheduledTask -TaskName $TaskName -Xml $taskXml -Force | Out-Null
+
+Write-Host "Registered: '$TaskName' (AtStartup + EventID=107 hibernate/sleep resume, RestartCount=10)"
 
 Start-ScheduledTask -TaskName $TaskName
 Get-ScheduledTask -TaskName $TaskName

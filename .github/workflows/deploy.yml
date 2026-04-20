@@ -92,29 +92,62 @@ jobs:
           # Copy backend agent to its running location.
           # The agent watches its own file hash and self-restarts within one watchdog
           # interval (~60s) when the script changes. No external process control needed.
-          $src = "deploy\backend\cheeze-backend-agent.py"
-          $dst = "D:\Servers\Control\backend-agent\cheeze-backend-agent.py"
+          $src     = "deploy\backend\cheeze-backend-agent.py"
+          $dst     = "D:\Servers\Control\backend-agent\cheeze-backend-agent.py"
+          $workDir = Split-Path $dst
+
+          if (-not (Test-Path $workDir)) { New-Item -ItemType Directory -Path $workDir -Force | Out-Null }
           Copy-Item $src $dst -Force
           $srcHash = (Get-FileHash $dst -Algorithm MD5).Hash
           Write-Host "Backend agent deployed to $dst (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
 
-          # Ensure the agent process is running. If port 5010 is not listening,
-          # the process is down and must be started explicitly (self-update cannot
-          # trigger on a dead process).
+          # ── Scheduled Task: AtStartup + hibernate/sleep resume (EventID 107) ──
+          # Start-Process alone cannot restart the agent after WoL wakes the PC from
+          # hibernate. A Scheduled Task with an EventID=107 trigger fires on every
+          # resume from sleep/hibernate, ensuring the agent is always running when
+          # the PC is reachable on the network.
+          $TaskName = "CHEEZE Backend Agent"
+          $Action   = New-ScheduledTaskAction -Execute "python" -Argument $dst -WorkingDirectory $workDir
+          $Startup  = New-ScheduledTaskTrigger -AtStartup
+          $Settings = New-ScheduledTaskSettingsSet `
+              -AllowStartIfOnBatteries `
+              -DontStopIfGoingOnBatteries `
+              -StartWhenAvailable `
+              -ExecutionTimeLimit 0 `
+              -RestartCount 10 `
+              -RestartInterval (New-TimeSpan -Minutes 1)
+
+          Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Startup `
+              -Settings $Settings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
+
+          # New-ScheduledTaskTrigger does not support event triggers.
+          # Inject a sleep/hibernate resume trigger via task XML.
+          # Event ID 107 (provider: Microsoft-Windows-Kernel-Power) fires when
+          # the system resumes from S3 sleep or S4 hibernate.
+          $taskXml = Export-ScheduledTask -TaskName $TaskName
+          if ($taskXml -notmatch 'EventID=107') {
+              $sub = '&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=107)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;'
+              $resumeTrigger = "<EventTrigger><Enabled>true</Enabled><Subscription>$sub</Subscription></EventTrigger>"
+              $taskXml = $taskXml.Replace('</Triggers>', "$resumeTrigger</Triggers>")
+              Register-ScheduledTask -TaskName $TaskName -Xml $taskXml -Force | Out-Null
+              Write-Host "Hibernate/sleep resume trigger (EventID=107) added to scheduled task."
+          }
+          Write-Host "Scheduled task ensured: '$TaskName' (AtStartup + EventID=107 resume, RestartCount=10)"
+
+          # ── Ensure the agent process is currently running ─────────────────
           $listening = netstat -ano | Select-String ":5010\s.*LISTENING"
           if ($listening) {
-            Write-Host "Backend agent already listening on :5010 — self-restart will handle the update."
+              Write-Host "Backend agent already listening on :5010 — self-restart will handle the update."
           } else {
-            Write-Host "Port 5010 not listening — starting backend agent."
-            $workDir = Split-Path $dst
-            Start-Process -FilePath "python" -ArgumentList $dst -WorkingDirectory $workDir -WindowStyle Hidden
-            Start-Sleep -Seconds 3
-            $check = netstat -ano | Select-String ":5010\s.*LISTENING"
-            if ($check) {
-              Write-Host "Backend agent started successfully."
-            } else {
-              Write-Host "WARNING: Backend agent may not have started — check $workDir\agent.log"
-            }
+              Write-Host "Port 5010 not listening — starting scheduled task."
+              Start-ScheduledTask -TaskName $TaskName
+              Start-Sleep -Seconds 5
+              $check = netstat -ano | Select-String ":5010\s.*LISTENING"
+              if ($check) {
+                  Write-Host "Backend agent started successfully."
+              } else {
+                  Write-Host "WARNING: Backend agent may not have started — check $workDir\agent.log"
+              }
           }
 
           Write-Host "Homepc deploy complete."
