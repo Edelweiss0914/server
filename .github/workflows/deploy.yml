@@ -98,4 +98,23 @@ jobs:
           $srcHash = (Get-FileHash $dst -Algorithm MD5).Hash
           Write-Host "Backend agent deployed to $dst (hash: $($srcHash.Substring(0,8))). Agent will self-restart if changed."
 
+          # Ensure the agent process is running. If port 5010 is not listening,
+          # the process is down and must be started explicitly (self-update cannot
+          # trigger on a dead process).
+          $listening = netstat -ano | Select-String ":5010\s.*LISTENING"
+          if ($listening) {
+            Write-Host "Backend agent already listening on :5010 — self-restart will handle the update."
+          } else {
+            Write-Host "Port 5010 not listening — starting backend agent."
+            $workDir = Split-Path $dst
+            Start-Process -FilePath "python" -ArgumentList $dst -WorkingDirectory $workDir -WindowStyle Hidden
+            Start-Sleep -Seconds 3
+            $check = netstat -ano | Select-String ":5010\s.*LISTENING"
+            if ($check) {
+              Write-Host "Backend agent started successfully."
+            } else {
+              Write-Host "WARNING: Backend agent may not have started — check $workDir\agent.log"
+            }
+          }
+
           Write-Host "Homepc deploy complete."
