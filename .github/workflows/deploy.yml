@@ -23,6 +23,7 @@ jobs:
           echo "${CHANGED:-없음}"
           echo "====================="
 
+          git stash
           git pull origin main
 
           # Legacy native Python/Next.js services must remain disabled.
