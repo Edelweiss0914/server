@@ -1270,6 +1270,11 @@ class Handler(BaseHTTPRequestHandler):
       self.respond_json(200, _hibernate_debug_info(config))
       return
 
+    if self.path == "/no-sleep":
+      flag_path = _no_sleep_flag_path(config.get("hibernate_policy", {}))
+      self.respond_json(200, {"active": flag_path.exists(), "flag_path": str(flag_path)})
+      return
+
     if self.path == "/system/resources":
       self.respond_json(200, _get_system_resources())
       return
