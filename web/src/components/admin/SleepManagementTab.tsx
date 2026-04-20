@@ -110,9 +110,11 @@ export function SleepManagementTab() {
       {/* No-sleep toggle */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">절전 방지 플래그</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">절전 제어</h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            활성화하면 백엔드 PC가 자동으로 절전 모드에 진입하지 않습니다.
+            {noSleepActive
+              ? '차단 중 — no-sleep 플래그가 활성화되어 절전에 진입하지 않습니다.'
+              : '허용 중 — 조건 충족 시 자동으로 절전에 진입합니다.'}
           </p>
         </div>
         <button
@@ -122,11 +124,11 @@ export function SleepManagementTab() {
             'shrink-0 rounded-lg px-4 py-2 text-xs font-medium transition-colors',
             noSleepActive
               ? 'bg-amber-500 text-white hover:bg-amber-600'
-              : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600',
+              : 'bg-blue-500 text-white hover:bg-blue-600',
             actionPending ? 'opacity-50 cursor-not-allowed' : '',
           ].join(' ')}
         >
-          {noSleepActive ? '절전 켜기' : '절전 끄기'}
+          {noSleepActive ? '차단' : '허용'}
         </button>
       </div>
 
