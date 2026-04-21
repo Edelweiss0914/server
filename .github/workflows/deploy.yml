@@ -122,22 +122,28 @@ jobs:
               -RestartCount 10 `
               -RestartInterval (New-TimeSpan -Minutes 1)
 
-          Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Startup `
-              -Settings $Settings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
+          # Only register if the task does not already exist (requires admin).
+          $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+          if (-not $existingTask) {
+              try {
+                  Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Startup `
+                      -Settings $Settings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
 
-          # New-ScheduledTaskTrigger does not support event triggers.
-          # Inject a sleep/hibernate resume trigger via task XML.
-          # Event ID 107 (provider: Microsoft-Windows-Kernel-Power) fires when
-          # the system resumes from S3 sleep or S4 hibernate.
-          $taskXml = Export-ScheduledTask -TaskName $TaskName
-          if ($taskXml -notmatch 'EventID=107') {
-              $sub = '&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=107)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;'
-              $resumeTrigger = "<EventTrigger><Enabled>true</Enabled><Subscription>$sub</Subscription></EventTrigger>"
-              $taskXml = $taskXml.Replace('</Triggers>', "$resumeTrigger</Triggers>")
-              Register-ScheduledTask -TaskName $TaskName -Xml $taskXml -Force | Out-Null
-              Write-Host "Hibernate/sleep resume trigger (EventID=107) added to scheduled task."
+                  $taskXml = Export-ScheduledTask -TaskName $TaskName
+                  if ($taskXml -notmatch 'EventID=107') {
+                      $sub = '&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=107)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;'
+                      $resumeTrigger = "<EventTrigger><Enabled>true</Enabled><Subscription>$sub</Subscription></EventTrigger>"
+                      $taskXml = $taskXml.Replace('</Triggers>', "$resumeTrigger</Triggers>")
+                      Register-ScheduledTask -TaskName $TaskName -Xml $taskXml -Force | Out-Null
+                      Write-Host "Hibernate/sleep resume trigger (EventID=107) added to scheduled task."
+                  }
+                  Write-Host "Scheduled task registered: '$TaskName'"
+              } catch {
+                  Write-Host "WARNING: Could not register scheduled task (requires admin). Skipping."
+              }
+          } else {
+              Write-Host "Scheduled task '$TaskName' already exists — skipping registration."
           }
-          Write-Host "Scheduled task ensured: '$TaskName' (AtStartup + EventID=107 resume, RestartCount=10)"
 
           # ── Ensure the agent process is currently running ─────────────────
           $listening = netstat -ano | Select-String ":5010\s.*LISTENING"
