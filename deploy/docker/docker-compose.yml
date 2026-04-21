@@ -91,6 +91,7 @@ services:
       - CHEEZE_CONTROL_LISTEN_PORT=11436
       - CHEEZE_SERVICE_REGISTRY=/app/service-registry.example.json
       - CHEEZE_BACKEND_TIMEOUT=20
+      - CHEEZE_WOL_TARGET_IP=${CHEEZE_WOL_BROADCAST:-192.168.50.255}
     healthcheck:
       test:
         [
