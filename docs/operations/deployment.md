@@ -1,6 +1,6 @@
 # CHEEZE 배포 절차
 
-> 최종 업데이트: 2026-04-18
+> 최종 업데이트: 2026-04-21
 
 ## 목차
 
@@ -69,8 +69,9 @@ GitHub Actions를 사용하여 `main` 브랜치 push 시 자동 배포됩니다.
 | 소스 경로 (리포지토리) | 배포 경로 | 서비스 |
 |------------------------|-----------|--------|
 | `deploy/backend/cheeze-backend-agent.py` | `D:\Servers\Control\backend-agent\cheeze-backend-agent.py` | Backend Agent |
+| `deploy/backend/restart-loop.ps1` | `D:\Servers\Control\backend-agent\restart-loop.ps1` | Backend Agent 래퍼 |
 
-> **주의:** Backend Agent 실제 실행 경로는 `D:\Servers\Control\backend-agent\`입니다. 배포 후 해당 경로로 파일을 복사해야 합니다. Backend Agent는 `Start-Process`로 실행 중 (별도 Windows 서비스 없음).
+> Backend Agent는 `restart-loop.ps1` 래퍼를 통해 Windows Scheduled Task(`CHEEZE Backend Agent`)로 실행됩니다. 트리거: `AtStartup` + `EventID=107`(hibernate/sleep resume). 에이전트가 종료되면 래퍼가 5초 내에 자동 재시작합니다.
 
 ---
 
@@ -103,11 +104,15 @@ steps:
 ```powershell
 1. git fetch origin main
 2. git pull origin main
-3. Backend Agent 스크립트 MD5 해시 출력 (로그 목적)
-4. Agent가 자체 파일 해시를 감지 → ~30초 내 자동 재시작
+3. cheeze-backend-agent.py + restart-loop.ps1 → D:\Servers\Control\backend-agent\ 복사
+4. Scheduled Task 등록/갱신:
+   - AtStartup 트리거 (StartWhenAvailable)
+   - EventID=107 트리거 (hibernate/sleep resume)
+   - RestartCount=10, interval=1분
+5. 포트 5010 미리스닝 시 → Start-ScheduledTask 로 기동
 ```
 
-Backend Agent는 자체 watchdog 루프로 스크립트 변경을 감지하여 재시작합니다. 외부 프로세스 제어 불필요.
+에이전트는 `restart-loop.ps1` 래퍼 안에서 실행되므로, 크래시·kill 발생 시 5초 내 자동 재시작됩니다. 스크립트 변경은 에이전트 자체 해시 감지로 ~60초 내 반영됩니다.
 
 ---
 
@@ -167,7 +172,36 @@ systemctl restart cheeze-discord-bot
 # Windows PC에서
 Set-Location D:\Project
 git pull origin main
-# Backend Agent는 자동으로 파일 변경을 감지하여 재시작됨
+
+$dst     = "D:\Servers\Control\backend-agent\cheeze-backend-agent.py"
+$workDir = "D:\Servers\Control\backend-agent"
+
+Copy-Item deploy\backend\cheeze-backend-agent.py $dst -Force
+Copy-Item deploy\backend\restart-loop.ps1 "$workDir\restart-loop.ps1" -Force
+
+# Scheduled Task 등록 (최초 설치 또는 태스크 재구성 시)
+$TaskName   = "CHEEZE Backend Agent"
+$loopScript = "$workDir\restart-loop.ps1"
+$Action     = New-ScheduledTaskAction -Execute "powershell" `
+    -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$loopScript`"" `
+    -WorkingDirectory $workDir
+$Startup    = New-ScheduledTaskTrigger -AtStartup
+$Settings   = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable -ExecutionTimeLimit 0 -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Startup `
+    -Settings $Settings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
+
+# EventID=107 (hibernate resume) 트리거 주입
+$taskXml = Export-ScheduledTask -TaskName $TaskName
+if ($taskXml -notmatch 'EventID=107') {
+    $sub = '&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name=''Microsoft-Windows-Kernel-Power''] and (EventID=107)]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;'
+    $resumeTrigger = "<EventTrigger><Enabled>true</Enabled><Subscription>$sub</Subscription></EventTrigger>"
+    $taskXml = $taskXml.Replace('</Triggers>', "$resumeTrigger</Triggers>")
+    Register-ScheduledTask -TaskName $TaskName -Xml $taskXml -Force | Out-Null
+}
+
+# 에이전트 기동
+Start-ScheduledTask -TaskName $TaskName
 ```
 
 ### 4.3 정적 파일만 업데이트
@@ -228,8 +262,20 @@ journalctl -u cheeze-discord-bot -f
 | Docker Compose | `/var/www/home/deploy/docker/docker-compose.yml` | 메인 설정 파일 |
 | 환경변수 | `/var/www/home/deploy/docker/.env` | 서비스 환경변수 |
 | Nginx 설정 | `/var/www/home/deploy/docker/nginx/conf.d/default.conf` | 리버스 프록시 설정 |
-| Dockerfile | `/var/www/home/deploy/docker/Dockerfile.*` | 컨테이너 이미지 정의 |
+| Dockerfile | `/var/www/home/deploy/docker/<service>/Dockerfile` | 컨테이너 이미지 정의 |
 | Discord 봇 | `/opt/cheeze-bot/cheeze-discord-bot.py` | systemd로 실행 |
+
+### Docker 네트워크 구성
+
+| 서비스 | 네트워크 모드 | 리슨 주소 | 비고 |
+|--------|-------------|-----------|------|
+| `nginx` | `network_mode: host` | N/A (host 포트 직접 사용) | 리버스 프록시 |
+| `control-api` | `network_mode: host` | `0.0.0.0:11436` | WOL 브로드캐스트를 위해 호스트 네트워크 필수 |
+| `portal-api` | `cheeze-net` (bridge) | `0.0.0.0:11437` | control-api 접근 시 `host.docker.internal` 사용 |
+| `web` | `cheeze-net` (bridge) | `0.0.0.0:3000` | portal-api는 Docker DNS로 접근 |
+| `ai-queue` | `cheeze-net` (bridge) | `0.0.0.0:11435` | |
+
+> **주의:** control-api는 `network_mode: host`로 실행되므로 Docker DNS(`control-api` 호스트명)를 사용할 수 없습니다. portal-api는 `extra_hosts: host.docker.internal:host-gateway` 설정을 통해 `http://host.docker.internal:11436`으로 접근합니다.
 
 ---
 

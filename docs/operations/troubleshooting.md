@@ -126,21 +126,14 @@ docker compose -f /var/www/home/deploy/docker/docker-compose.yml exec portal-api
 **진단:**
 
 ```bash
-# Control API가 WOL 패킷을 전송하는지 로그 확인
-journalctl -u cheeze-control-api --since "5 minutes ago" | grep -i wol
+# Control API 컨테이너에서 WOL 수동 테스트
+docker exec cheeze-control-api wakeonlan -i 192.168.50.255 9C:6B:00:57:73:3A
 
-# WOL 수동 테스트 (Gateway에서)
-wakeonlan <MAC_ADDRESS>
-# 또는
-python3 -c "
-import socket, struct
-mac = '<MAC_ADDRESS>'.replace('-', '').replace(':', '')
-payload = bytes.fromhex('ff' * 6 + mac * 16)
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-s.sendto(payload, ('<BROADCAST_IP>', 9))
-print('WOL 패킷 전송 완료')
-"
+# Gateway LXC 호스트에서 직접 테스트 (Docker 네트워크 우회)
+wakeonlan -i 192.168.50.255 9C:6B:00:57:73:3A
+
+# Control API 로그에서 WOL 관련 확인
+docker compose -f /var/www/home/deploy/docker/docker-compose.yml logs control-api | grep -i wol
 ```
 
 **체크리스트:**
@@ -148,9 +141,23 @@ print('WOL 패킷 전송 완료')
 - [ ] PC BIOS/UEFI에서 Wake-on-LAN 활성화 여부
 - [ ] Windows 전원 옵션 → 빠른 시작 비활성화 여부
 - [ ] 네트워크 어댑터 설정 → WOL 허용 여부
-- [ ] Control API 설정에 올바른 MAC 주소 등록 여부
-- [ ] Gateway와 PC가 같은 서브넷 또는 브로드캐스트 도달 가능 여부
-- [ ] PC가 완전 종료 상태인지 (슬립/하이버네이션은 별도 처리)
+- [ ] Control API 설정에 올바른 MAC 주소 등록 여부 (`CHEEZE_WOL_MAC`)
+- [ ] `wakeonlan` 바이너리가 control-api 컨테이너에 설치되어 있는지 (`docker exec cheeze-control-api which wakeonlan`)
+- [ ] `CHEEZE_WOL_TARGET_IP` 환경변수가 LAN 브로드캐스트 주소로 설정되어 있는지 (`docker exec cheeze-control-api printenv CHEEZE_WOL_TARGET_IP`)
+- [ ] control-api가 `network_mode: host`로 실행 중인지 (Docker bridge 네트워크에서는 WOL 브로드캐스트가 물리 LAN에 도달 불가)
+- [ ] Gateway LXC와 PC가 같은 서브넷 (192.168.50.0/24)에 있는지
+
+**네트워크 구조 (2026-04-21 이후):**
+
+```
+control-api (network_mode: host)
+  → wakeonlan -i 192.168.50.255 9C:6B:00:57:73:3A
+  → Gateway LXC eth0 (192.168.50.196) 에서 직접 브로드캐스트
+  → 물리 LAN (192.168.50.0/24) 도달
+  → Backend PC NIC 수신 → WOL 기동
+```
+
+> **주의:** control-api는 반드시 `network_mode: host`로 실행해야 WOL이 동작합니다. Docker bridge 네트워크(`cheeze-net`)에서 보낸 브로드캐스트 패킷은 물리 LAN에 도달하지 못합니다.
 
 ---
 
