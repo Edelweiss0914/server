@@ -58,10 +58,12 @@ services:
       - "127.0.0.1:11437:11437"
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - CHEEZE_PORTAL_LISTEN_HOST=0.0.0.0
       - CHEEZE_PORTAL_LISTEN_PORT=11437
-      - CHEEZE_INTERNAL_CONTROL_BASE=http://control-api:11436
+      - CHEEZE_INTERNAL_CONTROL_BASE=http://host.docker.internal:11436
     depends_on:
       control-api:
         condition: service_healthy
@@ -82,12 +84,11 @@ services:
       context: ../../deploy/gateway
       dockerfile: ../../deploy/docker/control-api/Dockerfile
     container_name: cheeze-control-api
-    ports:
-      - "127.0.0.1:11436:11436"
+    network_mode: host
     env_file:
       - .env
     environment:
-      - CHEEZE_CONTROL_LISTEN_HOST=0.0.0.0
+      - CHEEZE_CONTROL_LISTEN_HOST=127.0.0.1
       - CHEEZE_CONTROL_LISTEN_PORT=11436
       - CHEEZE_SERVICE_REGISTRY=/app/service-registry.example.json
       - CHEEZE_BACKEND_TIMEOUT=20
@@ -107,8 +108,6 @@ services:
     restart: unless-stopped
     volumes:
       - ../orchestrator/service-registry.example.json:/app/service-registry.example.json:ro
-    networks:
-      - cheeze-net
 
   ai-queue:
     build:
