@@ -27,6 +27,7 @@
 | [Portal API](services/cheeze-portal-api.md) | 공개 파사드 — 토큰 인증, 감사 로그, 시간 제한 |
 | [Control API](services/cheeze-control-api.md) | 내부 제어 — WOL, 백엔드 프록시, 오프라인 폴백 |
 | [Backend Agent](services/cheeze-backend-agent.md) | Windows 에이전트 — 서비스 수명주기, 유휴 감지, RCON |
+| [E-class 자동화](services/eclass-automation.md) | 명지전문대 LMS 자동 출석/강의 관리 — FastAPI + Playwright |
 | [AI Queue](services/cheeze-ai-queue.md) | AI 요청 큐 — Ollama 프록시, 자동 시작 |
 | [Discord Bot](services/cheeze-discord-bot.md) | Discord 슬래시 커맨드 — 게임 서버 제어 |
 | [온디맨드 서비스](services/on-demand-services.md) | Minecraft, Ollama — WOL, 유휴 경고, 하이버네이션 |

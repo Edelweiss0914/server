@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+playwright
+pydantic
+pydantic-settings
+sqlalchemy[asyncio]
+aiosqlite
+aiohttp
+apscheduler

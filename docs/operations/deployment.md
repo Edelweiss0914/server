@@ -1,6 +1,6 @@
 # CHEEZE 배포 절차
 
-> 최종 업데이트: 2026-04-21
+> 최종 업데이트: 2026-04-24
 
 ## 목차
 
@@ -11,6 +11,7 @@
 5. [서비스 재시작](#5-서비스-재시작)
 6. [롤백 절차](#6-롤백-절차)
 7. [새 서비스 추가 시 배포 설정](#7-새-서비스-추가-시-배포-설정)
+8. [E-class 자동화 서���스 배포](#8-e-class-자동화-서비스-배포-cloud-vm)
 
 ---
 
@@ -427,7 +428,90 @@ sudo systemctl start cheeze-<service-name>
 
 ---
 
-## 8. Pterodactyl Panel 커스텀 이미지 재배포
+## 8. E-class 자동화 서비스 배포 (Cloud VM)
+
+E-class 서비스는 Cloud VM (10.0.0.10)에서 독립 Docker Compose로 운영됩니다.
+Gateway LXC의 기존 Compose와 별개입니다.
+
+### 8.1 최초 배포
+
+Cloud VM에서 실행:
+
+```bash
+# 1. 소스 복제 (또는 eclass/ 디렉토리만 전송)
+cd /home/docker
+git clone <repo-url> temp-repo
+cp -r temp-repo/eclass /home/docker/eclass
+rm -rf temp-repo
+
+# 2. 데이터 디렉토리 생성
+mkdir -p /home/data/eclass/browser-state
+
+# 3. Docker 이미지 빌드 및 실행
+cd /home/docker/eclass
+docker compose build
+docker compose up -d
+
+# 4. 정상 동작 확인
+docker compose logs -f eclass-api    # 로그 확인
+curl http://localhost:8030/healthz    # 헬스체크
+```
+
+### 8.2 업데이트 배포
+
+```bash
+cd /home/docker/eclass
+
+# 1. 최신 소스 복사 (Windows → GitHub → Cloud VM)
+# Gateway에서: scp -r /var/www/home/eclass root@10.0.0.10:/home/docker/eclass
+# 또는 Cloud VM에서 직접 git pull
+
+# 2. 재빌드 및 재시작
+docker compose build && docker compose up -d
+
+# 3. 확인
+docker compose logs --tail 20 eclass-api
+curl http://localhost:8030/healthz
+```
+
+### 8.3 Cloudflare Access 설정
+
+Cloudflare Dashboard에서 `/lms*` 경로 보호 추가:
+
+1. Cloudflare Zero Trust → Access → Applications
+2. 기존 애플리케이션에 경로 추가 또는 신규 생성:
+   - Application name: `E-class LMS`
+   - Session duration: 24h
+   - Application domain: `edelweiss0297.cloud`
+   - Path: `/lms`
+3. Policy: Allow, 기존 OTP 이메일 인증 정책 적용
+
+### 8.4 운영 명령어
+
+```bash
+# 상태 확인
+docker compose -f /home/docker/eclass/docker-compose.yml ps
+
+# 로그 확인
+docker compose -f /home/docker/eclass/docker-compose.yml logs -f
+
+# 재시작
+docker compose -f /home/docker/eclass/docker-compose.yml restart
+
+# 중지/시작
+docker compose -f /home/docker/eclass/docker-compose.yml down
+docker compose -f /home/docker/eclass/docker-compose.yml up -d
+```
+
+### 8.5 포트 확인
+
+| 포트 | 서비스 | 접근 |
+|------|--------|------|
+| 8030 | eclass-api (FastAPI) | Next.js API 라우트 경유 (직접 노출 안 함) |
+
+---
+
+## 9. Pterodactyl Panel 커스텀 이미지 재배포
 
 Pterodactyl Panel은 upstream 이미지를 그대로 쓰지 않고
 `deploy/docker/pterodactyl-panel/` 아래의 커스텀 빌드 자산으로 재배포한다.

@@ -1,0 +1,18 @@
+services:
+  eclass-api:
+    build: .
+    container_name: eclass-api
+    ports:
+      - "8030:8000"
+    environment:
+      ECLASS_BASE_URL: https://cyber.mjc.ac.kr
+      ECLASS_DB_PATH: /data/eclass.db
+      TZ: Asia/Seoul
+    volumes:
+      - /home/data/eclass:/data
+    restart: unless-stopped
+    shm_size: '512m'
+    deploy:
+      resources:
+        limits:
+          memory: 1g
