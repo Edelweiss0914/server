@@ -16,68 +16,47 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=list[CourseResponse])
 async def list_courses(db: AsyncSession = Depends(get_db)) -> list[CourseResponse]:
-    """Fetch course list from E-class via browser."""
+    """Fetch course list from E-class main dashboard."""
     page = await browser_manager.get_page()
     await page.goto(
-        f"{settings.ECLASS_BASE_URL}/ilos/main/main_form.acl",
+        f"{settings.ECLASS_BASE_URL}/home/mainHome/Form/myPage",
         wait_until="networkidle",
         timeout=30000,
     )
 
+    # Courses are rendered as <a href="javascript:moveClassRoomMain(...)"> links
+    # Pattern: moveClassRoomMain('courseCode', 'courseId', 'UNI'|'CO')
+    raw_courses = await page.evaluate("""() => {
+        const results = [];
+        document.querySelectorAll('a[href*="moveClassRoomMain"]').forEach(a => {
+            const match = a.href.match(/moveClassRoomMain\\s*\\(\\s*'([^']*)'\\s*,\\s*'([^']*)'\\s*,\\s*'([^']*)'\\s*\\)/);
+            if (match) {
+                results.push({
+                    course_code: match[1],
+                    course_id: match[2],
+                    course_type: match[3],
+                    course_name: a.innerText.trim()
+                });
+            }
+        });
+        return results;
+    }""")
+
     courses = []
-
-    # NOTE: Selectors are best-effort estimates; adjust after real site testing
-    course_elements = await page.query_selector_all(".course-box, .course_box, .sub_open")
-
-    for el in course_elements:
-        link = await el.query_selector("a[href*='KJKEY']")
-        if not link:
+    seen_ids: set[str] = set()
+    for c in raw_courses:
+        cid = c["course_id"]
+        if not cid or cid in seen_ids:
             continue
-        href = await link.get_attribute("href") or ""
-        course_id = ""
-        if "KJKEY=" in href:
-            course_id = href.split("KJKEY=")[1].split("&")[0]
-
-        # NOTE: Selector names vary across LMS deployments; validate against real site
-        name_el = await el.query_selector(".course-name, .course_name, .sub_open_title span")
-        course_name = await name_el.inner_text() if name_el else "Unknown"
-
-        # NOTE: Professor selector may need adjustment after site inspection
-        prof_el = await el.query_selector(".prof-name, .professor, .sub_open_teacher")
-        professor = await prof_el.inner_text() if prof_el else ""
-
-        if course_id:
-            courses.append(
-                CourseResponse(
-                    course_id=course_id.strip(),
-                    course_name=course_name.strip(),
-                    professor=professor.strip(),
-                    attendance_rate=None,
-                )
+        seen_ids.add(cid)
+        courses.append(
+            CourseResponse(
+                course_id=cid,
+                course_name=c["course_name"],
+                professor="",
+                attendance_rate=None,
             )
-
-    if not courses:
-        # Fallback: try table/list-based layouts used by some Korean LMS systems
-        # NOTE: These selectors also need real site validation
-        rows = await page.query_selector_all("table.course-list tr, .my-course-list li")
-        for row in rows:
-            link = await row.query_selector("a[href*='KJKEY']")
-            if not link:
-                continue
-            href = await link.get_attribute("href") or ""
-            course_id = ""
-            if "KJKEY=" in href:
-                course_id = href.split("KJKEY=")[1].split("&")[0]
-            course_name = await link.inner_text()
-            if course_id:
-                courses.append(
-                    CourseResponse(
-                        course_id=course_id.strip(),
-                        course_name=course_name.strip(),
-                        professor="",
-                        attendance_rate=None,
-                    )
-                )
+        )
 
     logger.info("Fetched %d courses", len(courses))
     return courses
