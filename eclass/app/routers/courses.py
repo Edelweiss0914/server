@@ -83,6 +83,31 @@ async def list_courses(db: AsyncSession = Depends(get_db)) -> list[CourseRespons
     return courses
 
 
+@router.get("/debug/html")
+async def debug_courses_html() -> dict[str, Any]:
+    """Return raw HTML of the courses page for selector debugging."""
+    page = await browser_manager.get_page()
+
+    # First check if logged in
+    logged_in = await browser_manager.is_logged_in()
+
+    await page.goto(
+        f"{settings.ECLASS_BASE_URL}/ilos/main/main_form.acl",
+        wait_until="networkidle",
+        timeout=30000,
+    )
+
+    html = await page.content()
+    current_url = page.url
+
+    return {
+        "logged_in": logged_in,
+        "current_url": current_url,
+        "html_length": len(html),
+        "html": html[:50000],  # Truncate to 50KB
+    }
+
+
 @router.get("/{course_id}/lectures", response_model=list[LectureResponse])
 async def list_lectures(
     course_id: str,
