@@ -20,6 +20,8 @@ export interface ExamMeta {
   bgColor: string
   bgColorDark: string
   icon: string            // SVG string
+  timeLimit?: number      // minutes
+  passingScore?: number   // percentage (default: 72)
 }
 
 export interface ProgressRecord {
