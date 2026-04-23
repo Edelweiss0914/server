@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { use, useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getExamMeta, getExamQuestions } from '@/data/questions/index'
@@ -10,15 +10,6 @@ import { useProgress } from '@/lib/quiz/useProgress'
 interface PageProps {
   params: Promise<{ exam: string }>
 }
-
-interface QState {
-  selected: number | null
-  selectedMulti: number[]
-  submitted: boolean
-  revealed: boolean
-}
-
-const defaultQState: QState = { selected: null, selectedMulti: [], submitted: false, revealed: false }
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -33,6 +24,15 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+// Per-question state cache for prev/next navigation
+interface CachedState {
+  selectedOption: number | null
+  selectedOptions: number[]
+  submitted: boolean
+  revealed: boolean
+  noteDraft: string
 }
 
 export default function QuizPage({ params }: PageProps) {
@@ -54,30 +54,53 @@ export default function QuizPage({ params }: PageProps) {
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [noWrongAnswers, setNoWrongAnswers] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [qStates, setQStates] = useState<Map<number, QState>>(new Map())
+  const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [selectedOptions, setSelectedOptions] = useState<number[]>([])
+  const [submitted, setSubmitted] = useState(false)
+  const [revealed, setRevealed] = useState(false)
+  const [score, setScore] = useState({ correct: 0, total: 0 })
   const [finished, setFinished] = useState(false)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [timerEnabled, setTimerEnabled] = useState(true)
   const [startTime] = useState(Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Per-question state cache (ref to avoid re-renders)
+  const stateCache = useRef<Map<number, CachedState>>(new Map())
+  // Option shuffle maps (ref, keyed by question ID)
   const optMapsRef = useRef<Map<string, number[]>>(new Map())
-  const [visited, setVisited] = useState<Set<number>>(new Set([0]))
 
-  // Per-question state helpers
-  const getQState = useCallback((idx: number): QState => {
-    return qStates.get(idx) ?? { ...defaultQState }
-  }, [qStates])
-
-  const updateQState = useCallback((idx: number, patch: Partial<QState>) => {
-    setQStates(prev => {
-      const next = new Map(prev)
-      const current = next.get(idx) ?? { ...defaultQState }
-      next.set(idx, { ...current, ...patch })
-      return next
+  // Save current question state to cache
+  const saveCurrent = useCallback(() => {
+    stateCache.current.set(currentIndex, {
+      selectedOption,
+      selectedOptions,
+      submitted,
+      revealed,
+      noteDraft,
     })
+  }, [currentIndex, selectedOption, selectedOptions, submitted, revealed])
+
+  // Restore question state from cache
+  const restoreState = useCallback((idx: number) => {
+    const cached = stateCache.current.get(idx)
+    if (cached) {
+      setSelectedOption(cached.selectedOption)
+      setSelectedOptions(cached.selectedOptions)
+      setSubmitted(cached.submitted)
+      setRevealed(cached.revealed)
+      setNoteDraft(cached.noteDraft)
+    } else {
+      setSelectedOption(null)
+      setSelectedOptions([])
+      setSubmitted(false)
+      setRevealed(false)
+      setNoteDraft('')
+    }
+    setNoteSaved(false)
   }, [])
 
-  // Option map for shuffling options
+  // Get option map for a question (shuffle or identity)
   const getOptMap = useCallback((q: QuizQuestion): number[] => {
     if (!randomOpts) return q.options.map((_, i) => i)
     if (!optMapsRef.current.has(q.id)) {
@@ -85,14 +108,6 @@ export default function QuizPage({ params }: PageProps) {
     }
     return optMapsRef.current.get(q.id)!
   }, [randomOpts])
-
-  // Track visited questions on navigation
-  useEffect(() => {
-    setVisited(prev => {
-      if (prev.has(currentIndex)) return prev
-      return new Set([...prev, currentIndex])
-    })
-  }, [currentIndex])
 
   // Build question list based on mode
   useEffect(() => {
@@ -113,9 +128,13 @@ export default function QuizPage({ params }: PageProps) {
     const count = countParam > 0 ? Math.min(countParam, ordered.length) : ordered.length
     setQuestions(ordered.slice(0, count))
     setCurrentIndex(0)
-    setQStates(new Map())
+    setSelectedOption(null)
+    setSelectedOptions([])
+    setSubmitted(false)
+    setRevealed(false)
+    setScore({ correct: 0, total: 0 })
     setFinished(false)
-    setVisited(new Set([0]))
+    stateCache.current = new Map()
     optMapsRef.current = new Map()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exam, mode, countParam, tParam, progressLoaded, randomQ])
@@ -126,18 +145,21 @@ export default function QuizPage({ params }: PageProps) {
     let totalSeconds: number
     if (mode === 'exam') {
       totalSeconds = 130 * 60
-    } else if (meta.timeLimit) {
-      totalSeconds = meta.timeLimit * 60
+    } else if ((meta as unknown as { timeLimit?: number }).timeLimit) {
+      totalSeconds = (meta as unknown as { timeLimit: number }).timeLimit * 60
     } else {
       totalSeconds = questions.length * 120
     }
     setTimeLeft(totalSeconds)
   }, [meta, questions, timerEnabled, mode])
 
-  // Timer countdown — single interval, no re-creation per tick
-  const timerActive = timeLeft !== null && timerEnabled && !finished
+  // Timer countdown
   useEffect(() => {
-    if (!timerActive) return
+    if (timeLeft === null || !timerEnabled || finished) return
+    if (timeLeft <= 0) {
+      setFinished(true)
+      return
+    }
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev === null || prev <= 1) {
@@ -150,87 +172,80 @@ export default function QuizPage({ params }: PageProps) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [timerActive])
+  }, [timeLeft, timerEnabled, finished])
 
   const currentQuestion = questions[currentIndex]
-  const state = getQState(currentIndex)
   const isMulti = currentQuestion ? Array.isArray(currentQuestion.answer) : false
-  const isLocked = state.submitted || state.revealed
-
-  // Score computed from qStates
-  const score = useMemo(() => {
-    let correct = 0, total = 0
-    qStates.forEach((s, idx) => {
-      if (!s.submitted) return
-      total++
-      const q = questions[idx]
-      if (!q) return
-      if (Array.isArray(q.answer)) {
-        const ca = q.answer.slice().sort()
-        const sa = s.selectedMulti.slice().sort()
-        if (ca.length === sa.length && ca.every((v, i) => v === sa[i])) correct++
-      } else {
-        if (s.selected === q.answer) correct++
-      }
-    })
-    return { correct, total }
-  }, [qStates, questions])
+  const isLocked = submitted || revealed
 
   const handleSelect = useCallback((origIdx: number) => {
-    if (isLocked) return
+    if (submitted || revealed) return
     if (isMulti) {
-      setQStates(prev => {
-        const next = new Map(prev)
-        const current = next.get(currentIndex) ?? { ...defaultQState }
-        const sm = current.selectedMulti
-        const updated = sm.includes(origIdx) ? sm.filter(i => i !== origIdx) : [...sm, origIdx]
-        next.set(currentIndex, { ...current, selectedMulti: updated })
-        return next
-      })
+      setSelectedOptions((prev) =>
+        prev.includes(origIdx) ? prev.filter((i) => i !== origIdx) : [...prev, origIdx]
+      )
     } else {
-      updateQState(currentIndex, { selected: origIdx })
+      setSelectedOption(origIdx)
     }
-  }, [isLocked, isMulti, currentIndex, updateQState])
+  }, [submitted, revealed, isMulti])
 
   const handleSubmit = useCallback(() => {
-    if (!currentQuestion || isLocked) return
+    if (!currentQuestion || submitted || revealed) return
     if (isMulti) {
-      if (state.selectedMulti.length === 0) return
+      if (selectedOptions.length === 0) return
       const correct = (currentQuestion.answer as number[]).slice().sort()
-      const selected = state.selectedMulti.slice().sort()
+      const selected = selectedOptions.slice().sort()
       const isCorrect = correct.length === selected.length && correct.every((v, i) => v === selected[i])
-      updateQState(currentIndex, { submitted: true })
+      setSubmitted(true)
+      setScore((prev) => ({
+        correct: isCorrect ? prev.correct + 1 : prev.correct,
+        total: prev.total + 1,
+      }))
       markSeen(currentQuestion.id)
       if (isCorrect) markCorrect(currentQuestion.id)
       else markWrong(currentQuestion.id)
     } else {
-      if (state.selected === null) return
-      const isCorrect = state.selected === (currentQuestion.answer as number)
-      updateQState(currentIndex, { submitted: true })
+      if (selectedOption === null) return
+      const isCorrect = selectedOption === (currentQuestion.answer as number)
+      setSubmitted(true)
+      setScore((prev) => ({
+        correct: isCorrect ? prev.correct + 1 : prev.correct,
+        total: prev.total + 1,
+      }))
       markSeen(currentQuestion.id)
       if (isCorrect) markCorrect(currentQuestion.id)
       else markWrong(currentQuestion.id)
     }
-  }, [currentQuestion, isLocked, isMulti, state, currentIndex, updateQState, markSeen, markCorrect, markWrong])
+  }, [selectedOption, selectedOptions, currentQuestion, isMulti, submitted, revealed, markSeen, markCorrect, markWrong])
 
   const handleReveal = useCallback(() => {
-    if (!currentQuestion || isLocked) return
-    updateQState(currentIndex, { revealed: true })
+    if (!currentQuestion || submitted || revealed) return
+    setRevealed(true)
     markSeen(currentQuestion.id)
-  }, [currentQuestion, isLocked, currentIndex, updateQState, markSeen])
+  }, [currentQuestion, submitted, revealed, markSeen])
 
+  // Navigation: prev / next (save & restore state)
   const handlePrev = useCallback(() => {
-    if (currentIndex > 0) setCurrentIndex(i => i - 1)
-  }, [currentIndex])
+    if (currentIndex <= 0) return
+    saveCurrent()
+    const newIdx = currentIndex - 1
+    setCurrentIndex(newIdx)
+    restoreState(newIdx)
+  }, [currentIndex, saveCurrent, restoreState])
 
   const handleNextNav = useCallback(() => {
-    if (currentIndex < questions.length - 1) setCurrentIndex(i => i + 1)
-  }, [currentIndex, questions.length])
+    if (currentIndex >= questions.length - 1) return
+    saveCurrent()
+    const newIdx = currentIndex + 1
+    setCurrentIndex(newIdx)
+    restoreState(newIdx)
+  }, [currentIndex, questions.length, saveCurrent, restoreState])
 
   const handleFinish = useCallback(() => {
+    saveCurrent()
     setFinished(true)
     if (timerRef.current) clearInterval(timerRef.current)
-  }, [])
+  }, [saveCurrent])
 
   // Note
   const [noteDraft, setNoteDraft] = useState('')
@@ -238,26 +253,21 @@ export default function QuizPage({ params }: PageProps) {
   const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (currentQuestion && isLocked) {
+    if (currentQuestion && (submitted || revealed)) {
       setNoteDraft(progress.notes?.[currentQuestion.id] ?? '')
-      setNoteSaved(false)
-    } else {
-      setNoteDraft('')
       setNoteSaved(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, isLocked])
+  }, [currentQuestion?.id, submitted, revealed])
 
   const handleNoteChange = useCallback((text: string) => {
     setNoteDraft(text)
     setNoteSaved(false)
     if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
     noteSaveTimer.current = setTimeout(() => {
-      if (currentQuestion) {
-        saveNote(currentQuestion.id, text)
-        setNoteSaved(true)
-        setTimeout(() => setNoteSaved(false), 1500)
-      }
+      saveNote(currentQuestion!.id, text)
+      setNoteSaved(true)
+      setTimeout(() => setNoteSaved(false), 1500)
     }, 500)
   }, [currentQuestion, saveNote])
 
@@ -271,18 +281,22 @@ export default function QuizPage({ params }: PageProps) {
     const count = countParam > 0 ? Math.min(countParam, ordered.length) : ordered.length
     setQuestions(ordered.slice(0, count))
     setCurrentIndex(0)
-    setQStates(new Map())
+    setSelectedOption(null)
+    setSelectedOptions([])
+    setSubmitted(false)
+    setRevealed(false)
+    setScore({ correct: 0, total: 0 })
     setFinished(false)
     setNoteDraft('')
     setNoteSaved(false)
-    setVisited(new Set([0]))
+    stateCache.current = new Map()
     optMapsRef.current = new Map()
     if (meta && timerEnabled) {
       let totalSeconds: number
       if (mode === 'exam') {
         totalSeconds = 130 * 60
-      } else if (meta.timeLimit) {
-        totalSeconds = meta.timeLimit * 60
+      } else if ((meta as unknown as { timeLimit?: number }).timeLimit) {
+        totalSeconds = (meta as unknown as { timeLimit: number }).timeLimit * 60
       } else {
         totalSeconds = ordered.length * 120
       }
@@ -290,7 +304,7 @@ export default function QuizPage({ params }: PageProps) {
     }
   }, [allQuestions, countParam, meta, timerEnabled, mode, randomQ])
 
-  // Cleanup note debounce timer on unmount
+  // Cleanup note timer on unmount
   useEffect(() => {
     return () => {
       if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
@@ -332,7 +346,7 @@ export default function QuizPage({ params }: PageProps) {
   if (finished) {
     const elapsed = Math.round((Date.now() - startTime) / 1000)
     const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0
-    const passing = meta.passingScore ?? 72
+    const passing = (meta as unknown as { passingScore?: number }).passingScore ?? 72
     const passed = pct >= passing
 
     return (
@@ -371,31 +385,24 @@ export default function QuizPage({ params }: PageProps) {
   }
 
   const q = currentQuestion
-  const optionLabels = q.options.map((_, i) => String.fromCharCode(65 + i))
+  const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F']
   const correctAnswers = Array.isArray(q.answer) ? q.answer : [q.answer]
   const optMap = getOptMap(q)
 
-  // Correct answer labels mapped to display order
+  // Correct answer labels in display order (for feedback)
   const correctDisplayLabels = correctAnswers.map(origIdx => {
     const displayIdx = optMap.indexOf(origIdx)
     return optionLabels[displayIdx]
   }).sort()
 
-  // Check correctness for submitted state
-  const isAnswerCorrect = state.submitted
+  const isAnswerCorrect = submitted
     ? isMulti
-      ? (() => { const ca = (q.answer as number[]).slice().sort(); const sa = state.selectedMulti.slice().sort(); return ca.length === sa.length && ca.every((v, i) => v === sa[i]) })()
-      : state.selected === (q.answer as number)
+      ? (() => { const ca = (q.answer as number[]).slice().sort(); const sa = selectedOptions.slice().sort(); return ca.length === sa.length && ca.every((v, i) => v === sa[i]) })()
+      : selectedOption === (q.answer as number)
     : false
 
-  const submitEnabled = isMulti ? state.selectedMulti.length > 0 : state.selected !== null
+  const submitEnabled = isMulti ? selectedOptions.length > 0 : selectedOption !== null
 
-  // Count answered questions (submitted or revealed) for stats display
-  const answeredCount = useMemo(() => {
-    return Array.from(qStates.values()).filter(s => s.submitted || s.revealed).length
-  }, [qStates])
-
-  // Mode badge config
   const modeBadge =
     mode === 'exam'
       ? { label: '실전 모의고사', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' }
@@ -432,7 +439,7 @@ export default function QuizPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Active settings badges */}
+      {/* Settings badges */}
       {(randomQ || randomOpts) && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {randomQ && (
@@ -463,17 +470,12 @@ export default function QuizPage({ params }: PageProps) {
             </span>
           )}
         </span>
-        <span className="flex items-center gap-2">
-          <span>{score.correct} 정답</span>
-          {answeredCount > score.total && (
-            <span className="text-xs text-zinc-400">열람 {answeredCount - score.total}</span>
-          )}
-        </span>
+        <span>{score.correct} 정답</span>
       </div>
       <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
         <div
           className="h-full rounded-full bg-blue-500 transition-all"
-          style={{ width: `${(visited.size / questions.length) * 100}%` }}
+          style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
         />
       </div>
 
@@ -483,7 +485,7 @@ export default function QuizPage({ params }: PageProps) {
           <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {q.category}
           </span>
-          {state.revealed && !state.submitted && (
+          {revealed && !submitted && (
             <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
               정답 열람
             </span>
@@ -494,7 +496,6 @@ export default function QuizPage({ params }: PageProps) {
           {q.question}
         </p>
 
-        {/* Options */}
         <div className="flex flex-col gap-2">
           {optMap.map((origIdx, displayIdx) => {
             const opt = q.options[origIdx]
@@ -502,13 +503,13 @@ export default function QuizPage({ params }: PageProps) {
 
             // Single-answer rendering
             if (!isMulti) {
-              const isSelected = state.selected === origIdx
+              const isSelected = selectedOption === origIdx
               let cls = 'rounded-lg border px-4 py-3 text-left text-sm transition-colors '
               if (!isLocked) {
                 cls += isSelected
                   ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500'
                   : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
-              } else if (state.submitted) {
+              } else if (submitted) {
                 if (isCorrectOption) {
                   cls += 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500'
                 } else if (isSelected) {
@@ -530,13 +531,13 @@ export default function QuizPage({ params }: PageProps) {
             }
 
             // Multi-answer rendering
-            const isSelected = state.selectedMulti.includes(origIdx)
+            const isSelected = selectedOptions.includes(origIdx)
             let cls = 'flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors '
             if (!isLocked) {
               cls += isSelected
                 ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500'
                 : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
-            } else if (state.submitted) {
+            } else if (submitted) {
               if (isCorrectOption && isSelected) {
                 cls += 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500'
               } else if (isCorrectOption && !isSelected) {
@@ -555,27 +556,17 @@ export default function QuizPage({ params }: PageProps) {
 
             let checkboxCls = 'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2 '
             if (!isLocked) {
-              checkboxCls += isSelected
-                ? 'border-blue-500 bg-blue-500'
-                : 'border-zinc-400 bg-white dark:border-zinc-500 dark:bg-zinc-700'
-            } else if (state.submitted) {
-              if (isCorrectOption && isSelected) {
-                checkboxCls += 'border-green-500 bg-green-500'
-              } else if (isCorrectOption && !isSelected) {
-                checkboxCls += 'border-green-400 bg-white dark:bg-zinc-800'
-              } else if (!isCorrectOption && isSelected) {
-                checkboxCls += 'border-red-400 bg-red-400'
-              } else {
-                checkboxCls += 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-700'
-              }
+              checkboxCls += isSelected ? 'border-blue-500 bg-blue-500' : 'border-zinc-400 bg-white dark:border-zinc-500 dark:bg-zinc-700'
+            } else if (submitted) {
+              if (isCorrectOption && isSelected) checkboxCls += 'border-green-500 bg-green-500'
+              else if (isCorrectOption && !isSelected) checkboxCls += 'border-green-400 bg-white dark:bg-zinc-800'
+              else if (!isCorrectOption && isSelected) checkboxCls += 'border-red-400 bg-red-400'
+              else checkboxCls += 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-700'
             } else {
-              // revealed
-              checkboxCls += isCorrectOption
-                ? 'border-green-500 bg-green-500'
-                : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-700'
+              checkboxCls += isCorrectOption ? 'border-green-500 bg-green-500' : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-700'
             }
 
-            const showCheck = (state.submitted && (isSelected || isCorrectOption)) || (state.revealed && isCorrectOption)
+            const showCheck = (submitted && (isSelected || isCorrectOption)) || (revealed && isCorrectOption)
 
             return (
               <button key={displayIdx} className={cls} onClick={() => handleSelect(origIdx)} disabled={isLocked}>
@@ -594,7 +585,7 @@ export default function QuizPage({ params }: PageProps) {
           })}
         </div>
 
-        {/* Action buttons: reveal + submit */}
+        {/* Action buttons */}
         {!isLocked && (
           <div className="mt-4 flex gap-2">
             <button
@@ -615,7 +606,7 @@ export default function QuizPage({ params }: PageProps) {
         )}
 
         {/* Feedback — submitted */}
-        {state.submitted && (
+        {submitted && (
           <div className={`mt-4 rounded-lg border p-4 ${isAnswerCorrect ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20' : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'}`}>
             <p className={`mb-2 text-sm font-medium ${isAnswerCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
               {isAnswerCorrect
@@ -626,8 +617,8 @@ export default function QuizPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Feedback — revealed (not submitted) */}
-        {state.revealed && !state.submitted && (
+        {/* Feedback — revealed */}
+        {revealed && !submitted && (
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="mb-2 text-sm font-medium text-blue-700 dark:text-blue-300">
               정답: {correctDisplayLabels.join(', ')}
