@@ -9,12 +9,10 @@ interface AuthStatus {
 }
 
 interface CourseResponse {
-  id: string
-  name: string
+  course_id: string
+  course_name: string
   professor: string
-  attendance_rate: number
-  total_lectures: number
-  attended_lectures: number
+  attendance_rate: number | null
 }
 
 interface LectureResponse {
@@ -460,29 +458,28 @@ export default function LmsPage() {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {courses.map((course) => (
-                <div key={course.id}>
+                <div key={course.course_id}>
                   <button
-                    onClick={() => handleCourseClick(course.id)}
+                    onClick={() => handleCourseClick(course.course_id)}
                     className={`w-full text-left rounded-xl border p-4 transition-colors ${
-                      selectedCourse === course.id
+                      selectedCourse === course.course_id
                         ? 'bg-gray-700 border-blue-600'
                         : 'bg-gray-800 border-gray-700 hover:border-gray-500'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{course.name}</p>
+                        <p className="text-sm font-medium text-white truncate">{course.course_name}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{course.professor}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {course.attended_lectures}/{course.total_lectures} 강의
-                        </p>
                       </div>
-                      <AttendanceRateBadge rate={course.attendance_rate} />
+                      {course.attendance_rate != null && (
+                        <AttendanceRateBadge rate={course.attendance_rate} />
+                      )}
                     </div>
                   </button>
 
                   {/* Lecture table (expanded inline) */}
-                  {selectedCourse === course.id && (
+                  {selectedCourse === course.course_id && (
                     <div className="mt-2 rounded-xl bg-gray-800 border border-gray-700 overflow-hidden">
                       {loadingLectures ? (
                         <p className="text-sm text-gray-500 p-4">강의 목록 불러오는 중...</p>
