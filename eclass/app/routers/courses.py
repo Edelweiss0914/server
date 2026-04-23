@@ -84,27 +84,31 @@ async def list_courses(db: AsyncSession = Depends(get_db)) -> list[CourseRespons
 
 
 @router.get("/debug/html")
-async def debug_courses_html() -> dict[str, Any]:
-    """Return raw HTML of the courses page for selector debugging."""
+async def debug_courses_html(url: str = "") -> dict[str, Any]:
+    """Return raw HTML for selector debugging. Pass ?url= to override target."""
     page = await browser_manager.get_page()
-
-    # First check if logged in
     logged_in = await browser_manager.is_logged_in()
 
-    await page.goto(
-        f"{settings.ECLASS_BASE_URL}/ilos/main/main_form.acl",
-        wait_until="networkidle",
-        timeout=30000,
-    )
+    target = url or f"{settings.ECLASS_BASE_URL}/home/mainHome/Form/main"
+    await page.goto(target, wait_until="networkidle", timeout=30000)
+
+    # Collect all links for navigation discovery
+    links = await page.evaluate("""() => {
+        return Array.from(document.querySelectorAll('a[href]')).map(a => ({
+            href: a.href,
+            text: a.innerText.trim().substring(0, 100),
+            id: a.id || '',
+            class: a.className || ''
+        })).filter(l => l.text.length > 0).slice(0, 100);
+    }""")
 
     html = await page.content()
-    current_url = page.url
-
     return {
         "logged_in": logged_in,
-        "current_url": current_url,
+        "current_url": page.url,
         "html_length": len(html),
-        "html": html[:50000],  # Truncate to 50KB
+        "links": links,
+        "html": html[:50000],
     }
 
 
