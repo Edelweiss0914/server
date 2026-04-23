@@ -96,13 +96,22 @@ class BrowserManager:
         try:
             await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
 
+            # Dismiss mainPopup overlay if present (announcement banner blocking clicks)
+            try:
+                popup = await page.query_selector("#mainPopup")
+                if popup:
+                    await page.evaluate("document.getElementById('mainPopup').style.display='none'")
+                    logger.info("Dismissed #mainPopup overlay")
+            except Exception:
+                pass
+
             # Fill login form (actual selectors from site: id=inputId, id=inputPwd, id=btnLogin)
             await page.wait_for_selector("#inputId", timeout=10_000)
             await page.fill("#inputId", student_id)
             await page.fill("#inputPwd", password)
 
-            # Click login button
-            await page.click("#btnLogin", timeout=10_000)
+            # Click login button (use force=True as fallback for any remaining overlays)
+            await page.click("#btnLogin", timeout=10_000, force=True)
 
             # Wait for navigation after login attempt
             await page.wait_for_load_state("networkidle", timeout=30_000)
