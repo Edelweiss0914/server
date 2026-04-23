@@ -245,7 +245,8 @@ export default function QuizPage({ params }: PageProps) {
       setNoteDraft('')
       setNoteSaved(false)
     }
-  }, [currentQuestion, isLocked, progress.notes])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, isLocked])
 
   const handleNoteChange = useCallback((text: string) => {
     setNoteDraft(text)
