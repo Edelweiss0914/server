@@ -135,8 +135,9 @@ export default function QuizPage({ params }: PageProps) {
   }, [meta, questions, timerEnabled, mode])
 
   // Timer countdown — single interval, no re-creation per tick
+  const timerActive = timeLeft !== null && timerEnabled && !finished
   useEffect(() => {
-    if (timeLeft === null || !timerEnabled || finished) return
+    if (!timerActive) return
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev === null || prev <= 1) {
@@ -149,8 +150,7 @@ export default function QuizPage({ params }: PageProps) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerEnabled, finished, timeLeft === null])
+  }, [timerActive])
 
   const currentQuestion = questions[currentIndex]
   const state = getQState(currentIndex)
