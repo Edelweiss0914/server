@@ -20,7 +20,8 @@ export default function ModeSelector({ examSlug, totalQuestions }: ModeSelectorP
     const rqPart = `&rq=${randomQ ? 1 : 0}`
     const roPart = `&ro=${randomOpts ? 1 : 0}`
     router.push(`/learn/${examSlug}/quiz?mode=${mode}${countPart}${rqPart}${roPart}&t=${t}`)
-  }, [examSlug, router, randomQ, randomOpts])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examSlug, randomQ, randomOpts])
 
   useEffect(() => {
     try {
