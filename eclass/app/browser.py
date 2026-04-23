@@ -9,8 +9,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-LOGIN_URL = f"{settings.ECLASS_BASE_URL}/user/loginUser/doLogin"
-MAIN_URL = f"{settings.ECLASS_BASE_URL}/main/index"
+LOGIN_URL = f"{settings.ECLASS_BASE_URL}/home/mainHome/Form/main"
+MAIN_URL = f"{settings.ECLASS_BASE_URL}/home/mainHome/Form/main"
 
 
 class BrowserManager:
@@ -96,8 +96,9 @@ class BrowserManager:
         try:
             await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
 
-            # Fill login form (actual E-class selectors: id=inputid, id=inputPwd, id=btnLogin)
-            await page.fill("#inputid", student_id)
+            # Fill login form (actual selectors from site: id=inputId, id=inputPwd, id=btnLogin)
+            await page.wait_for_selector("#inputId", timeout=10_000)
+            await page.fill("#inputId", student_id)
             await page.fill("#inputPwd", password)
 
             # Click login button
