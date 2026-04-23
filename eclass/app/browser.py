@@ -96,12 +96,12 @@ class BrowserManager:
         try:
             await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
 
-            # Fill login form
-            await page.fill("#inputId", student_id)
+            # Fill login form (actual E-class selectors: id=inputid, id=inputPwd, id=btnLogin)
+            await page.fill("#inputid", student_id)
             await page.fill("#inputPwd", password)
 
-            # Click submit (JS handles encryption automatically in real browser)
-            await page.click("button[type='submit'], input[type='submit'], .btn-login", timeout=10_000)
+            # Click login button
+            await page.click("#btnLogin", timeout=10_000)
 
             # Wait for navigation after login attempt
             await page.wait_for_load_state("networkidle", timeout=30_000)
