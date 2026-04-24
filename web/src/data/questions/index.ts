@@ -31,7 +31,7 @@ export const EXAMS: ExamMeta[] = [
     nameKo: '시스코 CCNA',
     nameEn: 'Cisco CCNA',
     description: 'CCNA 200-301 자격증 대비 문제입니다. 라우팅, 스위칭, 보안, 무선, IP 서비스 등을 다룹니다.',
-    totalQuestions: 10,
+    totalQuestions: 568,
     color: '#1BA0D7',
     bgColor: '#f0f9ff',
     bgColorDark: '#001a2c',
