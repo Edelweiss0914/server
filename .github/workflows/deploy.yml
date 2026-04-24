@@ -59,11 +59,10 @@ jobs:
             echo "✓ web rebuilt & restarted"
           fi
 
-          # ── Nginx 설정 변경 시 reload ────────────────────────────────
-          if echo "$CHANGED" | grep -q "^deploy/docker/nginx/"; then
-            docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -t
-            docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload
-            echo "✓ nginx config reloaded"
+          # ── Nginx 설정 변경 시 reload (compose.yml 변경 시 재생성) ──
+          if echo "$CHANGED" | grep -qE "^deploy/docker/nginx/|^deploy/docker/docker-compose\.yml$"; then
+            docker compose -f "$COMPOSE_FILE" up -d --no-deps nginx
+            echo "✓ nginx recreated/updated"
           fi
 
           # ── Discord 봇 (여전히 systemd) ──────────────────────────────

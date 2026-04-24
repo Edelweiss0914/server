@@ -36,6 +36,7 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - /var/www/home/web/public/ccna-images:/var/www/ccna-images:ro
     depends_on:
       web:
         condition: service_healthy
