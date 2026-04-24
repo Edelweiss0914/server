@@ -7,6 +7,7 @@ export interface Question {
   options: string[]       // 4 options, index 0-3
   answer: number | number[]  // single index or array of indices for multi-answer
   explanation: string
+  image?: string          // optional path to diagram image (e.g. /ccna-images/q0001.png)
 }
 
 export interface ExamMeta {

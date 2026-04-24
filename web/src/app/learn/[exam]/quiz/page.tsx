@@ -492,9 +492,19 @@ export default function QuizPage({ params }: PageProps) {
           )}
         </div>
 
-        <p className="mb-6 text-base leading-relaxed text-zinc-900 dark:text-zinc-50 whitespace-pre-line">
+        <p className="mb-4 text-base leading-relaxed text-zinc-900 dark:text-zinc-50 whitespace-pre-line">
           {q.question}
         </p>
+
+        {q.image && (
+          <div className="mb-6">
+            <img
+              src={q.image}
+              alt="Question diagram"
+              className="max-w-full rounded-lg border border-zinc-200 dark:border-zinc-700"
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           {optMap.map((origIdx, displayIdx) => {
