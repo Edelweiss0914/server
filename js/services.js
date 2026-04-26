@@ -266,6 +266,7 @@ const SERVICES = [
       'minecraft', '마인크래프트', 'hardcore', '하드코어', 'game', '게임',
       'server', '서버', 'vanilla', '바닐라', 'paper', '플러그인',
     ],
+    timeRestriction: '20:00 ~ 24:00',
     featured: false,
     searchable: false,
   },
