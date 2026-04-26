@@ -572,8 +572,8 @@ def send_time_restriction_warning(service: dict) -> None:
   end_time = time_restriction.get("end")
   if not rcon or not time_restriction.get("enabled", True) or not end_time:
     return
-  # 주말(토/일)에는 시간 제한 경고 미발송
-  if datetime.datetime.now().weekday() in (5, 6):  # 5=토, 6=일
+  # weekdays_only=True(기본값)이면 주말(토/일)에는 시간 제한 경고 미발송
+  if time_restriction.get("weekdays_only", True) and datetime.datetime.now().weekday() in (5, 6):
     return
 
   remaining = _seconds_until_time(end_time)

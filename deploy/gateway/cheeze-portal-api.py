@@ -55,6 +55,15 @@ SERVICE_TIME_RESTRICTIONS: dict = {
       "blocked_start": 1,   # 01:00 KST
       "blocked_end": 10,    # 10:00 KST
       "allowed_window": "10:00 ~ 01:00 KST",
+      "weekdays_only": True,  # 주말 제외
+    },
+  },
+  "minecraft-hardcore": {
+    "start": {
+      "blocked_start": 0,   # 00:00 KST
+      "blocked_end": 20,    # 20:00 KST (허용: 20:00 ~ 24:00)
+      "allowed_window": "20:00 ~ 24:00 KST",
+      "weekdays_only": False,  # 주말 포함 매일 적용
     },
   },
 }
@@ -64,9 +73,9 @@ def is_action_time_blocked(service_id: str, action: str) -> bool:
   restriction = SERVICE_TIME_RESTRICTIONS.get(service_id, {}).get(action)
   if not restriction:
     return False
-  # 주말(토/일)에는 시간 제한 미적용
   kst_now = datetime.now(timezone.utc) + timedelta(hours=KST_OFFSET_HOURS)
-  if kst_now.weekday() in (5, 6):  # 5=토, 6=일
+  # weekdays_only=True(기본값)이면 주말(토/일)에는 시간 제한 미적용
+  if restriction.get("weekdays_only", True) and kst_now.weekday() in (5, 6):
     return False
   kst_hour = kst_now.hour
   return restriction["blocked_start"] <= kst_hour < restriction["blocked_end"]

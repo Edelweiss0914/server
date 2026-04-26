@@ -293,6 +293,7 @@ function renderQuickCard(service) {
       ${service.onDemand ? '<span class="quick-card-ondemand" aria-label="온디맨드">ON</span>' : ''}
       <span class="quick-name">${escapeHtml(service.nameKo || service.name)}</span>
       <span class="quick-sub">${escapeHtml(service.name)}</span>
+      ${service.timeRestriction ? `<span class="quick-card-time">🕙 ${escapeHtml(service.timeRestriction)}</span>` : ''}
     </a>
   `;
 }

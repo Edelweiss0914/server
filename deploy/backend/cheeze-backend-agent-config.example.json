@@ -157,6 +157,11 @@
         "port": 25577,
         "password": "<rcon-password>"
       },
+      "time_restriction": {
+        "enabled": true,
+        "end": "24:00",
+        "weekdays_only": false
+      },
       "auto_save": {
         "enabled": true,
         "scheduled_minutes": [0, 30]

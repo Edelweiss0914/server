@@ -1337,3 +1337,20 @@ kbd {
   line-height: 1.4;
   pointer-events: none;
 }
+
+.quick-card-time {
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: #fff8e1;
+  color: #7a5700;
+  border: 1px solid #f9d96e;
+  pointer-events: none;
+  white-space: nowrap;
+}
+[data-theme="dark"] .quick-card-time {
+  background: #2a1f00;
+  color: #f4c84a;
+  border-color: #5a4200;
+}

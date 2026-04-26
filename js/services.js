@@ -363,6 +363,7 @@ window.APP_CONFIG = {
         description: '백엔드 PC에서 온디맨드로 켜지는 하드코어 게임 서버입니다.',
         category: 'Game Server',
         categoryIcon: 'GAME',
+        timeRestriction: '20:00 ~ 24:00',
         icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <ellipse cx="50" cy="42" rx="28" ry="26" fill="#c0392b"/>
           <rect x="30" y="60" width="40" height="18" rx="4" fill="#c0392b"/>
