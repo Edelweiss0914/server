@@ -125,18 +125,16 @@ Minecraft RCON 프로토콜(인증 + 패킷 프레이밍)을 사용하여 실행
 
 | 남은 시간 | 동작 |
 |----------|------|
-| 30분 전 | RCON 경고 브로드캐스트 — **계획됨 (미구현)** |
-| 20분 전 | RCON 경고 브로드캐스트 — **계획됨 (미구현)** |
-| 10분 전 | RCON 경고 브로드캐스트 — **계획됨 (미구현)** |
-| 5분 전 | RCON 경고 브로드캐스트 + 자동 저장 트리거 — **계획됨 (미구현)** |
-| 1분 전 | RCON 경고 브로드캐스트 — **계획됨 (미구현)** |
+| 30분 전 | RCON 경고 브로드캐스트 |
+| 20분 전 | RCON 경고 브로드캐스트 |
+| 10분 전 | RCON 경고 브로드캐스트 |
+| 5분 전 | RCON 경고 브로드캐스트 + 자동 저장 트리거 |
+| 1분 전 | RCON 경고 브로드캐스트 |
 | 0분 (만료) | 서비스 자동 중지 |
 
 ---
 
 ## 자동 저장
-
-> **계획됨 (미구현)**: 아래 기능은 현재 구현되지 않았습니다.
 
 | 방식 | 설명 |
 |------|------|
@@ -147,9 +145,9 @@ Minecraft RCON 프로토콜(인증 + 패킷 프레이밍)을 사용하여 실행
 
 ## 시간 제한 (강제 중지)
 
-> **계획됨 (미구현)**: 설정된 종료 시각(`stop_at`)에 실행 중인 서비스를 강제 중지하는 기능은 현재 구현되지 않았습니다.
+설정된 종료 시각(`stop_at`)에 실행 중인 서비스를 강제 중지합니다.
 
-**예시**: `stop_at: "01:00"` → 평일 01:00 KST에 자동 중지 (계획됨)
+**예시**: `stop_at: "01:00"` → 평일 01:00 KST에 자동 중지
 - **주말(토/일)에는 시간 제한 미적용** — 강제 중지 및 경고 발송이 건너뜀
 
 ---
@@ -170,19 +168,63 @@ Minecraft RCON 프로토콜(인증 + 패킷 프레이밍)을 사용하여 실행
 
 ### Inhibit 유예 기간
 
-> **참고**: 이벤트 기반 유예 기간(에이전트 시작, 시스템 재개, 서비스 시작 요청)은 **계획됨 (미구현)**입니다. 현재는 `inhibit_schedule` 시간 범위 조건만 구현되어 있습니다.
+| 트리거 | 유예 시간 | 설명 |
+|--------|----------|------|
+| 에이전트 시작 (startup) | 180초 | `start_watchdog()` 호출 시 자동 설정 |
+| 시스템 재개 (resume) | 180초 | watchdog 틱 간격이 임계값 초과 시 자동 감지 |
+| 서비스 시작 요청 (start_request) | 600초 | `/services/{id}/start` POST 성공 시 설정 |
 
-| 트리거 | 유예 시간 |
-|--------|----------|
-| 에이전트 시작 (startup) | 180초 — 계획됨 (미구현) |
-| 시스템 재개 (resume) | 180초 — 계획됨 (미구현) |
-| 서비스 시작 요청 (start_request) | 600초 — 계획됨 (미구현) |
+---
+
+## 프로세스 관리 / 자동 재시작
+
+에이전트는 `restart-loop.ps1` 래퍼를 통해 Windows Scheduled Task로 실행됩니다.
+
+### Scheduled Task 구성
+
+| 항목 | 값 |
+|------|----|
+| 태스크 이름 | `CHEEZE Backend Agent` |
+| 실행 파일 | `powershell -File restart-loop.ps1` |
+| 사용자 | `SYSTEM` |
+| 트리거 1 | `AtStartup` (StartWhenAvailable 포함) |
+| 트리거 2 | `EventID=107` — Microsoft-Windows-Kernel-Power (sleep/hibernate resume) |
+
+### 재시작 동작
+
+```
+[restart-loop.ps1]
+  └─ python cheeze-backend-agent.py  ← 에이전트 실행
+       │
+       └─ (종료 시: 크래시·kill·자체 업데이트 등)
+            └─ 5초 후 자동 재시작
+```
+
+| 시나리오 | 복구 방식 |
+|----------|----------|
+| 프로세스 크래시 / 외부 kill | `restart-loop.ps1`이 5초 후 재시작 |
+| 정상 부팅 | `AtStartup` 트리거 |
+| Hibernate / sleep resume (WoL 포함) | `EventID=107` 트리거 |
+
+### 수동 제어
+
+```powershell
+# 중지
+Stop-ScheduledTask -TaskName "CHEEZE Backend Agent"
+
+# 시작
+Start-ScheduledTask -TaskName "CHEEZE Backend Agent"
+
+# 상태 확인
+Get-ScheduledTask -TaskName "CHEEZE Backend Agent"
+(Get-ScheduledTask -TaskName "CHEEZE Backend Agent").Triggers
+```
 
 ---
 
 ## 자체 업데이트
 
-> **계획됨 (미구현)**: 에이전트 스크립트 파일의 SHA-256 해시를 주기적으로 확인하여 변경 감지 시 자동 재시작하는 기능은 현재 구현되지 않았습니다.
+에이전트 스크립트 파일의 MD5 해시를 watchdog 틱마다 확인합니다. 변경이 감지되면 현재 프로세스를 종료하고 새 프로세스를 실행합니다. `restart-loop.ps1`이 종료된 프로세스를 5초 내에 재시작합니다.
 
 ---
 
@@ -254,3 +296,5 @@ curl http://100.86.252.21:5010/hibernate/debug | jq .
 | 자동 저장이 동작하지 않음 | RCON 명령 실패 | RCON 연결 상태 및 서버 상태(`running`) 확인 |
 | 에이전트가 갑자기 재시작됨 | 자체 업데이트 감지 | 스크립트 파일 변경 이력 확인 |
 | `5010` 포트 외부 접근 불가 | 방화벽 또는 Tailscale 미연결 | Windows 방화벽 인바운드 규칙 및 Tailscale 연결 상태 확인 |
+| Hibernate 후 서비스 시작 요청이 504 반환 | EventID=107 트리거 미등록으로 resume 시 에이전트 미기동 | `(Get-ScheduledTask -TaskName "CHEEZE Backend Agent").Triggers`에서 `MSFT_TaskEventTrigger` 확인. 없으면 deploy push로 재등록 |
+| 에이전트 크래시 후 자동 재기동 안 됨 | Scheduled Task가 `restart-loop.ps1`이 아닌 python 직접 실행 중 | `(Get-ScheduledTask -TaskName "CHEEZE Backend Agent").Actions`에서 Execute 확인. `python`이면 deploy push로 교체 필요 |

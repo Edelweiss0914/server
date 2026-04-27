@@ -96,91 +96,74 @@ async def list_lectures(
     course_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> list[LectureResponse]:
-    """Fetch lecture list for a specific course via browser."""
+    """Enter a course via moveClassRoomMain and scrape lecture list."""
     page = await browser_manager.get_page()
+
+    # Step 1: Navigate to main dashboard
     await page.goto(
-        f"{settings.ECLASS_BASE_URL}/ilos/st/course/online_list_form.acl?KJKEY={course_id}",
+        f"{settings.ECLASS_BASE_URL}/home/mainHome/Form/myPage",
         wait_until="networkidle",
         timeout=30000,
     )
 
-    lectures = []
+    # Step 2: Find and execute moveClassRoomMain for this course_id
+    entered = await page.evaluate("""(courseId) => {
+        const link = document.querySelector(`a[href*="moveClassRoomMain"][href*="'${courseId}'"]`);
+        if (link) { link.click(); return true; }
+        // Fallback: try all moveClassRoomMain links
+        const all = document.querySelectorAll('a[href*="moveClassRoomMain"]');
+        for (const a of all) {
+            if (a.href.includes(courseId)) { a.click(); return true; }
+        }
+        return false;
+    }""", course_id)
 
-    # NOTE: Row selector needs validation against real site structure
-    rows = await page.query_selector_all("tr.lecture-row, .online-lecture-list tr, tbody tr")
+    if not entered:
+        logger.warning("Could not find course link for %s", course_id)
+        return []
 
-    for row in rows:
-        # NOTE: These td selectors are estimates; real site may use different class names
-        week_el = await row.query_selector("td.week, td:nth-child(1)")
-        session_el = await row.query_selector("td.session, td:nth-child(2)")
-        title_el = await row.query_selector("td.title a, td.title, td:nth-child(3) a, td:nth-child(3)")
-        status_el = await row.query_selector("td.attend-status, td.attendance, td:nth-child(4)")
-        deadline_el = await row.query_selector("td.deadline, td:nth-child(5)")
+    # Step 3: Wait for course page to load
+    await page.wait_for_load_state("networkidle", timeout=30000)
 
-        if not title_el:
-            continue
+    # Step 4: Navigate to online lecture list within the course
+    # Try clicking the online lecture menu item
+    online_menu = await page.query_selector("a[href*='online_list'], a[href*='online'], .sub-menu a:has-text('온라인'), a:has-text('온라인강의')")
+    if online_menu:
+        await online_menu.click()
+        await page.wait_for_load_state("networkidle", timeout=15000)
 
-        week_text = await week_el.inner_text() if week_el else "0"
-        session_text = await session_el.inner_text() if session_el else "0"
-        title_text = await title_el.inner_text()
-        status_text = (await status_el.inner_text() if status_el else "").strip()
-        deadline_text = (await deadline_el.inner_text() if deadline_el else "").strip()
+    # Step 5: Scrape whatever content is on the page
+    lectures_data = await page.evaluate("""() => {
+        const results = [];
+        // Try various lecture list patterns
+        const rows = document.querySelectorAll('.lecture-item, .online-item, tbody tr, .week-item, .lesson-item, [class*="lesson"], [class*="lecture"]');
+        rows.forEach((row, idx) => {
+            const text = row.innerText.trim();
+            if (text.length > 0 && text.length < 500) {
+                results.push({
+                    index: idx,
+                    text: text.substring(0, 200),
+                    tag: row.tagName,
+                    className: row.className,
+                    innerHTML: row.innerHTML.substring(0, 300)
+                });
+            }
+        });
+        // Also grab page title and URL for debugging
+        return {
+            url: window.location.href,
+            title: document.title,
+            bodyText: document.body.innerText.substring(0, 2000),
+            elements: results.slice(0, 30)
+        };
+    }""")
 
-        # Parse week/session as integers
-        try:
-            week = int(week_text.strip())
-        except ValueError:
-            week = 0
-        try:
-            session = int(session_text.strip())
-        except ValueError:
-            session = 0
+    logger.info("Lecture page for %s: url=%s, elements=%d",
+                course_id, lectures_data.get("url"), len(lectures_data.get("elements", [])))
 
-        # Map Korean attendance status strings to internal values
-        if status_text in ("출석", "Y"):
-            attendance = "completed"
-        elif status_text == "부분출석":
-            attendance = "partial"
-        elif status_text in ("결석", "N"):
-            attendance = "absent"
-        else:
-            attendance = "not_started"
-
-        # Extract lecture_id from data-seq or link href
-        lecture_id = f"{course_id}_W{week:02d}_S{session:02d}"
-        data_seq = await row.get_attribute("data-seq")
-        if data_seq:
-            lecture_id = data_seq
-        else:
-            link_el = await row.query_selector("a[href*='CONTENT_SEQ']")
-            if link_el:
-                href = await link_el.get_attribute("href") or ""
-                if "CONTENT_SEQ=" in href:
-                    lecture_id = href.split("CONTENT_SEQ=")[1].split("&")[0]
-
-        # Parse deadline — format is typically "YYYY-MM-DD HH:MM"
-        deadline = None
-        if deadline_text and deadline_text not in ("-", ""):
-            try:
-                from datetime import datetime
-                deadline = datetime.strptime(deadline_text[:16], "%Y-%m-%d %H:%M")
-            except ValueError:
-                pass
-
-        lectures.append(
-            LectureResponse(
-                id=lecture_id.strip(),
-                week=week,
-                session=session,
-                title=title_text.strip(),
-                duration_min=None,
-                attendance=attendance,
-                deadline=deadline,
-            )
-        )
-
-    logger.info("Fetched %d lectures for course %s", len(lectures), course_id)
-    return lectures
+    # For now, return empty — we need to see the page structure first
+    # TODO: Parse actual lectures once we know the selectors
+    return []
 
 
 @router.get("/{course_id}/attendance")

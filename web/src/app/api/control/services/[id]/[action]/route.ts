@@ -18,7 +18,7 @@ export async function POST(
   try {
     const upstream = await fetch(
       `${CONTROL_API_URL}/services/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
-      { method: 'POST', headers, cache: 'no-store' }
+      { method: 'POST', headers, cache: 'no-store', signal: AbortSignal.timeout(175_000) }
     )
     const data = await upstream.json()
     return Response.json(data, { status: upstream.status })

@@ -68,6 +68,7 @@ const SERVICES: ServiceConfig[] = [
     nameKo: '하드코어 바닐라',
     description: '백엔드 PC에서 온디맨드로 켜지는 하드코어 게임 서버입니다.',
     category: 'Game Server',
+    timeRestriction: '20:00 ~ 24:00',
     color: '#c0392b',
     bgColor: '#fce8e6',
     icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
