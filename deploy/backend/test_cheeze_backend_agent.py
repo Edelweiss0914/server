@@ -173,5 +173,45 @@ class StopServiceTests(unittest.TestCase):
     self.assertIn("still running", payload["stdout"])
 
 
+class TimeRestrictionGraceTests(unittest.TestCase):
+  def setUp(self) -> None:
+    backend_agent._hibernate_inhibit_until = 0.0
+    backend_agent._last_watchdog_wallclock = None
+    backend_agent._last_running_seen.clear()
+    backend_agent._last_player_count.clear()
+    backend_agent._shutdown_warnings_sent.clear()
+    backend_agent._last_auto_save.clear()
+    backend_agent._time_restriction_warnings_sent.clear()
+    backend_agent._last_time_restriction_remaining.clear()
+    backend_agent._time_restriction_stop_dispatched.clear()
+
+  def test_watchdog_tick_uses_extended_time_restriction_grace_window(self) -> None:
+    config = {
+      "hibernate_policy": {
+        "enabled": False,
+        "check_interval_seconds": 30,
+      },
+      "services": [
+        {
+          "id": "minecraft-hardcore",
+          "enabled": True,
+          "idle_policy": {
+            "enabled": False,
+          },
+        }
+      ],
+    }
+
+    with mock.patch.object(backend_agent, "_check_self_update"), \
+         mock.patch.object(backend_agent, "load_config", return_value=config), \
+         mock.patch.object(backend_agent, "service_status", return_value={"state": "running"}), \
+         mock.patch.object(backend_agent, "maybe_enforce_time_restriction_stop", return_value=False) as mock_stop, \
+         mock.patch.object(backend_agent, "send_time_restriction_warning"), \
+         mock.patch.object(backend_agent, "maybe_auto_save"):
+      backend_agent._watchdog_tick()
+
+    self.assertEqual(mock_stop.call_args.args[1], backend_agent.TIME_RESTRICTION_STOP_GRACE_SECONDS)
+
+
 if __name__ == "__main__":
   unittest.main()

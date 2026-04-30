@@ -52,6 +52,7 @@ DEFAULT_CONFIG_CANDIDATES = [
 CONFIG_PATH = Path(os.environ["CHEEZE_BACKEND_CONFIG"]) if "CHEEZE_BACKEND_CONFIG" in os.environ else None
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_REQUEST_TIMEOUT", "5"))
 STOP_COMMAND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_STOP_TIMEOUT", "150"))
+TIME_RESTRICTION_STOP_GRACE_SECONDS = int(os.environ.get("CHEEZE_BACKEND_TIME_RESTRICTION_GRACE_SECONDS", "600"))
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 DETACHED_PROCESS = getattr(subprocess, "DETACHED_PROCESS", 0)
@@ -1112,7 +1113,8 @@ def _watchdog_tick():
     state = status["state"]
 
     if state == "running":
-      if maybe_enforce_time_restriction_stop(service, check_interval_seconds + 30):
+      time_restriction_grace_seconds = max(check_interval_seconds + 30, TIME_RESTRICTION_STOP_GRACE_SECONDS)
+      if maybe_enforce_time_restriction_stop(service, time_restriction_grace_seconds):
         any_auto_stopped = True
         continue
       send_time_restriction_warning(service)
