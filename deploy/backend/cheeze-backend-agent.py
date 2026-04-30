@@ -51,6 +51,7 @@ DEFAULT_CONFIG_CANDIDATES = [
 
 CONFIG_PATH = Path(os.environ["CHEEZE_BACKEND_CONFIG"]) if "CHEEZE_BACKEND_CONFIG" in os.environ else None
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_REQUEST_TIMEOUT", "5"))
+STOP_COMMAND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_STOP_TIMEOUT", "150"))
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 DETACHED_PROCESS = getattr(subprocess, "DETACHED_PROCESS", 0)
@@ -216,12 +217,44 @@ def tracked_pid_running(pid_path):
   return any(pid == target_pid for pid, _ in _list_process_entries())
 
 
-def control_dir_process_running(control_dir):
-  pid_candidates = [
+def read_tracked_pid(pid_path: Path) -> int | None:
+  if not pid_path.exists():
+    return None
+
+  try:
+    tracked_pid = pid_path.read_text(encoding="utf-8").strip().splitlines()[0]
+  except Exception:
+    return None
+
+  if not tracked_pid:
+    return None
+
+  try:
+    return int(tracked_pid)
+  except ValueError:
+    return None
+
+
+def control_dir_pid_paths(control_dir: str) -> list[Path]:
+  return [
     Path(control_dir, "minecraft.pid"),
     Path(control_dir, "wrapper.pid"),
   ]
-  return any(tracked_pid_running(pid_path) for pid_path in pid_candidates)
+
+
+def active_tracked_pids(control_dir: str) -> list[int]:
+  active_process_ids = {pid for pid, _ in _list_process_entries()}
+  pids: list[int] = []
+  for pid_path in control_dir_pid_paths(control_dir):
+    tracked_pid = read_tracked_pid(pid_path)
+    if tracked_pid is None or tracked_pid not in active_process_ids:
+      continue
+    pids.append(tracked_pid)
+  return pids
+
+
+def control_dir_process_running(control_dir):
+  return any(tracked_pid_running(pid_path) for pid_path in control_dir_pid_paths(control_dir))
 
 
 def http_ready(url):
@@ -323,17 +356,82 @@ def stop_service(service):
     )
 
   stop_command = service.get("stop_command")
+  metadata = service.get("metadata", {})
+  control_dir = metadata.get("control_dir")
   if stop_command and stop_command != "__FILL_ME__":
-    subprocess.Popen(
-      stop_command,
-      cwd=service.get("working_dir") or None,
-      shell=True,
-      **_background_subprocess_kwargs(CREATE_NEW_PROCESS_GROUP),
-    )
-    return 202, {
-      "accepted": True,
+    try:
+      result = subprocess.run(
+        stop_command,
+        cwd=service.get("working_dir") or None,
+        shell=True,
+        text=True,
+        capture_output=True,
+        timeout=STOP_COMMAND_TIMEOUT,
+        check=False,
+        **_background_subprocess_kwargs(CREATE_NEW_PROCESS_GROUP),
+      )
+    except subprocess.TimeoutExpired as exc:
+      print(f"[STOP] {service['id']} stop command timed out after {STOP_COMMAND_TIMEOUT}s")
+      result = exc
+
+    status = service_status(service)
+    if status["state"] == "offline":
+      return 202, {
+        "accepted": True,
+        "service": service["id"],
+        "message": "Stop command completed and service is offline.",
+      }
+
+    if control_dir:
+      tracked_pids = active_tracked_pids(control_dir)
+      for tracked_pid in tracked_pids:
+        subprocess.run(
+          ["taskkill", "/PID", str(tracked_pid), "/T", "/F"],
+          text=True,
+          capture_output=True,
+          **_background_subprocess_kwargs(),
+          check=False,
+        )
+
+      status = service_status(service)
+      if status["state"] == "offline":
+        return 202, {
+          "accepted": True,
+          "service": service["id"],
+          "message": "Stop command required tracked PID fallback; service is now offline.",
+        }
+
+    process_name = service.get("process_name")
+    if process_name:
+      subprocess.run(
+        ["taskkill", "/IM", process_name, "/F"],
+        text=True,
+        capture_output=True,
+        **_background_subprocess_kwargs(),
+        check=False,
+      )
+      status = service_status(service)
+      if status["state"] == "offline":
+        return 202, {
+          "accepted": True,
+          "service": service["id"],
+          "message": "Stop command required process-name fallback; service is now offline.",
+        }
+
+    details = {}
+    if isinstance(result, subprocess.TimeoutExpired):
+      details["message"] = f"Stop command timed out after {STOP_COMMAND_TIMEOUT}s and service is still running."
+    else:
+      if result.stdout.strip():
+        details["stdout"] = result.stdout[-500:]
+      if result.stderr.strip():
+        details["stderr"] = result.stderr[-500:]
+      details["returncode"] = result.returncode
+      details["message"] = "Stop command returned but service is still running."
+    return 500, {
+      "error": "stop_command_failed",
       "service": service["id"],
-      "message": "Stop command dispatched.",
+      **details,
     }
 
   process_name = service.get("process_name")

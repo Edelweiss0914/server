@@ -118,5 +118,60 @@ class HibernateGraceTests(unittest.TestCase):
     mock_stop_service.assert_not_called()
 
 
+class StopServiceTests(unittest.TestCase):
+  def test_stop_service_uses_tracked_pid_fallback_when_stop_command_leaves_service_running(self) -> None:
+    service = {
+      "id": "minecraft-hardcore",
+      "working_dir": r"D:\Servers\Minecraft\Hardcore",
+      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-hardcore\stop.ps1",
+      "process_name": "java.exe",
+      "metadata": {
+        "control_dir": r"D:\Servers\Control\minecraft-hardcore",
+      },
+    }
+
+    completed = mock.Mock(returncode=0, stdout="timed out waiting", stderr="")
+    states = [
+      {"state": "running"},
+      {"state": "offline"},
+    ]
+
+    with mock.patch.object(backend_agent.subprocess, "run", return_value=completed) as mock_run, \
+         mock.patch.object(backend_agent, "service_status", side_effect=states), \
+         mock.patch.object(backend_agent, "active_tracked_pids", return_value=[18936]):
+      status_code, payload = backend_agent.stop_service(service)
+
+    self.assertEqual(status_code, 202)
+    self.assertIn("tracked PID fallback", payload["message"])
+    self.assertEqual(mock_run.call_args_list[1].args[0], ["taskkill", "/PID", "18936", "/T", "/F"])
+
+  def test_stop_service_reports_failure_when_service_stays_running(self) -> None:
+    service = {
+      "id": "minecraft-hardcore",
+      "working_dir": r"D:\Servers\Minecraft\Hardcore",
+      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-hardcore\stop.ps1",
+      "process_name": "java.exe",
+      "metadata": {
+        "control_dir": r"D:\Servers\Control\minecraft-hardcore",
+      },
+    }
+
+    completed = mock.Mock(returncode=0, stdout="still running", stderr="")
+    states = [
+      {"state": "running"},
+      {"state": "running"},
+      {"state": "running"},
+    ]
+
+    with mock.patch.object(backend_agent.subprocess, "run", return_value=completed), \
+         mock.patch.object(backend_agent, "service_status", side_effect=states), \
+         mock.patch.object(backend_agent, "active_tracked_pids", return_value=[18936]):
+      status_code, payload = backend_agent.stop_service(service)
+
+    self.assertEqual(status_code, 500)
+    self.assertEqual(payload["error"], "stop_command_failed")
+    self.assertIn("still running", payload["stdout"])
+
+
 if __name__ == "__main__":
   unittest.main()
