@@ -90,6 +90,12 @@
       "type": "game-server",
       "display_name": "Minecraft Hardcore",
       "enabled": true,
+      "auto_start": {
+        "enabled": true,
+        "time": "20:00",
+        "grace_minutes": 15,
+        "weekdays_only": false
+      },
       "working_dir": "D:\\Servers\\Minecraft\\Hardcore",
       "start_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\start.ps1",
       "stop_command": "powershell -ExecutionPolicy Bypass -File D:\\Servers\\Control\\minecraft-hardcore\\stop.ps1",
@@ -98,9 +104,6 @@
         "type": "tcp",
         "host": "127.0.0.1",
         "port": 25567
-      },
-      "idle_policy": {
-        "stop_when_empty_minutes": 20
       },
       "metadata": {
         "control_dir": "D:\\Servers\\Control\\minecraft-hardcore",

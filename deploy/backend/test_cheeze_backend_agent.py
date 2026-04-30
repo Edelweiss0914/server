@@ -30,6 +30,13 @@ class HibernateGraceTests(unittest.TestCase):
   def setUp(self) -> None:
     backend_agent._hibernate_inhibit_until = 0.0
     backend_agent._last_watchdog_wallclock = None
+    backend_agent._last_running_seen.clear()
+    backend_agent._last_player_count.clear()
+    backend_agent._shutdown_warnings_sent.clear()
+    backend_agent._last_auto_save.clear()
+    backend_agent._time_restriction_warnings_sent.clear()
+    backend_agent._last_time_restriction_remaining.clear()
+    backend_agent._time_restriction_stop_dispatched.clear()
 
   def test_check_hibernate_conditions_blocks_when_inhibit_active(self) -> None:
     config = hibernate_ready_config()
@@ -73,6 +80,42 @@ class HibernateGraceTests(unittest.TestCase):
     backend_agent._arm_service_start_hibernate_inhibit(config, "minecraft-cobbleverse")
 
     self.assertGreaterEqual(backend_agent._hibernate_inhibit_until, start + 590)
+
+  def test_watchdog_tick_keeps_time_restriction_checks_without_idle_timeout(self) -> None:
+    config = {
+      "hibernate_policy": {
+        "enabled": False,
+        "check_interval_seconds": 60,
+      },
+      "services": [
+        {
+          "id": "minecraft-hardcore",
+          "enabled": True,
+          "idle_policy": {
+            "enabled": True,
+            "player_check": {
+              "enabled": True,
+              "type": "minecraft",
+              "host": "127.0.0.1",
+              "port": 25567,
+            },
+          },
+        }
+      ],
+    }
+
+    with mock.patch.object(backend_agent, "_check_self_update"), \
+         mock.patch.object(backend_agent, "load_config", return_value=config), \
+         mock.patch.object(backend_agent, "service_status", return_value={"state": "running"}), \
+         mock.patch.object(backend_agent, "maybe_enforce_time_restriction_stop", return_value=False), \
+         mock.patch.object(backend_agent, "send_time_restriction_warning") as mock_time_warning, \
+         mock.patch.object(backend_agent, "minecraft_player_count", return_value=0), \
+         mock.patch.object(backend_agent, "maybe_auto_save"), \
+         mock.patch.object(backend_agent, "stop_service") as mock_stop_service:
+      backend_agent._watchdog_tick()
+
+    mock_time_warning.assert_called_once()
+    mock_stop_service.assert_not_called()
 
 
 if __name__ == "__main__":

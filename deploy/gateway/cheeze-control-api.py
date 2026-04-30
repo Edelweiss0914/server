@@ -18,9 +18,11 @@ import os
 import shlex
 import shutil
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, time as dt_time, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -42,6 +44,13 @@ WOL_BINARY = os.environ.get("CHEEZE_WOL_BINARY", "wakeonlan")
 WOL_TARGET_IP = os.environ.get("CHEEZE_WOL_TARGET_IP", "").strip()
 WOL_TARGET_PORT = int(os.environ.get("CHEEZE_WOL_TARGET_PORT", "9"))
 CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
+AUTO_START_POLL_SECONDS = max(5, int(os.environ.get("CHEEZE_CONTROL_AUTOSTART_POLL_SECONDS", "15")))
+AUTO_START_DEFAULT_GRACE_MINUTES = max(1, int(os.environ.get("CHEEZE_CONTROL_AUTOSTART_GRACE_MINUTES", "15")))
+KST = timezone(timedelta(hours=9))
+
+_auto_start_thread_started = False
+_auto_start_state_lock = threading.Lock()
+_auto_start_attempted_dates: dict[str, str] = {}
 
 
 def normalized_wol_mac():
@@ -296,6 +305,131 @@ def ensure_backend_online():
   }
 
 
+def kst_now() -> datetime:
+  return datetime.now(timezone.utc).astimezone(KST)
+
+
+def parse_schedule_time(raw_value) -> dt_time | None:
+  if not raw_value:
+    return None
+  try:
+    parsed = dt_time.fromisoformat(str(raw_value))
+  except ValueError:
+    return None
+  return parsed.replace(tzinfo=None)
+
+
+def auto_start_config(service: dict) -> dict | None:
+  config = service.get("auto_start")
+  return config if isinstance(config, dict) else None
+
+
+def service_auto_start_due(service: dict, now: datetime | None = None) -> bool:
+  config = auto_start_config(service)
+  if not config or not config.get("enabled", False):
+    return False
+
+  scheduled_time = parse_schedule_time(config.get("time"))
+  if scheduled_time is None:
+    return False
+
+  now = now or kst_now()
+  if config.get("weekdays_only", False) and now.weekday() in (5, 6):
+    return False
+
+  grace_minutes = max(1, int(config.get("grace_minutes", AUTO_START_DEFAULT_GRACE_MINUTES)))
+  scheduled_at = datetime.combine(now.date(), scheduled_time, tzinfo=now.tzinfo)
+  return scheduled_at <= now < (scheduled_at + timedelta(minutes=grace_minutes))
+
+
+def backend_service_status(service_id: str) -> dict:
+  status_code, body = backend_fetch(f"/services/{service_id}")
+  payload = decode_backend_payload(body, fallback_message="backend service status lookup completed")
+  payload["status_code"] = status_code
+  return payload
+
+
+def dispatch_service_start(service_id: str) -> tuple[int, dict]:
+  wake_result = ensure_backend_online()
+  if not wake_result["ready"]:
+    return 504, {
+      "error": "backend_not_ready",
+      "service": service_id,
+      "message": wake_result["message"],
+      "wake_result": wake_result,
+    }
+
+  status_code, body = backend_fetch(f"/services/{service_id}/start", method="POST", payload={})
+  payload = decode_backend_payload(body, fallback_message="backend start request completed")
+  payload["wake_result"] = wake_result
+  return status_code, payload
+
+
+def maybe_run_scheduled_auto_start(service: dict, now: datetime | None = None) -> bool:
+  if not service_auto_start_due(service, now):
+    return False
+
+  service_id = service.get("id", "").strip()
+  if not service_id:
+    return False
+
+  now = now or kst_now()
+  day_key = now.date().isoformat()
+  with _auto_start_state_lock:
+    if _auto_start_attempted_dates.get(service_id) == day_key:
+      return False
+    _auto_start_attempted_dates[service_id] = day_key
+
+  try:
+    status_payload = backend_service_status(service_id)
+    if status_payload.get("state") in {"running", "starting"}:
+      print(f"[AUTO-START] {service_id} already {status_payload['state']} during schedule window")
+      return True
+  except Exception as error:
+    print(f"[AUTO-START] {service_id} status pre-check failed, continuing with wake/start: {error}")
+
+  try:
+    status_code, payload = dispatch_service_start(service_id)
+  except Exception as error:
+    print(f"[AUTO-START] {service_id} dispatch failed: {error}")
+    return False
+
+  if status_code < 400:
+    print(f"[AUTO-START] {service_id} start dispatched for schedule window")
+    return True
+
+  print(f"[AUTO-START] {service_id} start failed: {payload.get('message', payload)}")
+  return False
+
+
+def run_auto_start_scheduler_pass(now: datetime | None = None) -> None:
+  registry = load_registry()
+  for service in registry.get("services", []):
+    if not service.get("enabled", True):
+      continue
+    maybe_run_scheduled_auto_start(service, now=now)
+
+
+def _auto_start_scheduler_loop() -> None:
+  print(f"[AUTO-START] scheduler started (poll={AUTO_START_POLL_SECONDS}s)")
+  while True:
+    try:
+      run_auto_start_scheduler_pass()
+    except Exception as error:
+      print(f"[AUTO-START] scheduler pass failed: {error}")
+    time.sleep(AUTO_START_POLL_SECONDS)
+
+
+def start_auto_start_scheduler() -> None:
+  global _auto_start_thread_started
+  with _auto_start_state_lock:
+    if _auto_start_thread_started:
+      return
+    _auto_start_thread_started = True
+  thread = threading.Thread(target=_auto_start_scheduler_loop, name="cheeze-control-auto-start", daemon=True)
+  thread.start()
+
+
 class Handler(BaseHTTPRequestHandler):
   server_version = "CHEEZE-Control/0.1"
 
@@ -417,19 +551,7 @@ class Handler(BaseHTTPRequestHandler):
     if self.path.startswith("/services/") and self.path.endswith("/start"):
       service_id = self.path.split("/")[2]
       try:
-        wake_result = ensure_backend_online()
-        if not wake_result["ready"]:
-          self.respond_json(504, {
-            "error": "backend_not_ready",
-            "service": service_id,
-            "message": wake_result["message"],
-            "wake_result": wake_result,
-          })
-          return
-
-        status_code, body = backend_fetch(f"/services/{service_id}/start", method="POST", payload={})
-        payload = decode_backend_payload(body, fallback_message="backend start request completed")
-        payload["wake_result"] = wake_result
+        status_code, payload = dispatch_service_start(service_id)
         self.respond_json(status_code, payload)
       except Exception as error:
         self.respond_json(502, {"error": "backend_unreachable", "message": str(error)})
@@ -500,6 +622,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+  start_auto_start_scheduler()
   server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
   print(f"CHEEZE control API listening on {LISTEN_HOST}:{LISTEN_PORT}")
   server.serve_forever()

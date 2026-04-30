@@ -1005,9 +1005,6 @@ def _watchdog_tick():
     service_id = service["id"]
     idle_policy = service.get("idle_policy", {})
 
-    if not idle_policy.get("enabled", False):
-      continue
-
     try:
       status = service_status(service)
     except Exception as exc:
@@ -1021,6 +1018,10 @@ def _watchdog_tick():
         any_auto_stopped = True
         continue
       send_time_restriction_warning(service)
+
+      if not idle_policy.get("enabled", False):
+        maybe_auto_save(service)
+        continue
 
       # Player count check
       player_check = idle_policy.get("player_check", {})
@@ -1073,7 +1074,16 @@ def _watchdog_tick():
         continue
 
       # Check idle timeout
-      idle_timeout_seconds = idle_policy.get("idle_timeout_minutes", 30) * 60
+      idle_timeout_minutes = idle_policy.get("idle_timeout_minutes")
+      if idle_timeout_minutes is None:
+        maybe_auto_save(service)
+        continue
+
+      idle_timeout_seconds = idle_timeout_minutes * 60
+      if idle_timeout_seconds <= 0:
+        maybe_auto_save(service)
+        continue
+
       with _watchdog_lock:
         last_seen = _last_running_seen.get(service_id, time.time())
 
