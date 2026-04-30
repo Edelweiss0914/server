@@ -212,6 +212,25 @@ class TimeRestrictionGraceTests(unittest.TestCase):
 
     self.assertEqual(mock_stop.call_args.args[1], backend_agent.TIME_RESTRICTION_STOP_GRACE_SECONDS)
 
+  def test_time_restriction_stop_retries_when_stop_service_reports_failure(self) -> None:
+    service = {
+      "id": "minecraft-hardcore",
+      "time_restriction": {
+        "enabled": True,
+        "end": "16:00",
+        "weekdays_only": False,
+      },
+    }
+
+    with mock.patch.object(backend_agent, "_seconds_since_most_recent_time", return_value=30), \
+         mock.patch.object(backend_agent.datetime, "datetime", wraps=backend_agent.datetime.datetime) as mock_datetime, \
+         mock.patch.object(backend_agent, "stop_service", return_value=(500, {"error": "stop_command_failed"})):
+      mock_datetime.now.return_value = backend_agent.datetime.datetime(2026, 4, 30, 16, 0, 30)
+      result = backend_agent.maybe_enforce_time_restriction_stop(service, 600)
+
+    self.assertFalse(result)
+    self.assertNotIn("minecraft-hardcore", backend_agent._time_restriction_stop_dispatched)
+
 
 if __name__ == "__main__":
   unittest.main()

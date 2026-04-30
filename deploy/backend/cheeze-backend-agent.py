@@ -812,8 +812,13 @@ def maybe_enforce_time_restriction_stop(service: dict, grace_seconds: int) -> bo
 
   print(f"[TIME] auto-stopping {service_id} at restricted end time {end_time}")
   try:
-    stop_service(service)
-    return True
+    status_code, payload = stop_service(service)
+    if status_code < 400:
+      return True
+    with _watchdog_lock:
+      _time_restriction_stop_dispatched.discard(service_id)
+    print(f"[TIME] stop_service({service_id}) failed: {payload}")
+    return False
   except Exception as exc:
     with _watchdog_lock:
       _time_restriction_stop_dispatched.discard(service_id)
