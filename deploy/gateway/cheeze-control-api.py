@@ -378,11 +378,12 @@ def maybe_run_scheduled_auto_start(service: dict, now: datetime | None = None) -
   with _auto_start_state_lock:
     if _auto_start_attempted_dates.get(service_id) == day_key:
       return False
-    _auto_start_attempted_dates[service_id] = day_key
 
   try:
     status_payload = backend_service_status(service_id)
     if status_payload.get("state") in {"running", "starting"}:
+      with _auto_start_state_lock:
+        _auto_start_attempted_dates[service_id] = day_key
       print(f"[AUTO-START] {service_id} already {status_payload['state']} during schedule window")
       return True
   except Exception as error:
@@ -395,6 +396,8 @@ def maybe_run_scheduled_auto_start(service: dict, now: datetime | None = None) -
     return False
 
   if status_code < 400:
+    with _auto_start_state_lock:
+      _auto_start_attempted_dates[service_id] = day_key
     print(f"[AUTO-START] {service_id} start dispatched for schedule window")
     return True
 

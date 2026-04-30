@@ -199,6 +199,38 @@ class ControlApiWakeTests(unittest.TestCase):
       payload={},
     )
 
+  def test_failed_auto_start_does_not_block_same_day_retry(self):
+    registry = {
+      "services": [
+        {
+          "id": "minecraft-hardcore",
+          "enabled": True,
+          "auto_start": {
+            "enabled": True,
+            "time": "20:00",
+            "grace_minutes": 15,
+            "weekdays_only": False,
+          },
+        }
+      ]
+    }
+    now = datetime(2026, 4, 29, 20, 0, tzinfo=control_api.KST)
+
+    with mock.patch.object(control_api, "load_registry", return_value=registry), \
+         mock.patch.object(control_api, "backend_service_status", return_value={"state": "offline"}), \
+         mock.patch.object(
+           control_api,
+           "dispatch_service_start",
+           side_effect=[
+             (504, {"message": "backend not ready"}),
+             (202, {"accepted": True}),
+           ],
+         ) as mock_start:
+      control_api.run_auto_start_scheduler_pass(now=now)
+      control_api.run_auto_start_scheduler_pass(now=now)
+
+    self.assertEqual(mock_start.call_count, 2)
+
 
 if __name__ == "__main__":
   unittest.main()
