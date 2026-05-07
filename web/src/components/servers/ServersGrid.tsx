@@ -62,26 +62,6 @@ const SERVICES: ServiceConfig[] = [
       <rect x="60" y="48" width="16" height="12" rx="3" fill="#5d381d"/>
     </svg>`,
   },
-  {
-    id: 'minecraft-hardcore',
-    name: 'Hardcore Vanilla',
-    nameKo: '하드코어 바닐라',
-    description: '백엔드 PC에서 온디맨드로 켜지는 하드코어 게임 서버입니다.',
-    category: 'Game Server',
-    timeRestriction: '20:00 ~ 24:00',
-    color: '#c0392b',
-    bgColor: '#fce8e6',
-    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="50" cy="42" rx="28" ry="26" fill="#c0392b"/>
-      <rect x="30" y="60" width="40" height="18" rx="4" fill="#c0392b"/>
-      <rect x="35" y="62" width="8" height="10" rx="2" fill="white"/>
-      <rect x="46" y="62" width="8" height="10" rx="2" fill="white"/>
-      <rect x="57" y="62" width="8" height="10" rx="2" fill="white"/>
-      <ellipse cx="38" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-      <ellipse cx="62" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-      <ellipse cx="50" cy="52" rx="4" ry="3" fill="white" opacity="0.6"/>
-    </svg>`,
-  },
 ]
 
 const NORMAL_POLL_MS = 10_000
@@ -162,16 +142,20 @@ export function ServersGrid() {
     })
   }, [states])
 
+  const scheduleRefreshRef = useRef<() => void>(() => {})
   const scheduleRefresh = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(
       async () => {
         await fetchAllStates()
-        scheduleRefresh()
+        scheduleRefreshRef.current()
       },
       hasTransition() ? ACTIVE_POLL_MS : NORMAL_POLL_MS
     )
   }, [fetchAllStates, hasTransition])
+  useEffect(() => {
+    scheduleRefreshRef.current = scheduleRefresh
+  }, [scheduleRefresh])
 
   // initial load + polling
   useEffect(() => {
@@ -207,39 +191,6 @@ export function ServersGrid() {
       window.removeEventListener('focus', onFocus)
     }
   }, [fetchAllStates, scheduleRefresh])
-
-  // --- action handler ---
-  const handleAction = useCallback(
-    async (serviceId: string, action: string) => {
-      if (action === 'refresh') {
-        setStates((prev) => ({
-          ...prev,
-          [serviceId]: {
-            ...(prev[serviceId] || {}),
-            message: '상태를 다시 확인하는 중입니다...',
-          },
-        }))
-        await fetchAllStates()
-        scheduleRefresh()
-        return
-      }
-
-      // resolve token
-      let token = readToken()
-      if (!token) {
-        const service = SERVICES.find((s) => s.id === serviceId)
-        setTokenDialog({
-          serviceId,
-          serviceName: service?.name || serviceId,
-          action,
-        })
-        return
-      }
-
-      await executeAction(serviceId, action, token)
-    },
-    [fetchAllStates, scheduleRefresh]
-  )
 
   const executeAction = useCallback(
     async (serviceId: string, action: string, token: string) => {
@@ -312,6 +263,39 @@ export function ServersGrid() {
       }
     },
     [fetchAllStates, scheduleRefresh]
+  )
+
+  // --- action handler ---
+  const handleAction = useCallback(
+    async (serviceId: string, action: string) => {
+      if (action === 'refresh') {
+        setStates((prev) => ({
+          ...prev,
+          [serviceId]: {
+            ...(prev[serviceId] || {}),
+            message: '상태를 다시 확인하는 중입니다...',
+          },
+        }))
+        await fetchAllStates()
+        scheduleRefresh()
+        return
+      }
+
+      // resolve token
+      const token = readToken()
+      if (!token) {
+        const service = SERVICES.find((s) => s.id === serviceId)
+        setTokenDialog({
+          serviceId,
+          serviceName: service?.name || serviceId,
+          action,
+        })
+        return
+      }
+
+      await executeAction(serviceId, action, token)
+    },
+    [executeAction, fetchAllStates, scheduleRefresh]
   )
 
   // --- token dialog callbacks ---

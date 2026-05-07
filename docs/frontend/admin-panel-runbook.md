@@ -87,7 +87,6 @@ Recent commits from this troubleshooting cycle:
 - `7a11952` `Surface admin service-panel fetch failures explicitly`
 - `2b39bea` `Keep admin service cards usable when status route degrades`
 - `7e82cd5` `Expose service registry to control-api containers`
-- `1e150be` `Restore hardcore server to gateway service registry`
 
 ### Gateway Deployment
 
@@ -202,23 +201,23 @@ Expected:
 - path is `/app/service-registry.example.json`
 - file exists inside the container
 
-## Incident D: `minecraft-hardcore` did not appear
+## Incident D: Registry and backend config drift
 
 ### Symptom
 
-- backend-agent config contained `minecraft-hardcore`
+- backend-agent config contained a service
 - admin service cards did not
 
 ### Root Cause
 
-`deploy/orchestrator/service-registry.example.json` was missing the `minecraft-hardcore` entry.
+`deploy/orchestrator/service-registry.example.json` did not include the same backend-managed service.
 
-Because offline fallback cards depend on the gateway registry, the service was invisible whenever the backend was asleep or unreachable.
+Because offline fallback cards depend on the gateway registry, the service becomes invisible whenever the backend is asleep or unreachable.
 
 ### Fix
 
 - rebuilt `deploy/orchestrator/service-registry.example.json` as valid JSON
-- added the `minecraft-hardcore` service entry
+- added the missing backend-managed service entry
 
 ### Rule
 
@@ -290,7 +289,7 @@ Expected when backend is asleep:
 ```bash
 cd /var/www/home/deploy/docker
 
-docker compose exec -T control-api sh -lc 'grep -n "minecraft-hardcore" /app/service-registry.example.json'
+docker compose exec -T control-api sh -lc 'grep -n "minecraft-cobbleverse" /app/service-registry.example.json'
 docker compose exec -T control-api sh -lc 'python3 - <<'"'"'PY'"'"'
 import json
 with open("/app/service-registry.example.json", "r", encoding="utf-8") as f:

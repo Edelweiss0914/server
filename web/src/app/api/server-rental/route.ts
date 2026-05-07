@@ -11,7 +11,6 @@ interface RentalRequestBody {
 const VALID_SERVER_OPTIONS = new Set([
   'Minecraft Vanilla',
   'Cobbleverse',
-  'Hardcore Vanilla',
   '새 모드팩 서버',
   '기타',
 ])

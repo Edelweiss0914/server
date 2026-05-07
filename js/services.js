@@ -241,36 +241,6 @@ const SERVICES = [
     searchable: false,
   },
   {
-    id: 'minecraft-hardcore',
-    name: 'Hardcore Vanilla',
-    nameKo: '하드코어 바닐라',
-    description: '온디맨드 하드코어 게임 서버. 클릭하면 서버 시작·종료 패널로 이동합니다.',
-    category: 'Game Server',
-    categoryIcon: 'GAME',
-    url: 'servers.html',
-    onDemand: true,
-    icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="50" cy="42" rx="28" ry="26" fill="#c0392b"/>
-      <rect x="30" y="60" width="40" height="18" rx="4" fill="#c0392b"/>
-      <rect x="35" y="62" width="8" height="10" rx="2" fill="white"/>
-      <rect x="46" y="62" width="8" height="10" rx="2" fill="white"/>
-      <rect x="57" y="62" width="8" height="10" rx="2" fill="white"/>
-      <ellipse cx="38" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-      <ellipse cx="62" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-      <ellipse cx="50" cy="52" rx="4" ry="3" fill="white" opacity="0.6"/>
-    </svg>`,
-    color: '#c0392b',
-    bgColor: '#fce8e6',
-    bgColorDark: '#2d0f0d',
-    keywords: [
-      'minecraft', '마인크래프트', 'hardcore', '하드코어', 'game', '게임',
-      'server', '서버', 'vanilla', '바닐라', 'paper', '플러그인',
-    ],
-    timeRestriction: '20:00 ~ 24:00',
-    featured: false,
-    searchable: false,
-  },
-  {
     id: 'ollama',
     name: 'Ollama AI',
     nameKo: '로컬 AI',
@@ -356,27 +326,6 @@ window.APP_CONFIG = {
         </svg>`,
         color: '#c88b42',
         bgColor: '#fbf1e4',
-      },
-      {
-        id: 'minecraft-hardcore',
-        name: 'Hardcore Vanilla',
-        nameKo: '하드코어 바닐라',
-        description: '백엔드 PC에서 온디맨드로 켜지는 하드코어 게임 서버입니다.',
-        category: 'Game Server',
-        categoryIcon: 'GAME',
-        timeRestriction: '20:00 ~ 24:00',
-        icon: `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <ellipse cx="50" cy="42" rx="28" ry="26" fill="#c0392b"/>
-          <rect x="30" y="60" width="40" height="18" rx="4" fill="#c0392b"/>
-          <rect x="35" y="62" width="8" height="10" rx="2" fill="white"/>
-          <rect x="46" y="62" width="8" height="10" rx="2" fill="white"/>
-          <rect x="57" y="62" width="8" height="10" rx="2" fill="white"/>
-          <ellipse cx="38" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-          <ellipse cx="62" cy="40" rx="8" ry="8" fill="white" opacity="0.9"/>
-          <ellipse cx="50" cy="52" rx="4" ry="3" fill="white" opacity="0.6"/>
-        </svg>`,
-        color: '#c0392b',
-        bgColor: '#fce8e6',
       },
     ],
   },

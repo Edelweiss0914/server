@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 const SERVER_OPTIONS = [
   'Minecraft Vanilla',
   'Cobbleverse',
-  'Hardcore Vanilla',
   '새 모드팩 서버',
   '기타',
 ]
