@@ -236,10 +236,6 @@ export default function Home() {
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusClass}`}>
                           {statusLabel}
                         </span>
-                        <span className="flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                          <svg viewBox="0 0 16 16" className="w-3 h-3" fill="currentColor"><path d="M8 1a7 7 0 110 14A7 7 0 018 1zm2.85 4.65a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-1.5-1.5a.75.75 0 111.06-1.06l.97.97 2.97-2.97a.75.75 0 011.06 0z"/></svg>
-                          SSO
-                        </span>
                       </div>
                       <a
                         href={service.url}
