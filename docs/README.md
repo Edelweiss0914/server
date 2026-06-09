@@ -45,6 +45,7 @@
 | [문제 해결](operations/troubleshooting.md) | 상태 확인, 일반 문제 시나리오별 진단/해결 |
 | [유지보수](operations/maintenance.md) | 점검 체크리스트, 백업, 토큰 관리, 모드팩 추가 |
 | [하드코어 서버 폐기](operations/hardcore-retirement.md) | 하드코어 서버 제거 절차, 실제 런타임 설정 경로, 검증 기준 |
+| [캡스톤 리디자인](operations/capstone-redesign-2026-06-09.md) | Pterodactyl·E-class 제거, 소상공인 포탈 리디자인, SSO 로그인 |
 
 ## 프론트엔드
 
