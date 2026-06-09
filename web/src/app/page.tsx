@@ -18,7 +18,7 @@ function formatDate(): string {
 }
 
 export default function Home() {
-  const { user, login, logout, isLoading } = useAuth()
+  const { user, login, loginWithSSO, logout, isLoading } = useAuth()
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0)
   const { isOpen, recordConsent, openModal, closeModal } = usePrivacyConsent()
 
@@ -46,7 +46,7 @@ export default function Home() {
   if (!user) {
     return (
       <>
-        <LoginForm onLogin={login} />
+        <LoginForm onLogin={login} onSSOLogin={loginWithSSO} />
         {isOpen && (
           <PrivacyPolicyModal onConsent={recordConsent} onDismiss={closeModal} />
         )}
