@@ -9,7 +9,7 @@ export function Footer({ onPrivacyClick }: FooterProps) {
     <footer className="py-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
       <span>edelweiss0297.cloud</span>
       {' · '}
-      <span>Proxmox &amp; Cloudflare</span>
+      <span>Zero Trust 보안 인프라</span>
       {' · '}
       <button
         type="button"
