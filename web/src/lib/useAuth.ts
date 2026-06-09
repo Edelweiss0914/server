@@ -6,7 +6,7 @@ export interface AuthUser {
   email: string
   name: string
   role: 'admin' | 'member'
-  provider: 'credentials' | 'cloudflare' | 'google'
+  provider: 'portal'
   loginAt: string
 }
 
@@ -25,18 +25,6 @@ const DEMO_ACCOUNTS: Record<string, { password: string; user: Omit<AuthUser, 'pr
   'user@cheeze.local': {
     password: 'user123',
     user: { email: 'user@cheeze.local', name: '직원', role: 'member' },
-  },
-}
-
-// SSO provider demo accounts (simulate federated login)
-const SSO_ACCOUNTS: Record<string, { provider: 'cloudflare' | 'google'; user: Omit<AuthUser, 'provider' | 'loginAt'> }> = {
-  cloudflare: {
-    provider: 'cloudflare',
-    user: { email: 'admin@cheeze.local', name: '관리자 (CF Access)', role: 'admin' },
-  },
-  google: {
-    provider: 'google',
-    user: { email: 'user@cheeze.local', name: '직원 (Google)', role: 'member' },
   },
 }
 
@@ -85,20 +73,7 @@ export function useAuth() {
     }
     const authUser: AuthUser = {
       ...account.user,
-      provider: 'credentials',
-      loginAt: new Date().toISOString(),
-    }
-    const token = createToken(authUser)
-    localStorage.setItem(SESSION_KEY, JSON.stringify(token))
-    setUser(authUser)
-  }, [])
-
-  const loginWithSSO = useCallback((provider: 'cloudflare' | 'google') => {
-    const sso = SSO_ACCOUNTS[provider]
-    if (!sso) throw new Error('지원하지 않는 SSO 제공자입니다.')
-    const authUser: AuthUser = {
-      ...sso.user,
-      provider: sso.provider,
+      provider: 'portal',
       loginAt: new Date().toISOString(),
     }
     const token = createToken(authUser)
@@ -111,20 +86,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  const getSessionInfo = useCallback((): { expiresAt: string; tokenId: string; provider: string } | null => {
-    try {
-      const stored = localStorage.getItem(SESSION_KEY)
-      if (!stored) return null
-      const token: SessionToken = JSON.parse(stored)
-      return {
-        expiresAt: new Date(token.exp).toLocaleString('ko-KR'),
-        tokenId: token.jti,
-        provider: token.user.provider,
-      }
-    } catch {
-      return null
-    }
-  }, [])
-
-  return { user, login, loginWithSSO, logout, isLoading, getSessionInfo }
+  return { user, login, logout, isLoading }
 }
