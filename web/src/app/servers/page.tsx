@@ -31,6 +31,7 @@ export default function ServersPage() {
                 추가 서버가 필요하면 대여 신청을 통해 요청할 수 있습니다.
               </p>
             </div>
+          </div>
         </div>
       </div>
     </main>
