@@ -89,7 +89,7 @@ class HibernateGraceTests(unittest.TestCase):
       },
       "services": [
         {
-          "id": "minecraft-hardcore",
+          "id": "minecraft-vanilla",
           "enabled": True,
           "idle_policy": {
             "enabled": True,
@@ -97,7 +97,7 @@ class HibernateGraceTests(unittest.TestCase):
               "enabled": True,
               "type": "minecraft",
               "host": "127.0.0.1",
-              "port": 25567,
+              "port": 25565,
             },
           },
         }
@@ -121,12 +121,12 @@ class HibernateGraceTests(unittest.TestCase):
 class StopServiceTests(unittest.TestCase):
   def test_stop_service_uses_tracked_pid_fallback_when_stop_command_leaves_service_running(self) -> None:
     service = {
-      "id": "minecraft-hardcore",
-      "working_dir": r"D:\Servers\Minecraft\Hardcore",
-      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-hardcore\stop.ps1",
+      "id": "minecraft-vanilla",
+      "working_dir": r"D:\Servers\Minecraft\Vanilla",
+      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-vanilla\stop.ps1",
       "process_name": "java.exe",
       "metadata": {
-        "control_dir": r"D:\Servers\Control\minecraft-hardcore",
+        "control_dir": r"D:\Servers\Control\minecraft-vanilla",
       },
     }
 
@@ -145,14 +145,41 @@ class StopServiceTests(unittest.TestCase):
     self.assertIn("tracked PID fallback", payload["message"])
     self.assertEqual(mock_run.call_args_list[1].args[0], ["taskkill", "/PID", "18936", "/T", "/F"])
 
-  def test_stop_service_reports_failure_when_service_stays_running(self) -> None:
+  def test_stop_service_skips_process_name_fallback_for_tracked_service(self) -> None:
     service = {
-      "id": "minecraft-hardcore",
-      "working_dir": r"D:\Servers\Minecraft\Hardcore",
-      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-hardcore\stop.ps1",
+      "id": "minecraft-vanilla",
+      "working_dir": r"D:\Servers\Minecraft\Vanilla",
+      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-vanilla\stop.ps1",
       "process_name": "java.exe",
       "metadata": {
-        "control_dir": r"D:\Servers\Control\minecraft-hardcore",
+        "control_dir": r"D:\Servers\Control\minecraft-vanilla",
+      },
+    }
+
+    completed = mock.Mock(returncode=0, stdout="still running", stderr="")
+    states = [
+      {"state": "running"},
+      {"state": "running"},
+    ]
+
+    with mock.patch.object(backend_agent.subprocess, "run", return_value=completed) as mock_run, \
+         mock.patch.object(backend_agent, "service_status", side_effect=states), \
+         mock.patch.object(backend_agent, "active_tracked_pids", return_value=[]):
+      status_code, payload = backend_agent.stop_service(service)
+
+    self.assertEqual(status_code, 500)
+    self.assertEqual(mock_run.call_count, 1)
+    self.assertEqual(mock_run.call_args_list[0].args[0], service["stop_command"])
+    self.assertIn("Process-name fallback skipped", payload["message"])
+
+  def test_stop_service_reports_failure_when_service_stays_running(self) -> None:
+    service = {
+      "id": "minecraft-vanilla",
+      "working_dir": r"D:\Servers\Minecraft\Vanilla",
+      "stop_command": r"powershell -ExecutionPolicy Bypass -File D:\Servers\Control\minecraft-vanilla\stop.ps1",
+      "process_name": "java.exe",
+      "metadata": {
+        "control_dir": r"D:\Servers\Control\minecraft-vanilla",
       },
     }
 
@@ -193,7 +220,7 @@ class TimeRestrictionGraceTests(unittest.TestCase):
       },
       "services": [
         {
-          "id": "minecraft-hardcore",
+          "id": "minecraft-vanilla",
           "enabled": True,
           "idle_policy": {
             "enabled": False,
@@ -214,7 +241,7 @@ class TimeRestrictionGraceTests(unittest.TestCase):
 
   def test_time_restriction_stop_retries_when_stop_service_reports_failure(self) -> None:
     service = {
-      "id": "minecraft-hardcore",
+      "id": "minecraft-vanilla",
       "time_restriction": {
         "enabled": True,
         "end": "16:00",
@@ -229,7 +256,104 @@ class TimeRestrictionGraceTests(unittest.TestCase):
       result = backend_agent.maybe_enforce_time_restriction_stop(service, 600)
 
     self.assertFalse(result)
-    self.assertNotIn("minecraft-hardcore", backend_agent._time_restriction_stop_dispatched)
+    self.assertNotIn("minecraft-vanilla", backend_agent._time_restriction_stop_dispatched)
+
+  def test_time_restriction_stop_runs_on_weekend_when_weekdays_only_false(self) -> None:
+    service = {
+      "id": "minecraft-vanilla",
+      "time_restriction": {
+        "enabled": True,
+        "end": "00:00",
+        "weekdays_only": False,
+      },
+    }
+
+    with mock.patch.object(backend_agent, "_seconds_since_most_recent_time", return_value=30), \
+         mock.patch.object(backend_agent.datetime, "datetime", wraps=backend_agent.datetime.datetime) as mock_datetime, \
+         mock.patch.object(backend_agent, "stop_service", return_value=(202, {"accepted": True})) as mock_stop_service:
+      mock_datetime.now.return_value = backend_agent.datetime.datetime(2026, 5, 3, 0, 0, 30)
+      result = backend_agent.maybe_enforce_time_restriction_stop(service, 600)
+
+    self.assertTrue(result)
+    mock_stop_service.assert_called_once_with(service)
+
+  def test_time_restriction_stop_skips_weekend_when_weekdays_only_true(self) -> None:
+    service = {
+      "id": "minecraft-cobbleverse",
+      "time_restriction": {
+        "enabled": True,
+        "end": "01:00",
+        "weekdays_only": True,
+      },
+    }
+
+    with mock.patch.object(backend_agent, "_seconds_since_most_recent_time", return_value=30), \
+         mock.patch.object(backend_agent.datetime, "datetime", wraps=backend_agent.datetime.datetime) as mock_datetime, \
+         mock.patch.object(backend_agent, "stop_service") as mock_stop_service:
+      mock_datetime.now.return_value = backend_agent.datetime.datetime(2026, 5, 3, 1, 0, 30)
+      result = backend_agent.maybe_enforce_time_restriction_stop(service, 600)
+
+    self.assertFalse(result)
+    mock_stop_service.assert_not_called()
+
+  def test_cobbleverse_holiday_exception_skips_idle_auto_stop(self) -> None:
+    config = {
+      "hibernate_policy": {
+        "enabled": False,
+        "check_interval_seconds": 60,
+      },
+      "services": [
+        {
+          "id": "minecraft-cobbleverse",
+          "enabled": True,
+          "idle_policy": {
+            "enabled": True,
+            "idle_timeout_minutes": 20,
+            "player_check": {
+              "enabled": True,
+              "type": "minecraft",
+              "host": "127.0.0.1",
+              "port": 25566,
+            },
+          },
+        }
+      ],
+    }
+
+    holiday_now = backend_agent.datetime.datetime(2026, 5, 2, 12, 0, 0)
+    with mock.patch.object(backend_agent, "_check_self_update"), \
+         mock.patch.object(backend_agent, "load_config", return_value=config), \
+         mock.patch.object(backend_agent, "service_status", return_value={"state": "running"}), \
+         mock.patch.object(backend_agent, "maybe_enforce_time_restriction_stop", return_value=False), \
+         mock.patch.object(backend_agent, "send_time_restriction_warning"), \
+         mock.patch.object(backend_agent, "minecraft_player_count", return_value=0), \
+         mock.patch.object(backend_agent, "maybe_auto_save"), \
+         mock.patch.object(backend_agent, "stop_service") as mock_stop_service, \
+         mock.patch.object(backend_agent.time, "time", return_value=holiday_now.timestamp()), \
+         mock.patch.object(backend_agent.datetime, "datetime", wraps=backend_agent.datetime.datetime) as mock_datetime:
+      mock_datetime.now.return_value = holiday_now
+      backend_agent._watchdog_tick()
+
+    mock_stop_service.assert_not_called()
+
+  def test_cobbleverse_holiday_exception_skips_time_restriction_stop(self) -> None:
+    service = {
+      "id": "minecraft-cobbleverse",
+      "time_restriction": {
+        "enabled": True,
+        "end": "01:00",
+      },
+    }
+
+    holiday_now = backend_agent.datetime.datetime(2026, 5, 2, 1, 0, 30)
+    with mock.patch.object(backend_agent, "_seconds_since_most_recent_time", return_value=30), \
+         mock.patch.object(backend_agent.datetime, "datetime", wraps=backend_agent.datetime.datetime) as mock_datetime, \
+         mock.patch.object(backend_agent, "stop_service") as mock_stop_service:
+      mock_datetime.now.return_value = holiday_now
+      result = backend_agent.maybe_enforce_time_restriction_stop(service, 600)
+
+    self.assertFalse(result)
+    mock_stop_service.assert_not_called()
 
 
 if __name__ == "__main__":

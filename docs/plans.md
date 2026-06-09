@@ -63,10 +63,10 @@
 - Docker 컨테이너 (web 서비스)로 Compose에 추가
 - 빌드: `npm run build` → `next start` (pm2 또는 systemd)
 
-### Phase 3: Pterodactyl 게임서버 관리
+### Phase 3: ~~Pterodactyl 게임서버 관리~~ (제거됨)
 
 > 목표: 임대인 셀프서비스, 관리자 수동 작업 제거
-> 상태: 진행 중 (2026-04-19 구현 시작)
+> 상태: 제거됨 — 확장 가능성으로 남김 (2026-06-09 제거)
 
 #### 확정된 설계 결정 (2026-04-19)
 
@@ -74,7 +74,7 @@
 |------|------|
 | Panel 서브도메인 | `panel.edelweiss0297.cloud` |
 | Wings 호스트 | homepc WSL2 Ubuntu (이미 설치됨) |
-| Panel ↔ Wings 통신 | Tailscale VPN (`100.86.252.21:8080`) — 외부 노출 불필요 |
+| Panel ↔ Wings 통신 | `wings.edelweiss0297.cloud:443` → Gateway nginx → Tailscale VPN (`100.86.252.21:8081`) |
 | 기존 서버 처리 | 안정화 전까지 기존 방식 유지, **새 서버만 Wings로 운영** |
 | Panel 포트 | `127.0.0.1:8080:80` → nginx가 panel 서브도메인으로 프록시 |
 | DB | MariaDB 10.11 (Docker named volume) |
@@ -321,7 +321,7 @@ wings --debug
 **후속 작업:**
 1. homepc WSL2에서 Wings 설치 및 노드 등록 — `docs/operations/wings-setup.md` 참조
    - homepc Tailscale IP: `100.86.252.21`
-   - Panel 노드 FQDN: `100.86.252.21`, Daemon Port: `8080`, SFTP: `2022`, SSL: No
+   - Panel 노드 FQDN: `wings.edelweiss0297.cloud`, Daemon Port: `443`, SFTP: `2023`, SSL: Yes, Behind Proxy: Yes
    - 연결 방식: Windows Tailscale + WSL2 localhost 자동 포워딩 (portproxy 불필요)
 2. 신규 서버 1개를 Pterodactyl로 실제 프로비저닝 (Wings 노드 등록 후)
 3. 안정화 후 `/servers` 공개 페이지 병행 노출 검토

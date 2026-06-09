@@ -19,7 +19,7 @@ import hmac
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -49,6 +49,25 @@ CHEEZE_INTERNAL_SECRET = os.environ.get("CHEEZE_INTERNAL_SECRET", "").strip()
 # ── 서비스별 시작 가능 시간 제한 (KST = UTC+9) ──────────────────
 # blocked_start ~ blocked_end (시) 사이에 start 요청 차단
 KST_OFFSET_HOURS = 9
+SERVICE_SCHEDULE_EXCEPTIONS: dict[str, dict[str, set[date]]] = {
+  "minecraft-cobbleverse": {
+    "start": {
+      date(2026, 5, 2),
+    },
+  },
+}
+
+
+def is_service_schedule_exception_active(
+    service_id: str,
+    action: str,
+    now: datetime | None = None,
+) -> bool:
+  now = now or (datetime.now(timezone.utc) + timedelta(hours=KST_OFFSET_HOURS))
+  action_exceptions = SERVICE_SCHEDULE_EXCEPTIONS.get(service_id, {})
+  return now.date() in action_exceptions.get(action, set())
+
+
 SERVICE_TIME_RESTRICTIONS: dict = {
   "minecraft-cobbleverse": {
     "start": {
@@ -56,14 +75,6 @@ SERVICE_TIME_RESTRICTIONS: dict = {
       "blocked_end": 10,    # 10:00 KST
       "allowed_window": "10:00 ~ 01:00 KST",
       "weekdays_only": True,  # 주말 제외
-    },
-  },
-  "minecraft-hardcore": {
-    "start": {
-      "blocked_start": 0,   # 00:00 KST
-      "blocked_end": 20,    # 20:00 KST (허용: 20:00 ~ 24:00)
-      "allowed_window": "20:00 ~ 24:00 KST",
-      "weekdays_only": False,  # 주말 포함 매일 적용
     },
   },
 }
@@ -74,6 +85,8 @@ def is_action_time_blocked(service_id: str, action: str) -> bool:
   if not restriction:
     return False
   kst_now = datetime.now(timezone.utc) + timedelta(hours=KST_OFFSET_HOURS)
+  if is_service_schedule_exception_active(service_id, action, now=kst_now):
+    return False
   # weekdays_only=True(기본값)이면 주말(토/일)에는 시간 제한 미적용
   if restriction.get("weekdays_only", True) and kst_now.weekday() in (5, 6):
     return False

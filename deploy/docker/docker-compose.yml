@@ -11,14 +11,9 @@ services:
       - ADMIN_CONTROL_TOKEN=${ADMIN_CONTROL_TOKEN}
       - SERVER_RENTAL_WEBHOOK_URL=${SERVER_RENTAL_WEBHOOK_URL:-}
       - SERVER_RENTAL_WEBHOOK_USERNAME=${SERVER_RENTAL_WEBHOOK_USERNAME:-CHEEZE Rental Intake}
-      - PTERODACTYL_PANEL_URL=${PTERODACTYL_PANEL_URL:-https://panel.edelweiss0297.cloud}
-      - PTERODACTYL_PANEL_INTERNAL_URL=${PTERODACTYL_PANEL_INTERNAL_URL:-http://pterodactyl-panel}
-      - PTERODACTYL_APPLICATION_API_KEY=${PTERODACTYL_APPLICATION_API_KEY:-}
     depends_on:
       portal-api:
         condition: service_healthy
-      pterodactyl-panel:
-        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -46,8 +41,6 @@ services:
         condition: service_healthy
       ai-queue:
         condition: service_healthy
-      pterodactyl-panel:
-        condition: service_started
     restart: unless-stopped
 
   portal-api:
@@ -138,77 +131,6 @@ services:
     networks:
       - cheeze-net
 
-  # ── Pterodactyl Panel ───────────────────────────────────────────────
-  pterodactyl-db:
-    image: mariadb:10.11
-    container_name: pterodactyl-db
-    command: --skip-ssl
-    env_file: .env
-    environment:
-      - MYSQL_ROOT_PASSWORD=${PTERO_DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${PTERO_DB_DATABASE:-panel}
-      - MYSQL_USER=${PTERO_DB_USER:-pterodactyl}
-      - MYSQL_PASSWORD=${PTERO_DB_PASSWORD}
-    volumes:
-      - pterodactyl-db:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - cheeze-net
-
-  pterodactyl-cache:
-    image: redis:alpine
-    container_name: pterodactyl-cache
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    restart: unless-stopped
-    networks:
-      - cheeze-net
-
-  pterodactyl-panel:
-    build:
-      context: ./pterodactyl-panel
-      dockerfile: Dockerfile
-    image: cheeze-pterodactyl-panel:local
-    container_name: pterodactyl-panel
-    ports:
-      - "127.0.0.1:8080:80"
-    env_file: .env
-    environment:
-      - APP_URL=https://panel.edelweiss0297.cloud
-      - APP_TIMEZONE=Asia/Seoul
-      - DB_HOST=pterodactyl-db
-      - DB_PORT=3306
-      - DB_DATABASE=${PTERO_DB_DATABASE:-panel}
-      - DB_USERNAME=${PTERO_DB_USER:-pterodactyl}
-      - DB_PASSWORD=${PTERO_DB_PASSWORD}
-      - DB_USE_SSL=false
-      - REDIS_HOST=pterodactyl-cache
-      - REDIS_PORT=6379
-      - TRUSTED_PROXIES=172.16.0.0/12
-      - APP_KEY=${PTERO_APP_KEY}
-    volumes:
-      - pterodactyl-data:/app/var
-      - pterodactyl-logs:/app/storage/logs
-      - ./pterodactyl-panel/.my.cnf:/root/.my.cnf:ro
-    depends_on:
-      pterodactyl-db:
-        condition: service_healthy
-      pterodactyl-cache:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - cheeze-net
-
   # cloudflared runs as native systemd service (no cert.pem needed with credentials file)
   # Config: /etc/cloudflared/config.yml  ingress → http://localhost:80 (Docker nginx)
 
@@ -216,7 +138,3 @@ networks:
   cheeze-net:
     driver: bridge
 
-volumes:
-  pterodactyl-db:
-  pterodactyl-data:
-  pterodactyl-logs:

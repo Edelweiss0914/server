@@ -20,7 +20,7 @@ Pterodactyl Panel의 Nodes 화면에서 `homepc-wsl2` 노드 Heartbeat가 초록
 
 - Panel 외부 도메인: `wings.edelweiss0297.cloud`
 - Gateway nginx가 `wings.edelweiss0297.cloud:443` 요청을 수신
-- nginx upstream이 `http://100.86.252.21:8080` 으로 프록시
+- nginx upstream이 `http://100.86.252.21:8081` 으로 프록시
 - Wings는 WSL2 내부에서 HTTP(`ssl.enabled: false`)로 동작
 
 ## 목표
@@ -42,7 +42,7 @@ Pterodactyl Panel의 Nodes 화면에서 `homepc-wsl2` 노드 Heartbeat가 초록
 조사 중 다음 두 상태가 번갈아 관측되었다.
 
 - 초기: `config.yml`은 `api.port: 8080` 이었지만 실제 리슨은 `443`
-- 수정 후: `ss -tlnp` 기준 `*:8080`, `*:2022` 리슨 확인
+- 수정 후: `ss -tlnp` 기준 `*:8081`, `*:2023` 리슨 확인
 
 이는 Panel에서 내려준 설정과 현재 적용된 Wings 프로세스 상태가 한동안 불일치했음을 의미한다.
 
@@ -64,8 +64,8 @@ Pterodactyl Panel의 Nodes 화면에서 `homepc-wsl2` 노드 Heartbeat가 초록
 
 다음 응답이 확인되었다.
 
-- `http://127.0.0.1:8080` → Wings 인증 헤더 누락 오류 반환
-- `http://100.86.252.21:8080` → Wings 인증 헤더 누락 오류 반환
+- `http://127.0.0.1:8081` → Wings 인증 헤더 누락 오류 반환
+- `http://100.86.252.21:8081` → Wings 인증 헤더 누락 오류 반환
 - `https://wings.edelweiss0297.cloud` → Wings 인증 헤더 누락 오류 반환
 
 이 결과는 네트워크 경로 자체는 살아 있으며,
@@ -90,34 +90,36 @@ Pterodactyl Panel의 Nodes 화면에서 `homepc-wsl2` 노드 Heartbeat가 초록
 - Daemon Port: `443`
 - SSL: `Use SSL Connection`
 - Behind Proxy: 체크
+- Daemon SFTP Port: `2023`
 
 ### Gateway nginx
 
 - `wings.edelweiss0297.cloud:443`
-- upstream: `http://100.86.252.21:8080`
+- upstream: `http://100.86.252.21:8081`
 
 ### homepc WSL2 Wings
 
 - `api.host: 0.0.0.0`
-- `api.port: 8080`
+- `api.port: 8081`
 - `api.ssl.enabled: false`
-- SFTP: `2022`
+- SFTP: `2023`
 
 ## 검증
 
 다음 상태를 확인했다.
 
-- `ss -tlnp | grep -E ':8080|:2022'` 에서 `*:8080`, `*:2022` 리슨
-- `journalctl -u wings` 에서 `configuring internal webserver ... host_port=8080`
-- `127.0.0.1:8080`, `100.86.252.21:8080`, `https://wings.edelweiss0297.cloud` 모두 Wings 인증 오류 응답 반환
+- `ss -tlnp | grep -E ':8081|:2023'` 에서 `*:8081`, `*:2023` 리슨
+- `journalctl -u wings` 에서 `configuring internal webserver ... host_port=8081`
+- `127.0.0.1:8081`, `100.86.252.21:8081`, `https://wings.edelweiss0297.cloud` 모두 Wings 인증 오류 응답 반환
 - Panel 노드 화면에서 Heartbeat 초록색 전환
 
 ## 운영 규칙
 
 1. `wings.edelweiss0297.cloud` 도메인을 유지하는 한, Panel 노드는 `443 + SSL + Behind Proxy` 를 사용한다.
-2. Wings 자체는 WSL2 내부에서 `8080 + ssl.enabled: false` 로 유지한다.
+2. Wings 자체는 WSL2 내부에서 `8081 + ssl.enabled: false`, `SFTP 2023` 으로 유지한다.
 3. Panel의 `config.yml`을 재다운로드해 적용하더라도, 최종 확인은 항상 `ss -tlnp` 와 `journalctl -u wings` 로 한다.
 4. 문서나 운영 메모에서 "direct Tailscale IP 접속"과 "reverse proxy 도메인 접속" 모델을 혼용하지 않는다.
+5. Windows host 포트 충돌이 있으면 Wings 포트를 옮기고, Gateway nginx upstream과 Panel node SFTP 포트를 함께 갱신한다.
 
 ## 관련 문서
 

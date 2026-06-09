@@ -18,14 +18,14 @@
 | Panel Node Daemon Port | `443` |
 | Panel Node SSL | `Use SSL Connection` |
 | Panel Node Behind Proxy | 체크 |
-| Wings 내부 API 포트 | `8080` |
+| Wings 내부 API 포트 | `8081` |
 | Wings 내부 SSL | `false` |
-| Wings 내부 SFTP 포트 | `2022` |
-| Gateway nginx upstream | `http://100.86.252.21:8080` |
+| Wings 내부 SFTP 포트 | `2023` |
+| Gateway nginx upstream | `http://100.86.252.21:8081` |
 
 핵심은 다음 한 줄이다.
 
-`Panel이 보는 외부 포트는 443이고, Wings 자체가 실제로 떠 있는 내부 포트는 8080이다.`
+`Panel이 보는 외부 포트는 443이고, Wings 자체가 실제로 떠 있는 내부 포트는 8081이다.`
 
 두 값을 동일하게 맞추려 하면 현재 프록시 구조와 충돌할 수 있다.
 
@@ -34,8 +34,8 @@
 ### Windows
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8080
-Invoke-WebRequest -UseBasicParsing http://100.86.252.21:8080
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8081
+Invoke-WebRequest -UseBasicParsing http://100.86.252.21:8081
 Invoke-WebRequest -UseBasicParsing https://wings.edelweiss0297.cloud
 ```
 
@@ -43,7 +43,7 @@ Invoke-WebRequest -UseBasicParsing https://wings.edelweiss0297.cloud
 
 ```bash
 grep -A5 '^api:' /etc/pterodactyl/config.yml
-ss -tlnp | grep -E ':8080|:443|:2022'
+ss -tlnp | grep -E ':8081|:443|:2023'
 sudo systemctl status wings --no-pager
 sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver'
 ```
@@ -52,8 +52,8 @@ sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver
 
 - 위 HTTP 요청 중 최소 하나가 연결 오류가 아닌 HTTP 응답을 반환해야 한다.
 - `401` 또는 `"The required authorization heads were not present in the request."` 는 연결 성공으로 본다.
-- `journalctl -u wings` 에서 `host_port=8080 use_ssl=false` 가 보여야 한다.
-- `ss -tlnp` 에서 `*:8080`, `*:2022` 리슨이 보여야 한다.
+- `journalctl -u wings` 에서 `host_port=8081 use_ssl=false` 가 보여야 한다.
+- `ss -tlnp` 에서 `*:8081`, `*:2023` 리슨이 보여야 한다.
 - 최종적으로 Panel Nodes 화면에서 heartbeat가 초록색으로 바뀌어야 한다.
 
 ## 원인별 분류
@@ -78,14 +78,14 @@ sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver
 
 **징후**
 
-- `config.yml` 은 `8080`인데 실제 리슨은 `443`
-- `journalctl -u wings` 에 `host_port=443`
+- `config.yml` 은 `8081`인데 실제 리슨이 다르다
+- `journalctl -u wings` 에 `host_port=8081` 가 보이지 않는다
 
 **조치**
 
 ```bash
 sudo systemctl restart wings
-ss -tlnp | grep -E ':8080|:443|:2022'
+ss -tlnp | grep -E ':8081|:443|:2023'
 sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver'
 ```
 
@@ -95,19 +95,19 @@ sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver
 
 **징후**
 
-- `http://127.0.0.1:8080` 는 응답
+- `http://127.0.0.1:8081` 는 응답
 - `https://wings.edelweiss0297.cloud` 는 실패
 
 **조치**
 
-- Gateway nginx의 `wings.edelweiss0297.cloud` upstream이 `http://100.86.252.21:8080` 인지 확인
+- Gateway nginx의 `wings.edelweiss0297.cloud` upstream이 `http://100.86.252.21:8081` 인지 확인
 - Cloudflare Tunnel ingress가 `wings.edelweiss0297.cloud` 를 Gateway nginx로 전달하는지 확인
 
 ### 4. WSL2 내부 서비스 미기동
 
 **징후**
 
-- `ss -tlnp` 에 `8080` 이 없음
+- `ss -tlnp` 에 `8081` 이 없음
 - `wings.service` 가 inactive / failed
 
 **조치**
@@ -120,18 +120,41 @@ sudo journalctl -u wings -n 100 --no-pager
 
 Docker Engine 상태도 같이 확인한다.
 
+### 5. Windows 작업 스케줄러가 WSL을 못 깨움
+
+**징후**
+
+- `wings.service` 는 수동 실행 시 정상인데 재부팅 후 heartbeat가 다시 빨간색
+- Task Scheduler는 실행된 것처럼 보이지만 WSL 배포판이 기동되지 않음
+- `SYSTEM` 계정으로 만든 작업에서 `distro not found` 또는 무반응
+
+**조치**
+
+- 자동 기동 작업은 **로그인 사용자 계정**으로 다시 만든다.
+- `SYSTEM` 계정 작업은 사용자 WSL 배포판을 안정적으로 깨우지 못할 수 있다.
+- 스크립트에서 실제 배포판 이름(`Ubuntu-D`)을 사용한다.
+
+예시:
+
+```powershell
+Start-Sleep -Seconds 8
+wsl.exe -d Ubuntu-D -u root -- bash -lc "systemctl start wings && systemctl is-active wings"
+```
+
 ## 이번 장애의 실제 원인
 
 이번 사례에서는 다음이 섞여 있었다.
 
 1. 문서에는 direct Tailscale IP 기준(`100.86.252.21:8080`, SSL No, Behind Proxy No)이 남아 있었다.
 2. 실제 운영은 reverse proxy 도메인 기준(`wings.edelweiss0297.cloud:443`, SSL Yes, Behind Proxy Yes)이었다.
-3. Wings 자체는 WSL2 내부에서 `8080` 으로 떠 있어야 했는데, 적용 중 잠시 `443` 리슨 상태가 관측되며 혼선을 만들었다.
+3. 2026-05-04 기준 Windows host가 `8080`, `2022`를 이미 점유해 WSL2 Wings가 bind에 실패했다.
+4. 복구 후 실운영 포트는 Wings API `8081`, Wings SFTP `2023`, Gateway upstream `100.86.252.21:8081`로 고정되었다.
+5. WSL 자동 기동은 `SYSTEM` 작업이 아니라 로그인 사용자 작업으로 등록해야 안정적으로 동작했다.
 
 최종적으로는 아래 조합에서 heartbeat가 정상화되었다.
 
 - Panel: `wings.edelweiss0297.cloud`, `443`, `SSL`, `Behind Proxy`
-- Wings: `8080`, `ssl.enabled: false`
+- Wings: `8081`, `ssl.enabled: false`, `SFTP 2023`
 
 ## 관련 문서
 

@@ -27,9 +27,6 @@ docker compose -f "$COMPOSE_FILE" up -d \
   control-api \
   portal-api \
   ai-queue \
-  pterodactyl-db \
-  pterodactyl-cache \
-  pterodactyl-panel \
   web \
   nginx
 

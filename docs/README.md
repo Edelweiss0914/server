@@ -1,6 +1,6 @@
-# CHEEZE 홈랩 인프라 문서
+# CHEEZE 통합 인프라 문서
 
-> 개인 홈랩 인프라(Edelweiss) 기술 문서 — 최종 갱신: 2026-04-17
+> 소상공인·중소기업 대상 통합 IT 인프라 솔루션 기술 문서 — 최종 갱신: 2026-06-09
 
 ## 아키텍처
 
@@ -27,7 +27,6 @@
 | [Portal API](services/cheeze-portal-api.md) | 공개 파사드 — 토큰 인증, 감사 로그, 시간 제한 |
 | [Control API](services/cheeze-control-api.md) | 내부 제어 — WOL, 백엔드 프록시, 오프라인 폴백 |
 | [Backend Agent](services/cheeze-backend-agent.md) | Windows 에이전트 — 서비스 수명주기, 유휴 감지, RCON |
-| [E-class 자동화](services/eclass-automation.md) | 명지전문대 LMS 자동 출석/강의 관리 — FastAPI + Playwright |
 | [AI Queue](services/cheeze-ai-queue.md) | AI 요청 큐 — Ollama 프록시, 자동 시작 |
 | [Discord Bot](services/cheeze-discord-bot.md) | Discord 슬래시 커맨드 — 게임 서버 제어 |
 | [온디맨드 서비스](services/on-demand-services.md) | Minecraft, Ollama — WOL, 유휴 경고, 하이버네이션 |
@@ -45,6 +44,7 @@
 | [배포](operations/deployment.md) | CI/CD 파이프라인, 파일 매핑, 수동 배포, 롤백 |
 | [문제 해결](operations/troubleshooting.md) | 상태 확인, 일반 문제 시나리오별 진단/해결 |
 | [유지보수](operations/maintenance.md) | 점검 체크리스트, 백업, 토큰 관리, 모드팩 추가 |
+| [하드코어 서버 폐기](operations/hardcore-retirement.md) | 하드코어 서버 제거 절차, 실제 런타임 설정 경로, 검증 기준 |
 
 ## 프론트엔드
 

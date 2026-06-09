@@ -53,6 +53,16 @@ CONFIG_PATH = Path(os.environ["CHEEZE_BACKEND_CONFIG"]) if "CHEEZE_BACKEND_CONFI
 REQUEST_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_REQUEST_TIMEOUT", "5"))
 STOP_COMMAND_TIMEOUT = int(os.environ.get("CHEEZE_BACKEND_STOP_TIMEOUT", "150"))
 TIME_RESTRICTION_STOP_GRACE_SECONDS = int(os.environ.get("CHEEZE_BACKEND_TIME_RESTRICTION_GRACE_SECONDS", "600"))
+SERVICE_SCHEDULE_EXCEPTIONS: dict[str, dict[str, set[datetime.date]]] = {
+  "minecraft-cobbleverse": {
+    "idle_stop": {
+      datetime.date(2026, 5, 2),
+    },
+    "time_restriction_stop": {
+      datetime.date(2026, 5, 2),
+    },
+  },
+}
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 DETACHED_PROCESS = getattr(subprocess, "DETACHED_PROCESS", 0)
@@ -402,6 +412,28 @@ def stop_service(service):
           "message": "Stop command required tracked PID fallback; service is now offline.",
         }
 
+      details = {}
+      if isinstance(result, subprocess.TimeoutExpired):
+        details["message"] = (
+          f"Stop command timed out after {STOP_COMMAND_TIMEOUT}s and service is still running. "
+          "Process-name fallback skipped for tracked service to avoid cross-service termination."
+        )
+      else:
+        if result.stdout.strip():
+          details["stdout"] = result.stdout[-500:]
+        if result.stderr.strip():
+          details["stderr"] = result.stderr[-500:]
+        details["returncode"] = result.returncode
+        details["message"] = (
+          "Stop command returned but service is still running. "
+          "Process-name fallback skipped for tracked service to avoid cross-service termination."
+        )
+      return 500, {
+        "error": "stop_command_failed",
+        "service": service["id"],
+        **details,
+      }
+
     process_name = service.get("process_name")
     if process_name:
       subprocess.run(
@@ -671,8 +703,7 @@ def send_time_restriction_warning(service: dict) -> None:
   end_time = time_restriction.get("end")
   if not rcon or not time_restriction.get("enabled", True) or not end_time:
     return
-  # weekdays_only=True(기본값)이면 주말(토/일)에는 시간 제한 경고 미발송
-  if time_restriction.get("weekdays_only", True) and datetime.datetime.now().weekday() in (5, 6):
+  if not _time_restriction_applies_today(time_restriction):
     return
 
   remaining = _seconds_until_time(end_time)
@@ -790,14 +821,35 @@ def _seconds_since_most_recent_time(time_str: str) -> float | None:
     return None
 
 
+def _time_restriction_applies_today(
+    time_restriction: dict,
+    now: datetime.datetime | None = None,
+) -> bool:
+  now = now or datetime.datetime.now()
+  if time_restriction.get("weekdays_only", True) and now.weekday() in (5, 6):
+    return False
+  return True
+
+
+def _is_service_schedule_exception_active(
+    service_id: str,
+    action: str,
+    now: datetime.datetime | None = None,
+) -> bool:
+  now = now or datetime.datetime.now()
+  action_exceptions = SERVICE_SCHEDULE_EXCEPTIONS.get(service_id, {})
+  return now.date() in action_exceptions.get(action, set())
+
+
 def maybe_enforce_time_restriction_stop(service: dict, grace_seconds: int) -> bool:
   """Stop a running service if it has just crossed its time restriction end."""
   time_restriction = service.get("time_restriction", {})
   end_time = time_restriction.get("end")
   if not time_restriction.get("enabled", True) or not end_time:
     return False
-  # 주말(토/일)에는 시간 제한 미적용
-  if datetime.datetime.now().weekday() in (5, 6):  # 5=토, 6=일
+  if _is_service_schedule_exception_active(service["id"], "time_restriction_stop"):
+    return False
+  if not _time_restriction_applies_today(time_restriction):
     return False
 
   service_id = service["id"]
@@ -1122,7 +1174,8 @@ def _watchdog_tick():
       if maybe_enforce_time_restriction_stop(service, time_restriction_grace_seconds):
         any_auto_stopped = True
         continue
-      send_time_restriction_warning(service)
+      if not _is_service_schedule_exception_active(service_id, "time_restriction_stop"):
+        send_time_restriction_warning(service)
 
       if not idle_policy.get("enabled", False):
         maybe_auto_save(service)
@@ -1186,6 +1239,10 @@ def _watchdog_tick():
 
       idle_timeout_seconds = idle_timeout_minutes * 60
       if idle_timeout_seconds <= 0:
+        maybe_auto_save(service)
+        continue
+
+      if _is_service_schedule_exception_active(service_id, "idle_stop"):
         maybe_auto_save(service)
         continue
 

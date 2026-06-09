@@ -27,15 +27,16 @@ Wings는 homepc WSL2 Ubuntu에서 systemd 서비스로 동작한다.
 - `pterodactyl-db`: MariaDB
 - `pterodactyl-cache`: Redis
 - nginx가 `wings.edelweiss0297.cloud:443` 요청을 수신
-- nginx upstream: `http://100.86.252.21:8080`
+- nginx upstream: `http://100.86.252.21:8081`
 
 ### homepc WSL2
 
 - Ubuntu + Docker Engine
 - `wings.service` systemd 등록
-- Wings API: `0.0.0.0:8080`
-- Wings SFTP: `0.0.0.0:2022`
+- Wings API: `0.0.0.0:8081`
+- Wings SFTP: `0.0.0.0:2023`
 - `ssl.enabled: false`
+- Windows 쪽 Task Scheduler로 `Ubuntu-D` 배포판과 `wings.service` 자동 기동
 
 ### Panel 노드 설정
 
@@ -46,15 +47,15 @@ Wings는 homepc WSL2 Ubuntu에서 systemd 서비스로 동작한다.
 
 핵심은 다음 한 줄이다.
 
-`Panel이 보는 외부 포트는 443이고, Wings가 실제로 리슨하는 내부 포트는 8080이다.`
+`Panel이 보는 외부 포트는 443이고, Wings가 실제로 리슨하는 내부 포트는 8081이다.`
 
 ## 정상 상태 확인 명령
 
 ### Windows
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8080
-Invoke-WebRequest -UseBasicParsing http://100.86.252.21:8080
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8081
+Invoke-WebRequest -UseBasicParsing http://100.86.252.21:8081
 Invoke-WebRequest -UseBasicParsing https://wings.edelweiss0297.cloud
 ```
 
@@ -65,15 +66,36 @@ Invoke-WebRequest -UseBasicParsing https://wings.edelweiss0297.cloud
 
 ```bash
 sudo systemctl status wings --no-pager
-ss -tlnp | grep -E ':8080|:2022'
+ss -tlnp | grep -E ':8081|:2023'
 sudo journalctl -u wings -n 50 --no-pager | grep 'configuring internal webserver'
 ```
 
 정상 기준:
 
-- `*:8080`, `*:2022` 리슨
-- `host_port=8080 use_ssl=false`
+- `*:8081`, `*:2023` 리슨
+- `host_port=8081 use_ssl=false`
 - Panel Nodes 화면 heartbeat 초록색
+- `wsl -l -v` 에서 `Ubuntu-D` 가 `Running`
+
+### WSL 자동 기동 원칙
+
+WSL을 수동 종료하거나 Windows가 재부팅되면 node heartbeat는 다시 빨간색이 될 수 있다.
+
+현재 운영 기준:
+
+- WSL 배포판 이름: `Ubuntu-D`
+- Wings 기동 스크립트: `C:\Scripts\start-wings.ps1`
+- Task Scheduler는 **SYSTEM이 아니라 로그인 사용자 계정**으로 실행
+
+이유:
+
+- 사용자 WSL 배포판은 `SYSTEM` 계정에서 보이지 않거나 깨우지 못하는 경우가 있다.
+- `systemctl enable wings` 만으로는 WSL이 내려간 뒤 자동 복구가 되지 않는다.
+
+권장 트리거:
+
+- Windows 로그인 시
+- 절전 복귀 시
 
 ## 새 서버 생성 표준 절차
 
@@ -110,12 +132,13 @@ SELECT id, name, io, status, installed_at FROM servers ORDER BY id DESC;
 원인:
 
 - 문서와 실제 운영이 direct 모드/프록시 모드를 혼용
-- `100.86.252.21:8080` 기준과 `wings.edelweiss0297.cloud:443` 기준이 섞여 혼선 발생
+- `100.86.252.21:8081` 기준과 `wings.edelweiss0297.cloud:443` 기준이 섞여 혼선 발생
+- Windows host가 `8080`, `2022`를 이미 점유해 Wings가 기동 실패
 
 해결:
 
 - Panel은 `443 + SSL + Behind Proxy`
-- Wings는 내부 `8080 + ssl.enabled=false`
+- Wings는 내부 `8081 + ssl.enabled=false`, SFTP `2023`
 
 ### 2. installer/server 컨테이너 `io.weight` 실패
 
@@ -192,8 +215,10 @@ You need to agree to the EULA in order to run the server.
    - `443`
    - `SSL 사용`
    - `Behind Proxy` 체크
-2. WSL `ss -tlnp` 에서 `8080`, `2022` 리슨 확인
+2. WSL `ss -tlnp` 에서 `8081`, `2023` 리슨 확인
 3. `https://wings.edelweiss0297.cloud` 요청이 Wings 응답을 반환하는지 확인
+4. `wsl -l -v` 에서 `Ubuntu-D` 가 `Running` 인지 확인
+5. Windows Task Scheduler의 `Pterodactyl Wings` 작업이 로그인 사용자 기준으로 등록되어 있는지 확인
 
 ### B. 서버가 `installing` 에서 멈춤
 

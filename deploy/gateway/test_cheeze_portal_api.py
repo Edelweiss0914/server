@@ -175,5 +175,16 @@ class PortalApiDecodeTests(unittest.TestCase):
     self.assertIn("502 Bad Gateway", payload["raw_body"])
 
 
+class PortalApiTimeRestrictionTests(unittest.TestCase):
+  def test_cobbleverse_holiday_exception_skips_start_time_block(self):
+    holiday_now = portal_api.datetime(2026, 5, 2, 3, 0, tzinfo=portal_api.timezone.utc)
+
+    with mock.patch.object(portal_api, "datetime", wraps=portal_api.datetime) as mock_datetime:
+      mock_datetime.now.return_value = holiday_now
+      blocked = portal_api.is_action_time_blocked("minecraft-cobbleverse", "start")
+
+    self.assertFalse(blocked)
+
+
 if __name__ == "__main__":
   unittest.main()

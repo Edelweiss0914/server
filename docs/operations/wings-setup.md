@@ -61,10 +61,10 @@ Panel 웹 UI(`https://panel.edelweiss0297.cloud`)에 접속 후:
 |------|-----|
 | Name | `homepc-wsl2` |
 | FQDN | `wings.edelweiss0297.cloud` |
-| Communicate Over SSL | **No** (Tailscale 내부망, TLS 불필요) |
+| Communicate Over SSL | **Yes** (외부는 `wings.edelweiss0297.cloud:443`, Gateway nginx 뒤 프록시) |
 | Behind Proxy | Yes |
 | Daemon Port | `443` |
-| Daemon SFTP Port | `2022` |
+| Daemon SFTP Port | `2023` |
 | Memory (할당 가능) | 적절히 설정 (예: 16384 MB) |
 | Memory Overallocate | 0 |
 | Disk (할당 가능) | 적절히 설정 (예: 200000 MB) |
@@ -100,11 +100,11 @@ PowerShell (관리자)에서 실행:
 ```powershell
 # Wings API 포트
 New-NetFirewallRule -DisplayName "Pterodactyl Wings" `
-  -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+  -Direction Inbound -Protocol TCP -LocalPort 8081 -Action Allow
 
 # Wings SFTP 포트
 New-NetFirewallRule -DisplayName "Pterodactyl Wings SFTP" `
-  -Direction Inbound -Protocol TCP -LocalPort 2022 -Action Allow
+  -Direction Inbound -Protocol TCP -LocalPort 2023 -Action Allow
 ```
 
 ---
@@ -153,6 +153,35 @@ sudo systemctl enable --now wings
 sudo systemctl status wings
 ```
 
+### Windows 자동 기동
+
+`systemctl enable wings` 만으로는 충분하지 않다. Wings는 WSL2 내부 서비스이므로,
+WSL 배포판이 내려가면 heartbeat도 다시 빨간색으로 변한다.
+
+빠른 운영 복구용 권장 방식:
+
+1. Windows 로그인 시 WSL 배포판을 깨운다.
+2. 같은 작업에서 `wings.service` 를 시작한다.
+3. 필요하면 절전 복귀 시에도 같은 스크립트를 다시 실행한다.
+
+예시 PowerShell 스크립트:
+
+```powershell
+Start-Sleep -Seconds 8
+wsl.exe -d Ubuntu-D -u root -- bash -lc "systemctl start wings && systemctl is-active wings"
+```
+
+중요:
+
+- 작업 스케줄러 실행 계정은 **현재 로그인 사용자**를 사용한다.
+- `SYSTEM` 계정으로 만들면 사용자 WSL 배포판(`Ubuntu-D` 등)을 찾지 못하거나 깨우지 못해 자동 복구가 실패할 수 있다.
+- 배포판 이름은 `wsl -l -q` 결과와 정확히 일치해야 한다.
+
+권장 트리거:
+
+- `ONLOGON`
+- 절전 복귀 이벤트 (`Microsoft-Windows-Power-Troubleshooter`, Event ID 1)
+
 ---
 
 ## 단계 8 — 신규 서버 프로비저닝 테스트
@@ -170,9 +199,9 @@ Panel에서:
 ## 주의사항
 
 - Wings는 **root**로 실행해야 함 (Docker 컨테이너 관리 권한 필요)
-- WSL2가 꺼지면 Wings도 중단됨. Windows 시작 시 WSL2 자동 기동이 필요하면 Task Scheduler로 등록
-- Panel ↔ Wings 통신은 HTTP (Tailscale 내부망이므로 TLS 없이도 안전)
-- SFTP 포트(2022)는 서버 파일 관리용 — 외부 노출 불필요 (Tailscale 경유)
+- WSL2가 꺼지면 Wings도 중단됨. `systemctl enable` 은 WSL 내부에서만 유효하므로, Windows에서는 별도 Task Scheduler 작업으로 WSL과 Wings를 깨워야 한다.
+- Panel ↔ Wings 통신은 `wings.edelweiss0297.cloud:443` → Gateway nginx → `100.86.252.21:8081` 프록시 경로를 사용한다.
+- SFTP 포트(`2023`)는 서버 파일 관리용이다. Node 설정의 SFTP 포트와 WSL2 `config.yml`의 `bind_port`를 항상 같이 변경한다.
 
 ---
 

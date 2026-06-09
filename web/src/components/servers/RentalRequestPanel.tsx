@@ -117,8 +117,7 @@ export function RentalRequestPanel({ isOpen, onClose }: RentalRequestPanelProps)
               서버 대여 신청
             </h2>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              신규 서버는 현재 Pterodactyl 기반으로 순차 운영합니다. 원하는 서버 유형과 사용 계획을 남기면
-              운영자가 확인 후 별도로 안내합니다.
+              원하는 서버 유형과 사용 계획을 남기면 운영자가 확인 후 별도로 안내합니다.
             </p>
           </div>
           <button
