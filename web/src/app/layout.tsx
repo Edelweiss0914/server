@@ -14,8 +14,8 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "CHEEZE — 통합 업무 플랫폼",
-  description: "소상공인을 위한 통합 IT 인프라 솔루션",
+  title: "CHEEZE — Home",
+  description: "Edelweiss 개인 서버 홈페이지",
 };
 
 const themeInitScript = `

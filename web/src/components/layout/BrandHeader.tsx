@@ -42,7 +42,7 @@ export function BrandHeader() {
           CHEEZE
         </h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-          통합 업무 플랫폼
+          개인 서버 홈
         </p>
       </div>
     </header>
